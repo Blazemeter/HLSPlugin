@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 public class DataRequest {
-	public Map<String, List<String>> headers;
+	private Map<String, List<String>> headers;
 	private String response;
 	private String responseCode;
 	private String responseMessage;
@@ -18,25 +18,24 @@ public class DataRequest {
 		return headers;
 	}
 
-	/**
-	 * @return Returns the Header.
-	 */
-
 	public void setHeaders(Map<String, List<String>> headers) {
 		this.headers = headers;
 	}
 
+	/**
+	 * @return Returns the Header.
+	 */
 	public String getHeadersAsString() {
-		String res = "";
+		StringBuilder res = new StringBuilder();
 		for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
-			res = res + entry.getKey() + " :";
+			res.append(entry.getKey()).append(" :");
 			for (String value : entry.getValue()) {
-				res = res + " " + value;
+				res.append(" ").append(value);
 			}
-			res = res + "\n";
+			res.append("\n");
 
 		}
-		return res;
+		return res.toString();
 
 	}
 
