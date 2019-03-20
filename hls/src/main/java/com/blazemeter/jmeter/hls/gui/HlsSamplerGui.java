@@ -3,18 +3,15 @@ package com.blazemeter.jmeter.hls.gui;
 import com.blazemeter.jmeter.hls.logic.HlsSampler;
 import org.apache.jmeter.samplers.gui.AbstractSamplerGui;
 import org.apache.jmeter.testelement.TestElement;
-import org.apache.jorphan.logging.LoggingManager;
-import org.apache.log.Logger;
 
-import java.awt.BorderLayout;
+import java.awt.*;
 
 public class HlsSamplerGui extends AbstractSamplerGui {
-	private static final Logger log = LoggingManager.getLoggerForClass();
+
 	private HlsSamplerPanel hlsSamplerPanel;
 
 	public HlsSamplerGui() {
-		super();
-		init();
+		hlsSamplerPanel = new HlsSamplerPanel();
 		setLayout(new BorderLayout(0, 5));
 		setBorder(makeBorder());
 
@@ -40,11 +37,11 @@ public class HlsSamplerGui extends AbstractSamplerGui {
 		super.configure(el);
 		HlsSampler sampler = (HlsSampler) el;
 		hlsSamplerPanel.setUrlData(sampler.getURLData());
-		hlsSamplerPanel.setResData(sampler.getRESDATA());
-		hlsSamplerPanel.setPlaySecondsData(sampler.getPlAYSecondsData());
+		hlsSamplerPanel.setResData(sampler.getResData());
+		hlsSamplerPanel.setPlaySecondsData(sampler.getPlaySecondsData());
 		hlsSamplerPanel.setVideoDuration(sampler.getVideoDuration());
 		hlsSamplerPanel.setVideoType(sampler.getVideoType());
-		hlsSamplerPanel.setProtocol(sampler.getPRotocol());
+		hlsSamplerPanel.setProtocol(sampler.getProtocol());
 		hlsSamplerPanel.setNetData(sampler.getNetwordData());
 		hlsSamplerPanel.setResolutionType(sampler.getResolutionType());
 		hlsSamplerPanel.setBandwidthType(sampler.getBandwidthType());
@@ -58,10 +55,9 @@ public class HlsSamplerGui extends AbstractSamplerGui {
 			sampler.setURLData(hlsSamplerPanel.getUrlData());
 			sampler.setResData(hlsSamplerPanel.getResData());
 			sampler.setPlaySecondsData(hlsSamplerPanel.getPlaySecondsData());
-			sampler.setHlsDuration(hlsSamplerPanel.isChecked());
-			sampler.setHlsVideoType(hlsSamplerPanel.videoType());
+			sampler.setVideoType(hlsSamplerPanel.videoType());
 			sampler.setVideoDuration(hlsSamplerPanel.getVideoDuration());
-			sampler.setPRotocol(hlsSamplerPanel.getProtocol());
+			sampler.setProtocol(hlsSamplerPanel.getProtocol());
 			sampler.setNetworkData(hlsSamplerPanel.getNetData());
 			sampler.setResolutionType(hlsSamplerPanel.getResolutionType());
 			sampler.setBandwidthType(hlsSamplerPanel.getBandwidthType());
@@ -75,11 +71,6 @@ public class HlsSamplerGui extends AbstractSamplerGui {
 		this.hlsSamplerPanel.setResData("");
 		this.hlsSamplerPanel.setUrlData("");
 		this.hlsSamplerPanel.setNetData("");
-
 	}
 
-	private void init() {
-		hlsSamplerPanel = new HlsSamplerPanel();
-
-	}
 }
