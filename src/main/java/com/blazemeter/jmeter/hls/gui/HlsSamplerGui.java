@@ -20,11 +20,12 @@ public class HlsSamplerGui extends AbstractSamplerGui {
 	}
 
 	public String getStaticLabel() {
-		return "HLS Sampler";
+		return "bzm - HLS Sampler";
 	}
 
+	@Override
 	public String getLabelResource() {
-		return "HLS Sampler";
+		throw new IllegalStateException("This shouldn't be called");
 	}
 
 	public TestElement createTestElement() {
