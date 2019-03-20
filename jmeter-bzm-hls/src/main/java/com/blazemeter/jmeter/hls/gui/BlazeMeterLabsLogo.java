@@ -22,7 +22,7 @@ public class BlazeMeterLabsLogo extends JLabel {
 
     public BlazeMeterLabsLogo(){
       super(DEFAULT_LOGO);
-      setBrowseOnClick("https://github.com/Blazemeter/RTEPlugin");
+      setBrowseOnClick("https://github.com/abstracta/jmeter-bzm-plugins/tree/master/hls");
     }
 
     @Override
