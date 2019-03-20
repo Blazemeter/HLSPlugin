@@ -1,5 +1,6 @@
 package com.blazemeter.jmeter.hls.logic;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.jmeter.protocol.http.control.CacheManager;
 import org.apache.jmeter.protocol.http.control.CookieManager;
 import org.apache.jmeter.protocol.http.control.HeaderManager;
@@ -11,8 +12,8 @@ import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.testelement.property.CollectionProperty;
 import org.apache.jmeter.testelement.property.JMeterProperty;
 import org.apache.jmeter.testelement.property.TestElementProperty;
-import org.apache.jorphan.logging.LoggingManager;
-import org.apache.log.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -22,455 +23,429 @@ import java.util.List;
 
 
 public class HlsSampler extends AbstractSampler {
-	private static final Logger log = LoggingManager.getLoggerForClass();
-	private String playlistUri;
-	private ArrayList<String> fragmentsDownloaded = new ArrayList<>();
-	public static final String HEADER_MANAGER = "HLSRequest.header_manager"; // $NON-NLS-1$
-	public static final String COOKIE_MANAGER = "HLSRequest.cookie_manager"; // $NON-NLS-1$
-	public static final String CACHE_MANAGER = "HLSRequest.cache_manager"; // $NON-NLS-1$
-	private Parser parser;
-
-	private String playlist;
-
-	public HlsSampler() {
-		super();
-		setName("HLS Sampler");
-		parser = new Parser();
-	}
-
-	public HeaderManager getHeaderManager() {
-		return (HeaderManager) getProperty(HlsSampler.HEADER_MANAGER).getObjectValue();
-	}
-
-	private DataRequest getMasterList(SampleResult masterResult, Parser parser) throws IOException {
-
-		masterResult.sampleStart();
-		DataRequest respond = parser.getBaseUrl(new URL(getURLData()), masterResult, true);
-		masterResult.sampleEnd();
-
-		masterResult.setRequestHeaders(respond.getRequestHeaders() + "\n\n" + getCookieHeader(getURLData()) + "\n\n"
-				+ getRequestHeader(this.getHeaderManager()));
-		masterResult.setSuccessful(respond.isSuccess());
-		masterResult.setResponseMessage(respond.getResponseMessage());
-		masterResult.setSampleLabel(this.getName());
-		masterResult.setResponseHeaders(respond.getHeadersAsString());
-		masterResult.setResponseData(respond.getResponse().getBytes());
-		masterResult.setResponseCode(respond.getResponseCode());
-		masterResult.setContentType(respond.getContentType());
-		masterResult.setBytes(masterResult.getBytesAsLong() + (long) masterResult.getRequestHeaders().length());
-
-		int headerBytes = masterResult.getResponseHeaders().length() // condensed
-																		// length
-																		// (without
-																		// \r)
-				+ respond.getHeaders().size() // Add \r for each header
-				+ 1 // Add \r for initial header
-				+ 2; // final \r\n before data
-
-		masterResult.setHeadersSize((int) headerBytes);
-		masterResult.setSentBytes(respond.getSentBytes());
-		masterResult.setDataEncoding(respond.getContentEncoding());
-
-		return respond;
-
-	}
-
-	private String getPlaylistPath(DataRequest respond, Parser parser) throws MalformedURLException {
-		URL masterURL = new URL(getURLData());
-		playlistUri = parser.extractMediaUrl(respond.getResponse(), this.getRESDATA(), this.getNetwordData(),
-				this.getBandwidthType(), this.getResolutionType());
-		String auxPath = masterURL.getPath().substring(0, masterURL.getPath().lastIndexOf('/') + 1);
-		
-		if(playlistUri == null)
-			playlistUri = getURLData();
-
-		if (playlistUri.startsWith("http")) {
-			playlist = playlistUri;
-		} else if (playlistUri.indexOf('/') == 0) {
-			playlist = getPRotocol() + "://" + masterURL.getHost() + (masterURL.getPort() > 0 ? ":" + masterURL.getPort() : "") + playlistUri;// "https://"
-		} else {
-			playlist = getPRotocol() + "://" + masterURL.getHost() + (masterURL.getPort() > 0 ? ":" + masterURL.getPort() : "") + auxPath + playlistUri;
-		}
-
-		auxPath = getPRotocol() + "://" + masterURL.getHost() + (masterURL.getPort() > 0 ? ":" + masterURL.getPort() : "") + auxPath;
-
-		return auxPath;
-
-	}
-
-	private DataRequest getPlayList(SampleResult playListResult, Parser parser) throws IOException {
-
-		String lastPath = "";
-		playListResult.sampleStart();
-		DataRequest subRespond = parser.getBaseUrl(new URL(playlist), playListResult, true);
-		playListResult.sampleEnd();
-
-		String[] urlArray = playlist.split("/");
-		lastPath = urlArray[urlArray.length - 1];
-
-		playListResult.setRequestHeaders(subRespond.getRequestHeaders() + "\n\n" + getCookieHeader(playlist) + "\n\n"
-				+ getRequestHeader(this.getHeaderManager()));
-		playListResult.setSuccessful(subRespond.isSuccess());
-		playListResult.setResponseMessage(subRespond.getResponseMessage());
-		playListResult.setSampleLabel(lastPath);
-		playListResult.setResponseHeaders(subRespond.getHeadersAsString());
-		playListResult.setResponseData(subRespond.getResponse().getBytes());
-		playListResult.setResponseCode(subRespond.getResponseCode());
-		playListResult.setContentType(subRespond.getContentType());
-		playListResult.setBytes(playListResult.getBytesAsLong() + (long) playListResult.getRequestHeaders().length());
-
-		int headerBytes = playListResult.getResponseHeaders().length() // condensed
-																		// length
-																		// (without
-																		// \r)
-				+ subRespond.getHeaders().size() // Add \r for each header
-				+ 1 // Add \r for initial header
-				+ 2; // final \r\n before data
-
-		playListResult.setHeadersSize((int) headerBytes);
-		playListResult.setSentBytes(subRespond.getSentBytes());
-		playListResult.setDataEncoding(subRespond.getContentEncoding());
-
-		return subRespond;
-	}
-
-	@Override
-	public SampleResult sample(Entry e) {
-		SampleResult masterResult = new SampleResult();
-		float currenTimeseconds = 0;
-		boolean isVod = getHlsVideoType().equals("vod");
-		boolean out = false;
-		boolean firstTime = true;
-		boolean containNewFragments = false;
-		List<String> list = new ArrayList<>();
-
-		try {
-
-			DataRequest respond = getMasterList(masterResult, parser);
-			String auxPath = getPlaylistPath(respond, parser);
-
-			int playSeconds = 0;
-			if (!getPlAYSecondsData().isEmpty())
-				playSeconds = Integer.parseInt(getPlAYSecondsData());
-
-
-			while ((playSeconds >= currenTimeseconds) && !out) {
-
-				SampleResult playListResult = new SampleResult();
-				DataRequest subRespond = getPlayList(playListResult, parser);
-
-				List<DataFragment> videoUri = parser.extractVideoUrl(subRespond.getResponse());
-				List<DataFragment> fragmentToDownload = new ArrayList<>();
-
-				if (firstTime) {
-					if (!(((getHlsVideoType().equals("live")) && (parser.isLive(subRespond.getResponse())))
-					      || ((isVod) && (!parser.isLive(subRespond.getResponse())))
-					      || ((getHlsVideoType().equals("event")) && (parser.isLive(subRespond.getResponse()))))) {
-					    
-					} else {
-						firstTime = false;
-						out = isVod;
-					}
-
-				}
-
-				while ((!videoUri.isEmpty()) && (playSeconds >= currenTimeseconds)) {
-					DataFragment frag = videoUri.remove(0);
-
-					boolean isPresent = false;
-					int length = fragmentsDownloaded.size();
-
-					if (length != 0) {
-						isPresent = fragmentsDownloaded.contains(frag.getTsUri().trim());
-					}
-
-					if (!isPresent) {
-						fragmentToDownload.add(frag);
-						fragmentsDownloaded.add(frag.getTsUri().trim());
-						containNewFragments = true;
-						if(getVideoDuration()) {
-							currenTimeseconds += Float.parseFloat(frag.getDuration());
-						}
-					}
-				}
 
-				List<SampleResult> videoFragment = getFragments(parser, fragmentToDownload, auxPath);
-				for (SampleResult sam : videoFragment) {
-					playListResult.addSubResult(sam);
-				}
-
-				if((!list.contains(playListResult.getSampleLabel())) || (list.contains(playListResult.getSampleLabel()) && containNewFragments))
-				{
-					masterResult.addSubResult(playListResult);
-					list.add(playListResult.getSampleLabel());
-					containNewFragments = false;
-				}
-
-			}
-
-		} catch (IOException e1) {
-			e1.printStackTrace();
-			masterResult.sampleEnd();
-			masterResult.setSuccessful(false);
-			masterResult.setResponseMessage("Exception: " + e1);
-		}
-		return masterResult;
-	}
-
-
-	public String getURLData() {
-		return this.getPropertyAsString("HLS.URL_DATA");
-	}
-
-	public String getRESDATA() {
-		return this.getPropertyAsString("HLS.RES_DATA");
-	}
-
-	public String getNetwordData() {
-		return this.getPropertyAsString("HLS.NET_DATA");
-	}
-
-	public String getPlAYSecondsData() {
-		return this.getPropertyAsString("HLS.SECONDS_DATA");
-	}
-
-	public boolean getVideoDuration() {
-		return this.getPropertyAsBoolean("HLS.DURATION");
-	}
-
-	public String getVideoType() {
-		return this.getPropertyAsString("HLS.VIDEOTYPE");
-	}
-
-	public String getResolutionType() {
-		return this.getPropertyAsString("HLS.RESOLUTION_TYPE");
-	}
-
-	public String getBandwidthType() {
-		return this.getPropertyAsString("HLS.BANDWIDTH_TYPE");
-	}
-
-	public String getHlsVideoType() {
-		return this.getPropertyAsString("HLS.VIDEOTYPE");
-	}
-
-	public String getPRotocol() {
-		return this.getPropertyAsString("HLS.PROTOCOL");
-	}
-
-	public void setURLData(String url) {
-
-		this.setProperty("HLS.URL_DATA", url);
-	}
-
-	public void setResData(String res) {
-
-		this.setProperty("HLS.RES_DATA", res);
-	}
-
-	public void setNetworkData(String net) {
-		this.setProperty("HLS.NET_DATA", net);
-	}
-
-	public void setVideoDuration(boolean res) {
-		this.setProperty("HLS.DURATION", res);
-	}
-
-	public void setPlaySecondsData(String seconds) {
-
-		this.setProperty("HLS.SECONDS_DATA", seconds);
-	}
-
-	public void setPRotocol(String protocolValue) {
-		this.setProperty("HLS.PROTOCOL", protocolValue);
-	}
-
-	public void setHlsDuration(String duration) {
-		this.setProperty("HLS.DURATION", duration);
-	}
-
-	public void setResolutionType(String type) {
-		this.setProperty("HLS.RESOLUTION_TYPE", type);
-	}
-
-	public void setBandwidthType(String type) {
-		this.setProperty("HLS.BANDWIDTH_TYPE", type);
-	}
-
-	public void setHlsVideoType(String type) {
-		this.setProperty("HLS.VIDEOTYPE", type);
-	}
-
-	public void setUrlVideoType(String type) {
-		this.setProperty("HLS.URLVIDEOTYPE", type);
-	}
-
-	public List<SampleResult> getFragments(Parser parser, List<DataFragment> uris, String url) {
-		List<SampleResult> res = new ArrayList<>();
-
-		if (!uris.isEmpty()) {
-			SampleResult result = new SampleResult();
-			String uriString = uris.get(0).getTsUri();
-			if ((url != null) && (!uriString.startsWith("http"))) {
-				uriString = url + uriString;
-			}
-			//log.info("fragment URI: " + uriString);
-			
-			result.sampleStart();
-
-			try {
-
-				DataRequest respond = parser.getBaseUrl(new URL(uriString), result, false);
-
-				result.sampleEnd();
-
-				String[] urlArray = uriString.split("/");
-				String lastPath = urlArray[urlArray.length - 1];
-
-				result.setRequestHeaders(respond.getRequestHeaders() + "\n\n" + getCookieHeader(uriString) + "\n\n"
-						+ getRequestHeader(this.getHeaderManager()));
-				result.setSuccessful(respond.isSuccess());
-				result.setResponseMessage(respond.getResponseMessage());
-				result.setSampleLabel(lastPath);
-				result.setResponseHeaders("URL: " + uriString + "\n" + respond.getHeadersAsString());
-				result.setResponseCode(respond.getResponseCode());
-				result.setContentType(respond.getContentType());
-				result.setBytes(result.getBytesAsLong() + (long) result.getRequestHeaders().length());
-				int headerBytes = result.getResponseHeaders().length() // condensed
-																		// length
-																		// (without
-																		// \r)
-						+ respond.getHeaders().size() // Add \r for each header
-						+ 1 // Add \r for initial header
-						+ 2; // final \r\n before data
-
-				result.setHeadersSize((int) headerBytes);
-				result.setSentBytes(respond.getSentBytes());
-				result.setDataEncoding(respond.getContentEncoding());
-
-				res.add(result);
-
-			} catch (IOException e1) {
-				e1.printStackTrace();
-				result.sampleEnd();
-				result.setSuccessful(false);
-				result.setResponseMessage("Exception: " + e1);
-				res.add(result);
-			}
-
-			uris.remove(0);
-			List<SampleResult> aux = getFragments(parser, uris, url);
-			for (SampleResult s : aux) {
-				if(!res.contains(s))
-					res.add(s);
-			}
-		}
-		return res;
-	}
-
-	// private method to allow AsyncSample to reset the value without performing
-	// checks
-	private void setCookieManagerProperty(CookieManager value) {
-		setProperty(new TestElementProperty(COOKIE_MANAGER, value));
-	}
-
-	public void setCookieManager(CookieManager value) {
-		CookieManager mgr = getCookieManager();
-		if (mgr != null) {
-			log.warn("Existing CookieManager " + mgr.getName() + " superseded by " + value.getName());
-		}
-		setCookieManagerProperty(value);
-	}
-
-	public CookieManager getCookieManager() {
-		return (CookieManager) getProperty(COOKIE_MANAGER).getObjectValue();
-	}
-
-	public void setCacheManager(CacheManager value) {
-		CacheManager mgr = getCacheManager();
-		if (mgr != null) {
-			log.warn("Existing CacheManager " + mgr.getName() + " superseded by " + value.getName());
-		}
-		setCacheManagerProperty(value);
-	}
-
-	// private method to allow AsyncSample to reset the value without performing
-	// checks
-	private void setCacheManagerProperty(CacheManager value) {
-		setProperty(new TestElementProperty(CACHE_MANAGER, value));
-	}
-
-	public CacheManager getCacheManager() {
-		return (CacheManager) getProperty(CACHE_MANAGER).getObjectValue();
-	}
-
-	public String getRequestHeader(org.apache.jmeter.protocol.http.control.HeaderManager headerManager) {
-		String headerString = "";
-
-		if (headerManager != null) {
-			CollectionProperty headers = headerManager.getHeaders();
-			if (headers != null) {
-				for (JMeterProperty jMeterProperty : headers) {
-					org.apache.jmeter.protocol.http.control.Header header = (org.apache.jmeter.protocol.http.control.Header) jMeterProperty
-							.getObjectValue();
-					String n = header.getName();
-					if (!HTTPConstants.HEADER_CONTENT_LENGTH.equalsIgnoreCase(n)) {
-						String v = header.getValue();
-						v = v.replaceFirst(":\\d+$", "");
-						headerString = headerString + n + ": " + v + "\n";
-					}
-				}
-			}
-		}
-
-		return headerString;
-	}
-
-	public void setHeaderManager(HeaderManager value) {
-		HeaderManager mgr = getHeaderManager();
-		if (mgr != null) {
-			value = mgr.merge(value, true);
-			if (log.isDebugEnabled()) {
-				log.debug("Existing HeaderManager '" + mgr.getName() + "' merged with '" + value.getName() + "'");
-				for (int i = 0; i < value.getHeaders().size(); i++) {
-					log.debug("    " + value.getHeader(i).getName() + "=" + value.getHeader(i).getValue());
-				}
-			}
-		}
-		setProperty(new TestElementProperty(HEADER_MANAGER, (TestElement) value));
-	}
-
-	public String getCookieHeader(String urlData) throws MalformedURLException {
-		String headerString = "";
-
-		URL url = new URL(urlData);
-		// Extracts all the required cookies for that particular URL request
-		String cookieHeader = null;
-		if (getCookieManager() != null) {
-			cookieHeader = getCookieManager().getCookieHeaderForURL(url);
-			if (cookieHeader != null) {
-				headerString = headerString + HTTPConstants.HEADER_COOKIE + ": " + cookieHeader + "\n";
-			}
-		}
-
-		return headerString;
-	}
-
-	@Override
-	public void addTestElement(TestElement el) {
-		if (el instanceof HeaderManager) {
-			setHeaderManager((HeaderManager) el);
-		} else if (el instanceof CookieManager) {
-			setCookieManager((CookieManager) el);
-		} else if (el instanceof CacheManager) {
-			setCacheManager((CacheManager) el);
-		} else {
-			super.addTestElement(el);
-		}
-	}
-	
-	public void setParser (Parser p){
-		parser = p;
-	}
+    private static final Logger LOG = LoggerFactory.getLogger(HlsSampler.class);
+
+    private static final String URL_DATA_PROPERTY_NAME = "HLS.URL_DATA";
+    private static final String RES_DATA_PROPERTY_NAME = "HLS.RES_DATA";
+    private static final String NET_DATA_PROPERTY_NAME = "HLS.NET_DATA";
+    private static final String SECONDS_DATA_PROPERTY_NAME = "HLS.SECONDS_DATA";
+    private static final String DURATION_PROPERTY_NAME = "HLS.DURATION";
+    private static final String VIDEO_TYPE_PROPERTY_NAME = "HLS.VIDEOTYPE";
+    private static final String RESOLUTION_TYPE_PROPERTY_NAME = "HLS.RESOLUTION_TYPE";
+    private static final String BANDWIDTH_TYPE_PROPERTY_NAME = "HLS.BANDWIDTH_TYPE";
+    private static final String PROTOCOL_PROPERTY_NAME = "HLS.PROTOCOL";
+
+    private static final String HEADER_MANAGER = "HLSRequest.header_manager";
+    private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
+    private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
+
+    private ArrayList<String> fragmentsDownloaded = new ArrayList<>();
+    private Parser parser;
+    private String playlist;
+
+    public HlsSampler() {
+        setName("HLS Sampler");
+        parser = new Parser();
+    }
+
+    @VisibleForTesting
+    public void setParser(Parser p) {
+        parser = p;
+    }
+
+    public String getURLData() {
+        return this.getPropertyAsString(URL_DATA_PROPERTY_NAME);
+    }
+
+    public void setURLData(String url) {
+        this.setProperty(URL_DATA_PROPERTY_NAME, url);
+    }
+
+    public String getResData() {
+        return this.getPropertyAsString(RES_DATA_PROPERTY_NAME);
+    }
+
+    public void setResData(String res) {
+        this.setProperty(RES_DATA_PROPERTY_NAME, res);
+    }
+
+    public String getNetwordData() {
+        return this.getPropertyAsString(NET_DATA_PROPERTY_NAME);
+    }
+
+    public void setNetworkData(String net) {
+        this.setProperty(NET_DATA_PROPERTY_NAME, net);
+    }
+
+    public String getPlaySecondsData() {
+        return this.getPropertyAsString(SECONDS_DATA_PROPERTY_NAME);
+    }
+
+    public void setPlaySecondsData(String seconds) {
+        this.setProperty(SECONDS_DATA_PROPERTY_NAME, seconds);
+    }
+
+    public boolean getVideoDuration() {
+        return this.getPropertyAsBoolean(DURATION_PROPERTY_NAME);
+    }
+
+    public void setVideoDuration(boolean res) {
+        this.setProperty(DURATION_PROPERTY_NAME, res);
+    }
+
+    public VideoType getVideoType() {
+        return VideoType.fromString(this.getPropertyAsString(VIDEO_TYPE_PROPERTY_NAME));
+    }
+
+    public void setVideoType(VideoType type) {
+        this.setProperty(VIDEO_TYPE_PROPERTY_NAME, type.toString());
+    }
+
+    public ResolutionOption getResolutionType() {
+        return ResolutionOption.fromString(this.getPropertyAsString(RESOLUTION_TYPE_PROPERTY_NAME));
+    }
+
+    public void setResolutionType(ResolutionOption type) {
+        this.setProperty(RESOLUTION_TYPE_PROPERTY_NAME, type.toString());
+    }
+
+    public BandwidthOption getBandwidthType() {
+        return BandwidthOption.fromString(this.getPropertyAsString(BANDWIDTH_TYPE_PROPERTY_NAME));
+    }
+
+    public void setBandwidthType(BandwidthOption type) {
+        this.setProperty(BANDWIDTH_TYPE_PROPERTY_NAME, type.toString());
+    }
+
+    public String getProtocol() {
+        return this.getPropertyAsString(PROTOCOL_PROPERTY_NAME);
+    }
+
+    public void setProtocol(String protocolValue) {
+        this.setProperty(PROTOCOL_PROPERTY_NAME, protocolValue);
+    }
+
+    @Override
+    public SampleResult sample(Entry e) {
+        SampleResult masterResult = new SampleResult();
+        float currenTimeseconds = 0;
+        boolean isVod = getVideoType() == VideoType.VOD;
+        boolean out = false;
+        boolean firstTime = true;
+        boolean containNewFragments = false;
+        List<String> list = new ArrayList<>();
+
+        try {
+
+            DataRequest respond = getMasterList(masterResult, parser);
+            String auxPath = getPlaylistPath(respond, parser);
+
+            int playSeconds = 0;
+            if (!getPlaySecondsData().isEmpty())
+                playSeconds = Integer.parseInt(getPlaySecondsData());
+
+
+            while ((playSeconds >= currenTimeseconds) && !out) {
+
+                SampleResult playListResult = new SampleResult();
+                DataRequest subRespond = getPlayList(playListResult, parser);
+
+                List<DataFragment> videoUri = parser.extractVideoUrl(subRespond.getResponse());
+                List<DataFragment> fragmentToDownload = new ArrayList<>();
+
+                if (firstTime) {
+                    if ((getVideoType() == VideoType.LIVE && (parser.isLive(subRespond.getResponse())))
+                            || (isVod && !parser.isLive(subRespond.getResponse()))
+                            || (getVideoType() == VideoType.EVENT && parser.isLive(subRespond.getResponse()))) {
+                        firstTime = false;
+                        out = isVod;
+                    }
+                }
+
+                while ((!videoUri.isEmpty()) && (playSeconds >= currenTimeseconds)) {
+                    DataFragment frag = videoUri.remove(0);
+
+                    boolean isPresent = false;
+                    int length = fragmentsDownloaded.size();
+
+                    if (length != 0) {
+                        isPresent = fragmentsDownloaded.contains(frag.getTsUri().trim());
+                    }
+
+                    if (!isPresent) {
+                        fragmentToDownload.add(frag);
+                        fragmentsDownloaded.add(frag.getTsUri().trim());
+                        containNewFragments = true;
+                        if (getVideoDuration()) {
+                            currenTimeseconds += Float.parseFloat(frag.getDuration());
+                        }
+                    }
+                }
+
+                List<SampleResult> videoFragment = getFragments(parser, fragmentToDownload, auxPath);
+                for (SampleResult sam : videoFragment) {
+                    playListResult.addSubResult(sam);
+                }
+
+                if (!list.contains(playListResult.getSampleLabel()) || containNewFragments) {
+                    masterResult.addSubResult(playListResult);
+                    list.add(playListResult.getSampleLabel());
+                    containNewFragments = false;
+                }
+
+            }
+
+        } catch (IOException e1) {
+            LOG.error("Problem while getting video from {}", getURLData(), e1);
+            masterResult.sampleEnd();
+            masterResult.setSuccessful(false);
+            masterResult.setResponseMessage("Exception: " + e1);
+        }
+        return masterResult;
+    }
+
+
+    private DataRequest getMasterList(SampleResult masterResult, Parser parser) throws IOException {
+
+        masterResult.sampleStart();
+        DataRequest respond = parser.getBaseUrl(new URL(getURLData()), masterResult, true);
+        masterResult.sampleEnd();
+
+        masterResult.setRequestHeaders(respond.getRequestHeaders() + "\n\n" + getCookieHeader(getURLData()) + "\n\n"
+                + getRequestHeader(this.getHeaderManager()));
+        masterResult.setSuccessful(respond.isSuccess());
+        masterResult.setResponseMessage(respond.getResponseMessage());
+        masterResult.setSampleLabel(this.getName());
+        masterResult.setResponseHeaders(respond.getHeadersAsString());
+        masterResult.setResponseData(respond.getResponse().getBytes());
+        masterResult.setResponseCode(respond.getResponseCode());
+        masterResult.setContentType(respond.getContentType());
+        masterResult.setBytes(masterResult.getBytesAsLong() + (long) masterResult.getRequestHeaders().length());
+        masterResult.setHeadersSize(getHeaderBytes(masterResult, respond));
+        masterResult.setSentBytes(respond.getSentBytes());
+        masterResult.setDataEncoding(respond.getContentEncoding());
+
+        return respond;
+
+    }
+
+    private int getHeaderBytes(SampleResult masterResult, DataRequest respond) {
+        return masterResult.getResponseHeaders().length() // condensed length (without \r)
+                + respond.getHeaders().size() // Add \r for each header
+                + 1 // Add \r for initial header
+                + 2; // final \r\n before data
+    }
+
+    private String getCookieHeader(String urlData) throws MalformedURLException {
+        URL url = new URL(urlData);
+        // Extracts all the required cookies for that particular URL request
+        if (getCookieManager() != null) {
+            String cookieHeader = getCookieManager().getCookieHeaderForURL(url);
+            if (cookieHeader != null) {
+                return HTTPConstants.HEADER_COOKIE + ": " + cookieHeader + "\n";
+            }
+        }
+        return "";
+    }
+
+    private CookieManager getCookieManager() {
+        return (CookieManager) getProperty(COOKIE_MANAGER).getObjectValue();
+    }
+
+    private HeaderManager getHeaderManager() {
+        return (HeaderManager) getProperty(HlsSampler.HEADER_MANAGER).getObjectValue();
+    }
+
+    private String getRequestHeader(org.apache.jmeter.protocol.http.control.HeaderManager headerManager) {
+        StringBuilder headerString = new StringBuilder();
+
+        if (headerManager != null) {
+            CollectionProperty headers = headerManager.getHeaders();
+            if (headers != null) {
+                for (JMeterProperty jMeterProperty : headers) {
+                    org.apache.jmeter.protocol.http.control.Header header = (org.apache.jmeter.protocol.http.control.Header) jMeterProperty
+                            .getObjectValue();
+                    String n = header.getName();
+                    if (!HTTPConstants.HEADER_CONTENT_LENGTH.equalsIgnoreCase(n)) {
+                        String v = header.getValue();
+                        v = v.replaceFirst(":\\d+$", "");
+                        headerString.append(n).append(": ").append(v).append("\n");
+                    }
+                }
+            }
+        }
+
+        return headerString.toString();
+    }
+
+    private String getPlaylistPath(DataRequest respond, Parser parser) throws MalformedURLException {
+        URL masterURL = new URL(getURLData());
+        String customBandwidth = this.getNetwordData();
+        String playlistUri = parser.extractMediaUrl(respond.getResponse(), this.getResData(),
+                customBandwidth != null && !customBandwidth.isEmpty() ? Integer.valueOf(customBandwidth) : null,
+                this.getBandwidthType(), this.getResolutionType());
+        String auxPath = masterURL.getPath().substring(0, masterURL.getPath().lastIndexOf('/') + 1);
+
+        if (playlistUri == null)
+            playlistUri = getURLData();
+
+        if (playlistUri.startsWith("http")) {
+            playlist = playlistUri;
+        } else if (playlistUri.indexOf('/') == 0) {
+            playlist = getBaseUrl(masterURL) + playlistUri;// "https://"
+        } else {
+            playlist = getBaseUrl(masterURL) + auxPath + playlistUri;
+        }
+
+        auxPath = getBaseUrl(masterURL) + auxPath;
+
+        return auxPath;
+
+    }
+
+    private String getBaseUrl(URL masterURL) {
+        return getProtocol() + "://" + masterURL.getHost() + (masterURL.getPort() > 0 ? ":" + masterURL.getPort() : "");
+    }
+
+    private DataRequest getPlayList(SampleResult playListResult, Parser parser) throws IOException {
+
+        String lastPath;
+        playListResult.sampleStart();
+        DataRequest subRespond = parser.getBaseUrl(new URL(playlist), playListResult, true);
+        playListResult.sampleEnd();
+
+        String[] urlArray = playlist.split("/");
+        lastPath = urlArray[urlArray.length - 1];
+
+        playListResult.setRequestHeaders(subRespond.getRequestHeaders() + "\n\n" + getCookieHeader(playlist) + "\n\n"
+                + getRequestHeader(this.getHeaderManager()));
+        playListResult.setSuccessful(subRespond.isSuccess());
+        playListResult.setResponseMessage(subRespond.getResponseMessage());
+        playListResult.setSampleLabel(lastPath);
+        playListResult.setResponseHeaders(subRespond.getHeadersAsString());
+        playListResult.setResponseData(subRespond.getResponse().getBytes());
+        playListResult.setResponseCode(subRespond.getResponseCode());
+        playListResult.setContentType(subRespond.getContentType());
+        playListResult.setBytes(playListResult.getBytesAsLong() + (long) playListResult.getRequestHeaders().length());
+        playListResult.setHeadersSize(getHeaderBytes(playListResult, subRespond));
+        playListResult.setSentBytes(subRespond.getSentBytes());
+        playListResult.setDataEncoding(subRespond.getContentEncoding());
+
+        return subRespond;
+    }
+
+    private List<SampleResult> getFragments(Parser parser, List<DataFragment> uris, String url) {
+        List<SampleResult> res = new ArrayList<>();
+
+        if (!uris.isEmpty()) {
+            SampleResult result = new SampleResult();
+            String uriString = uris.get(0).getTsUri();
+            if ((url != null) && (!uriString.startsWith("http"))) {
+                uriString = url + uriString;
+            }
+
+            result.sampleStart();
+
+            try {
+
+                DataRequest respond = parser.getBaseUrl(new URL(uriString), result, false);
+
+                result.sampleEnd();
+
+                String[] urlArray = uriString.split("/");
+                String lastPath = urlArray[urlArray.length - 1];
+
+                result.setRequestHeaders(respond.getRequestHeaders() + "\n\n" + getCookieHeader(uriString) + "\n\n"
+                        + getRequestHeader(this.getHeaderManager()));
+                result.setSuccessful(respond.isSuccess());
+                result.setResponseMessage(respond.getResponseMessage());
+                result.setSampleLabel(lastPath);
+                result.setResponseHeaders("URL: " + uriString + "\n" + respond.getHeadersAsString());
+                result.setResponseCode(respond.getResponseCode());
+                result.setContentType(respond.getContentType());
+                result.setBytes(result.getBytesAsLong() + (long) result.getRequestHeaders().length());
+                result.setHeadersSize(getHeaderBytes(result, respond));
+                result.setSentBytes(respond.getSentBytes());
+                result.setDataEncoding(respond.getContentEncoding());
+
+                res.add(result);
+
+            } catch (IOException e1) {
+                LOG.error("Problem while getting fragments from {}", url, e1);
+                result.sampleEnd();
+                result.setSuccessful(false);
+                result.setResponseMessage("Exception: " + e1);
+                res.add(result);
+            }
+
+            uris.remove(0);
+            List<SampleResult> aux = getFragments(parser, uris, url);
+            for (SampleResult s : aux) {
+                if (!res.contains(s))
+                    res.add(s);
+            }
+        }
+        return res;
+    }
+
+    @Override
+    public void addTestElement(TestElement el) {
+        if (el instanceof HeaderManager) {
+            setHeaderManager((HeaderManager) el);
+        } else if (el instanceof CookieManager) {
+            setCookieManager((CookieManager) el);
+        } else if (el instanceof CacheManager) {
+            setCacheManager((CacheManager) el);
+        } else {
+            super.addTestElement(el);
+        }
+    }
+
+    private void setHeaderManager(HeaderManager value) {
+        HeaderManager mgr = getHeaderManager();
+        if (mgr != null) {
+            value = mgr.merge(value, true);
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Existing HeaderManager '{}' merged with '{}'", mgr.getName(), value.getName());
+                for (int i = 0; i < value.getHeaders().size(); i++) {
+                    LOG.debug("    {}={}", value.getHeader(i).getName(), value.getHeader(i).getValue());
+                }
+            }
+        }
+        setProperty(new TestElementProperty(HEADER_MANAGER, value));
+    }
+
+    private void setCookieManager(CookieManager value) {
+        CookieManager mgr = getCookieManager();
+        if (mgr != null) {
+            LOG.warn("Existing CookieManager {} superseded by {}", mgr.getName(), value.getName());
+        }
+        setCookieManagerProperty(value);
+    }
+
+    // private method to allow AsyncSample to reset the value without performing
+    // checks
+    private void setCookieManagerProperty(CookieManager value) {
+        setProperty(new TestElementProperty(COOKIE_MANAGER, value));
+    }
+
+    private void setCacheManager(CacheManager value) {
+        CacheManager mgr = getCacheManager();
+        if (mgr != null) {
+            LOG.warn("Existing CacheManager {} superseded by {}", mgr.getName(), value.getName());
+        }
+        setCacheManagerProperty(value);
+    }
+
+    private CacheManager getCacheManager() {
+        return (CacheManager) getProperty(CACHE_MANAGER).getObjectValue();
+    }
+
+    // private method to allow AsyncSample to reset the value without performing
+    // checks
+    private void setCacheManagerProperty(CacheManager value) {
+        setProperty(new TestElementProperty(CACHE_MANAGER, value));
+    }
 
 }
