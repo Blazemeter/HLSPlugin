@@ -46,6 +46,7 @@ public class HlsSamplerPanel extends JPanel {
         JPanel videoPanel = buildVideoPanel();
         JPanel playOptions = buildPlayOptionsPanel();
         JPanel networkOptions = buildNetworkOptionsPanel();
+        BlazeMeterLabsLogo blazeMeterLabsLogo = new BlazeMeterLabsLogo();
         GroupLayout layout = new GroupLayout(this);
         layout.setAutoCreateContainerGaps(true);
         this.setLayout(layout);
@@ -54,13 +55,18 @@ public class HlsSamplerPanel extends JPanel {
                 .addGroup(layout.createSequentialGroup()
                         .addComponent(playOptions, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                         .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(networkOptions, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)));
+                        .addComponent(networkOptions, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                        .addComponent(blazeMeterLabsLogo, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+        
+        );
         layout.setVerticalGroup(layout.createSequentialGroup()
                 .addComponent(videoPanel, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE)
                 .addPreferredGap(LayoutStyle.ComponentPlacement.UNRELATED)
                 .addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
                         .addComponent(networkOptions, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-                        .addComponent(playOptions, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)));
+                        .addComponent(playOptions, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE))
+                        .addComponent(blazeMeterLabsLogo, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+        );
     }
 
     private JPanel buildVideoPanel() {
@@ -326,5 +332,4 @@ public class HlsSamplerPanel extends JPanel {
         } else
             return VideoType.EVENT;
     }
-
 }
