@@ -86,4 +86,4 @@ You can set listeners to evaluate the results of your tests. The View Results Tr
 
 ![](docs/HLSResults.png)
 
-Assertions are supported for the master playlist and variant (child) playlist. Examples: Response Assertion and Duration Assertion. Select �Main sample only� in assertion to test the master playlist response and �Sub-samples only� to test the variant (child) playlist response.
+Assertions are supported for the master playlist and variant (child) playlist. Examples: Response Assertion and Duration Assertion. Select `Main sample only` in assertion to test the master playlist response and `Sub-samples only` to test the variant (child) playlist response.
