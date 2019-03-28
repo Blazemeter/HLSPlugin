@@ -24,7 +24,7 @@ Here is what the HLS Sampler looks like:
 
 - Install the HLS plugin from the Plugins Manager
 - Create a Thread Group.
-- Add the HLS Sampler Add -> Sampler -> HLS Sampler
+- Add the HLS Sampler Add -> Sampler -> bzm - HLS Sampler
 
 ![](docs/HLSAddSampler.png)
 
