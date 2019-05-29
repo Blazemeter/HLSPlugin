@@ -5,13 +5,22 @@
 
     <groupId>com.blazemeter.jmeter</groupId>
     <artifactId>jmeter-hls</artifactId>
+    <packaging>jar</packaging>
     <version>1.3</version>
+    <name>HLSPlugin Sampler as JMeter plugin</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <jmeter.version>3.2</jmeter.version>
     </properties>
+
+    <scm>
+        <connection>scm:git:git@gitlab.abstracta.us:BZ/jmeter-hls-plugin.git</connection>
+        <developerConnection>scm:git:git@gitlab.abstracta.us:BZ/jmeter-hls-plugin.git
+        </developerConnection>
+        <url>http://gitlab.abstracta.us/BZ/jmeter-hls-plugin</url>
+    </scm>
 
     <dependencies>
         <dependency>
@@ -57,5 +66,77 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>sonar</id>
+            <build>
+                <pluginManagement>
+                    <plugins>
+                        <plugin>
+                            <groupId>org.sonarsource.scanner.maven</groupId>
+                            <artifactId>sonar-maven-plugin</artifactId>
+                            <version>3.4.0.905</version>
+                        </plugin>
+                    </plugins>
+                </pluginManagement>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>0.8.0</version>
+                        <configuration>
+                            <append>true</append>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>agent-for-ut</id>
+                                <goals>
+                                    <goal>prepare-agent</goal>
+                                </goals>
+                                <configuration>
+                                    <propertyName>jacoco.agent.ut.arg</propertyName>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>agent-for-it</id>
+                                <goals>
+                                    <goal>prepare-agent-integration</goal>
+                                </goals>
+                                <configuration>
+                                    <propertyName>jacoco.agent.it.arg</propertyName>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <!--suppress MavenModelInspection -->
+                            <argLine>${jacoco.agent.ut.arg}</argLine>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <configuration>
+                            <!--suppress MavenModelInspection -->
+                            <argLine>${jacoco.agent.it.arg}</argLine>
+                            <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                    <goal>verify</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>
