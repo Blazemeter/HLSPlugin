@@ -1,28 +1,29 @@
 package com.blazemeter.jmeter.hls.logic;
 
 public class DataFragment {
-    private String duration;
-    private String tsUri;
 
-    public DataFragment(String _duration, String _tsUri) {
-        this.duration = _duration;
-        this.tsUri = _tsUri;
-    }
+  private String duration;
+  private String tsUri;
 
-    public String getDuration() {
-        return duration;
-    }
+  public DataFragment(String duration, String tsUri) {
+    this.duration = duration;
+    this.tsUri = tsUri;
+  }
 
-    public void setDuration(String duration) {
-        this.duration = duration;
-    }
+  public String getDuration() {
+    return duration;
+  }
 
-    public String getTsUri() {
-        return tsUri;
-    }
+  public void setDuration(String duration) {
+    this.duration = duration;
+  }
 
-    public void setTsUri(String tsUri) {
-        this.tsUri = tsUri;
-    }
+  public String getTsUri() {
+    return tsUri;
+  }
+
+  public void setTsUri(String tsUri) {
+    this.tsUri = tsUri;
+  }
 
 }
