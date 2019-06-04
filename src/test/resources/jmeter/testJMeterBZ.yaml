@@ -1,0 +1,22 @@
+provisioning: cloud
+
+modules:
+  jmeter:
+    version: "4.0"
+    detect-plugins: false
+    properties:
+      log_level: DEBUG
+      user.classpath: lib
+  console:
+    disable: true
+
+execution:
+- concurrency: 1
+  scenario:
+    script: HLSSampler.jmx
+  iterations : 3
+
+reporting:
+- module: passfail
+  criteria:
+  - failures>0%

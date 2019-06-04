@@ -1,0 +1,66 @@
+image: 836525813842.dkr.ecr.us-east-1.amazonaws.com/jmeter-plugins-build:3.1.1
+
+variables:
+  MAVEN_OPTS: -Dmaven.repo.local=.m2/repository
+
+cache:
+  paths:
+    - .m2/repository/
+    - .jmeter/
+build:
+  stage: build
+  tags:
+    - docker
+  except:
+    - master
+  script: /execute-on-vnc.sh mvn --batch-mode clean install
+  artifacts:
+    paths:
+      - target/jmeter-bzm-hls-*.jar
+      - target/jmeter-test
+      - target/failsafe-reports
+    expire_in: 1 month
+    when: always
+build_and_analyze:
+  stage: build
+  tags:
+    - docker
+  only:
+    - master
+  script: /execute-on-vnc.sh mvn --batch-mode -Psonar clean install sonar:sonar -Dsonar.host.url=http://sonar.abstracta.us -Dsonar.login=$SONAR_TOKEN
+  artifacts:
+    paths:
+      - target/jmeter-bzm-hls-*.jar
+      - target/jmeter-test
+      - target/failsafe-reports
+    expire_in: 1 month
+    when: always
+jmeter_compatibility:
+  stage: test
+  tags:
+    - docker
+  script:
+    - cd target/jmeter-test
+    - JMETER_VERSION=5.0 sh testJmeter.sh
+    - JMETER_VERSION=3.3 sh testJmeter.sh
+    - JMETER_VERSION=4.0 sh testJmeter.sh
+    - JMETER_VERSION=5.1 sh testJmeter.sh
+    - JMETER_VERSION=5.1.1 sh testJmeter.sh
+    - JMETER_VERSION=5.0 JVM_VERSION=11 sh testJmeter.sh
+    - bzt testJMeterBZ.yaml -o modules.cloud.token=${BZ_TOKEN}
+  artifacts:
+    when: on_failure
+    paths:
+      - target/jmeter-test
+    expire_in: 4 hour
+release:
+  stage: deploy
+  tags:
+    - docker
+  only:
+    - master
+  when: manual
+  script: /release.sh
+  artifacts:
+    paths:
+      - target/jmeter-bzm-hls-*.jar
