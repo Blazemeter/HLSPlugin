@@ -41,11 +41,12 @@ jmeter_compatibility:
     - docker
   script:
     - cd target/jmeter-test
-    - JMETER_VERSION=4.0 sh testJmeter.sh
+    - JMETER_VERSION=5.0 sh testJmeter.sh
     - JMETER_VERSION=3.3 sh testJmeter.sh
-    - JMETER_VERSION=3.2 sh testJmeter.sh
-    - JMETER_VERSION=3.1 sh testJmeter.sh
-    - JMETER_VERSION=4.0 JVM_VERSION=11 sh testJmeter.sh
+    - JMETER_VERSION=4.0 sh testJmeter.sh
+    - JMETER_VERSION=5.1 sh testJmeter.sh
+    - JMETER_VERSION=5.1.1 sh testJmeter.sh
+    - JMETER_VERSION=5.0 JVM_VERSION=11 sh testJmeter.sh
     - bzt testJMeterBZ.yaml -o modules.cloud.token=${BZ_TOKEN}
   artifacts:
     when: on_failure
