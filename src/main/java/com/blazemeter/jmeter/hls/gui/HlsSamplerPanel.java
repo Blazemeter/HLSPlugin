@@ -30,6 +30,7 @@ public class HlsSamplerPanel extends JPanel {
   private JRadioButton rCustomResol = new JRadioButton("Custom Resolution: ");
   private JRadioButton rMaximumResol = new JRadioButton("Max resolution available");
   private JRadioButton rMinimumResol = new JRadioButton("Min resolution available", true);
+  private JRadioButton rResumeDownload = new JRadioButton("Resume video Download");
 
   private JRadioButton rCustomBandwidth = new JRadioButton("Custom Bandwidth: ");
   private JRadioButton rMaximumBandwidth = new JRadioButton("Max bandwidth available");
@@ -156,7 +157,8 @@ public class HlsSamplerPanel extends JPanel {
             .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
             .addComponent(resolField))
         .addComponent(rMinimumResol)
-        .addComponent(rMaximumResol));
+        .addComponent(rMaximumResol)
+        .addComponent(rResumeDownload));
     layout.setVerticalGroup(layout.createSequentialGroup()
         .addComponent(rPlayVideoBtn)
         .addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
@@ -167,7 +169,8 @@ public class HlsSamplerPanel extends JPanel {
             .addComponent(rCustomResol)
             .addComponent(resolField))
         .addComponent(rMinimumResol)
-        .addComponent(rMaximumResol));
+        .addComponent(rMaximumResol)
+        .addComponent(rResumeDownload));
     return panel;
   }
 
@@ -258,6 +261,10 @@ public class HlsSamplerPanel extends JPanel {
 
   public void setVideoDuration(boolean check) {
     rPlayPartBtn.setSelected(check);
+  }
+
+  public void setResumeStatus(boolean check) {
+    rResumeDownload.setSelected(check);
   }
 
   public boolean getVideoDuration() {

@@ -45,6 +45,7 @@ public class HlsSamplerGui extends AbstractSamplerGui {
     hlsSamplerPanel.setNetData(sampler.getNetwordData());
     hlsSamplerPanel.setResolutionType(sampler.getResolutionType());
     hlsSamplerPanel.setBandwidthType(sampler.getBandwidthType());
+    hlsSamplerPanel.setResumeStatus(sampler.getResumeVideoStatus());
 
   }
 
