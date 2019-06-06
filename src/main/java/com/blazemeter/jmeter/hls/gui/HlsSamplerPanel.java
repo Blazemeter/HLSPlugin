@@ -158,7 +158,6 @@ public class HlsSamplerPanel extends JPanel {
         .addComponent(rMinimumResol)
         .addComponent(rMaximumResol));
     layout.setVerticalGroup(layout.createSequentialGroup()
-        .addContainerGap()
         .addComponent(rPlayVideoBtn)
         .addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
             .addComponent(rPlayPartBtn)
@@ -168,8 +167,7 @@ public class HlsSamplerPanel extends JPanel {
             .addComponent(rCustomResol)
             .addComponent(resolField))
         .addComponent(rMinimumResol)
-        .addComponent(rMaximumResol)
-        .addContainerGap());
+        .addComponent(rMaximumResol));
     return panel;
   }
 
