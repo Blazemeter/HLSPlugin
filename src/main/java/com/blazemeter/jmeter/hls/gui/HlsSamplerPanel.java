@@ -7,6 +7,7 @@ import java.awt.event.ItemEvent;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
 import javax.swing.GroupLayout;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -30,7 +31,7 @@ public class HlsSamplerPanel extends JPanel {
   private JRadioButton rCustomResol = new JRadioButton("Custom Resolution: ");
   private JRadioButton rMaximumResol = new JRadioButton("Max resolution available");
   private JRadioButton rMinimumResol = new JRadioButton("Min resolution available", true);
-  private JRadioButton rResumeDownload = new JRadioButton("Resume video Download");
+  private JCheckBox rResumeDownload = new JCheckBox("Resume video Download");
 
   private JRadioButton rCustomBandwidth = new JRadioButton("Custom Bandwidth: ");
   private JRadioButton rMaximumBandwidth = new JRadioButton("Max bandwidth available");
@@ -170,6 +171,7 @@ public class HlsSamplerPanel extends JPanel {
             .addComponent(resolField))
         .addComponent(rMinimumResol)
         .addComponent(rMaximumResol)
+        .addPreferredGap(LayoutStyle.ComponentPlacement.UNRELATED)
         .addComponent(rResumeDownload));
     return panel;
   }
@@ -265,6 +267,10 @@ public class HlsSamplerPanel extends JPanel {
 
   public void setResumeStatus(boolean check) {
     rResumeDownload.setSelected(check);
+  }
+
+  public boolean getResumeVideoStatus() {
+    return rResumeDownload.isSelected();
   }
 
   public boolean getVideoDuration() {

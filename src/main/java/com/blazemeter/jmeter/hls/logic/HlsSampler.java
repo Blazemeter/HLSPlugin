@@ -129,6 +129,10 @@ public class HlsSampler extends AbstractSampler {
     return this.getPropertyAsBoolean(RESUME_DOWNLOAD_PROPERTY_NAME);
   }
 
+  public void setResumeVideoStatus(boolean res) {
+    this.setProperty(RESUME_DOWNLOAD_PROPERTY_NAME, res);
+  }
+
   @Override
   public SampleResult sample(Entry e) {
     SampleResult masterResult = new SampleResult();
@@ -147,6 +151,10 @@ public class HlsSampler extends AbstractSampler {
       int playSeconds = 0;
       if (!getPlaySecondsData().isEmpty()) {
         playSeconds = Integer.parseInt(getPlaySecondsData());
+      }
+
+      if (this.getResumeVideoStatus() != true) {
+        this.fragmentsDownloaded.clear();
       }
 
       while ((playSeconds >= currenTimeseconds) && !out) {
@@ -347,7 +355,6 @@ public class HlsSampler extends AbstractSampler {
 
   private List<SampleResult> getFragments(Parser parser, List<DataFragment> uris, String url) {
     List<SampleResult> res = new ArrayList<>();
-
     if (!uris.isEmpty()) {
       SampleResult result = new SampleResult();
       String uriString = uris.get(0).getTsUri();
