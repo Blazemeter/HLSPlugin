@@ -33,7 +33,7 @@ public class HlsSampler extends AbstractSampler {
   private static final String RESOLUTION_TYPE_PROPERTY_NAME = "HLS.RESOLUTION_TYPE";
   private static final String BANDWIDTH_TYPE_PROPERTY_NAME = "HLS.BANDWIDTH_TYPE";
   private static final String PROTOCOL_PROPERTY_NAME = "HLS.PROTOCOL";
-  private static final String RESUME_DOWNLOAD_PROPERTY_NAME = "HLS.RESUME.DOWNLOAD";
+  private static final String RESUME_DOWNLOAD_PROPERTY_NAME = "HLS.RESUME_DOWNLOAD";
 
   private static final String HEADER_MANAGER = "HLSRequest.header_manager";
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
@@ -153,7 +153,7 @@ public class HlsSampler extends AbstractSampler {
         playSeconds = Integer.parseInt(getPlaySecondsData());
       }
 
-      if (this.getResumeVideoStatus() != true) {
+      if (this.getResumeVideoStatus()) {
         this.fragmentsDownloaded.clear();
       }
 
