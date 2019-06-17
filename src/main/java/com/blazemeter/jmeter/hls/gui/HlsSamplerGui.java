@@ -45,6 +45,7 @@ public class HlsSamplerGui extends AbstractSamplerGui {
     hlsSamplerPanel.setNetData(sampler.getNetwordData());
     hlsSamplerPanel.setResolutionType(sampler.getResolutionType());
     hlsSamplerPanel.setBandwidthType(sampler.getBandwidthType());
+    hlsSamplerPanel.setResumeStatus(sampler.getResumeVideoStatus());
 
   }
 
@@ -61,6 +62,7 @@ public class HlsSamplerGui extends AbstractSamplerGui {
       sampler.setNetworkData(hlsSamplerPanel.getNetData());
       sampler.setResolutionType(hlsSamplerPanel.getResolutionType());
       sampler.setBandwidthType(hlsSamplerPanel.getBandwidthType());
+      sampler.setResumeVideoStatus(hlsSamplerPanel.getResumeVideoStatus());
     }
 
   }
