@@ -25,15 +25,15 @@ public class HlsSamplerPanel extends JPanel {
   private JRadioButton rPlayPartBtn = new JRadioButton("Video duration (seconds):");
 
   private JRadioButton rVodStream = new JRadioButton("VOD", true);
-  private JRadioButton rliveStream = new JRadioButton("Live Stream");
-  private JRadioButton rEventStream = new JRadioButton("Event Stream");
+  private JRadioButton rliveStream = new JRadioButton("Live stream");
+  private JRadioButton rEventStream = new JRadioButton("Event stream");
 
-  private JRadioButton rCustomResol = new JRadioButton("Custom Resolution: ");
+  private JRadioButton rCustomResol = new JRadioButton("Custom resolution: ");
   private JRadioButton rMaximumResol = new JRadioButton("Max resolution available");
   private JRadioButton rMinimumResol = new JRadioButton("Min resolution available", true);
-  private JCheckBox rResumeDownload = new JCheckBox("Resume video Download");
+  private JCheckBox rResumeDownload = new JCheckBox("Resume video download between iterations");
 
-  private JRadioButton rCustomBandwidth = new JRadioButton("Custom Bandwidth: ");
+  private JRadioButton rCustomBandwidth = new JRadioButton("Custom bandwidth: ");
   private JRadioButton rMaximumBandwidth = new JRadioButton("Max bandwidth available");
   private JRadioButton rMinimumBandwidth = new JRadioButton("Min bandwidth available", true);
 
@@ -143,7 +143,7 @@ public class HlsSamplerPanel extends JPanel {
     });
 
     JPanel panel = new JPanel();
-    panel.setBorder(BorderFactory.createTitledBorder("Play Options"));
+    panel.setBorder(BorderFactory.createTitledBorder("Play options"));
     GroupLayout layout = new GroupLayout(panel);
     layout.setAutoCreateContainerGaps(true);
     panel.setLayout(layout);
@@ -198,7 +198,7 @@ public class HlsSamplerPanel extends JPanel {
     });
 
     JPanel panel = new JPanel();
-    panel.setBorder(BorderFactory.createTitledBorder("Network Options"));
+    panel.setBorder(BorderFactory.createTitledBorder("Network options"));
     GroupLayout layout = new GroupLayout(panel);
     layout.setAutoCreateContainerGaps(true);
     panel.setLayout(layout);
