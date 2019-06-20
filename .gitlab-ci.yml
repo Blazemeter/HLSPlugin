@@ -16,7 +16,7 @@ build:
   script: /execute-on-vnc.sh mvn --batch-mode clean install
   artifacts:
     paths:
-      - target/jmeter-bzm-hls-*.jar
+      - target/jmeter-hls-*.jar
       - target/jmeter-test
       - target/failsafe-reports
     expire_in: 1 month
@@ -30,7 +30,7 @@ build_and_analyze:
   script: /execute-on-vnc.sh mvn --batch-mode -Psonar clean install sonar:sonar -Dsonar.host.url=http://sonar.abstracta.us -Dsonar.login=$SONAR_TOKEN
   artifacts:
     paths:
-      - target/jmeter-bzm-hls-*.jar
+      - target/jmeter-bzm-*.jar
       - target/jmeter-test
       - target/failsafe-reports
     expire_in: 1 month
@@ -63,4 +63,4 @@ release:
   script: /release.sh
   artifacts:
     paths:
-      - target/jmeter-bzm-hls-*.jar
+      - target/jmeter-hls-*.jar
