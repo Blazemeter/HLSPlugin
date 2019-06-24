@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ser.FilterProvider;
 import com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter;
 import com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 import org.apache.jmeter.samplers.SampleResult;
 import org.json.simple.JSONObject;
 import org.junit.Before;
@@ -44,16 +47,7 @@ public class HlsSamplerTest {
   @Test
   public void testSample() throws Exception {
 
-    DataFragment f1 = new DataFragment("10",
-        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_1.ts");
-    DataFragment f2 = new DataFragment("10",
-        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_2.ts");
-    DataFragment f3 = new DataFragment("10",
-        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_3.ts");
-    List<DataFragment> fragments = new ArrayList<>();
-    fragments.add(f1);
-    fragments.add(f2);
-    fragments.add(f3);
+    List<DataFragment> fragments = this.buildFragments();
 
     String payload1 = "#EXTM3U\n#EXT-X-VERSION:4\n#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=1395723,PROGRAM-ID=1,CODECS=\"avc1.42c01e,mp4a.40.2\",RESOLUTION=640x360,SUBTITLES=\"subs\"\n/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=170129,PROGRAM-ID=1,CODECS=\"avc1.42c00c,mp4a.40.2\",RESOLUTION=320x180,SUBTITLES=\"subs\"\n/videos/DianaLaufenberg_2010X/video/64k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=425858,PROGRAM-ID=1,CODECS=\"avc1.42c015,mp4a.40.2\",RESOLUTION=512x288,SUBTITLES=\"subs\"\n/videos/DianaLaufenberg_2010X/video/180k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=718158,PROGRAM-ID=1,CODECS=\"avc1.42c015,mp4a.40.2\",RESOLUTION=512x288,SUBTITLES=\"subs\"\n/videos/DianaLaufenberg_2010X/video/320k.m3u8?preroll=Thousands&uniqueId=4df94b1d";
     String payload2 = "#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXT-X-VERSION:4\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXTINF:5.0000,\n#EXT-X-BYTERANGE:440672@0\nhttps://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k.ts\n#EXTINF:5.0000,\n#EXT-X-BYTERANGE:94000@440672\nhttps://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k.ts\n#EXTINF:1.9583,\n#EXT-X-BYTERANGE:22748@534672\nhttps://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k.ts\n#EXT-X-DISCONTINUITY";
@@ -96,31 +90,23 @@ public class HlsSamplerTest {
 
     SampleResult result = sampler.sample(null);
     SampleResult expected = buildExpectedSampleResult();
-    //String expectedJson = this.sampleResultToJson(result);
 
-    assertThat(sampleResultToJson(result)).isEqualTo(sampleResultToJson(expected));
-    /*String jsonToTest = this.buildSampleResultJson(result);
-    String jsonOk = "{\"Test\":\"{\\\"requestHeaders\\\":\\\"GET  http:\\\\\\/\\\\\\/www.mock.com\\\\\\/path\\\\n\\\\n\\\\n\\\\n\\\\n\\\",\\\"responseHeaders\\\":\\\"headerKey1 : header11 header12 header13\\\\nheaderKey2 : header21 header22 header23\\\\nheaderKey3 : header31\\\\n\\\",\\\"dataEncoding\\\":\\\"UTF-8\\\",\\\"label\\\":\\\"Test\\\",\\\"responseMessage\\\":\\\"OK\\\",\\\"contentType\\\":\\\"application\\\\\\/json;charset=UTF-8\\\",\\\"responseCode\\\":\\\"200\\\"}\"}";
-    assertEquals(jsonOk, jsonToTest);*/
+    assertThat(sampleResultToJson(result).toString()).isEqualTo(sampleResultToJson(expected).toString());
+  }
 
-    /*SampleResult[] subresults = result.getSubResults();
-    String jsonToTest2 = this.buildSampleSubResultJson(subresults, 0, payload2);
-    String jsonOk2 = "{\"Test\":\"{\\\"requestHeaders\\\":\\\"GET  http:\\\\\\/\\\\\\/www.mock.com\\\\\\/path\\\\\\/videos\\\\\\/DianaLaufenberg_2010X\\\\\\/video\\\\\\/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d\\\\n\\\\n\\\\n\\\\n\\\\n\\\",\\\"responseHeaders\\\":\\\"headerKey1 : header11 header12 header13\\\\nheaderKey2 : header21 header22 header23\\\\nheaderKey3 : header31\\\\n\\\",\\\"success\\\":true,\\\"bytes\\\":\\\"#EXTM3U\\\\n#EXT-X-TARGETDURATION:10\\\\n#EXT-X-VERSION:4\\\\n#EXT-X-MEDIA-SEQUENCE:0\\\\n#EXT-X-PLAYLIST-TYPE:VOD\\\\n#EXTINF:5.0000,\\\\n#EXT-X-BYTERANGE:440672@0\\\\nhttps:\\\\\\/\\\\\\/pb.tedcdn.com\\\\\\/bumpers\\\\\\/hls\\\\\\/video\\\\\\/in\\\\\\/Thousands-320k.ts\\\\n#EXTINF:5.0000,\\\\n#EXT-X-BYTERANGE:94000@440672\\\\nhttps:\\\\\\/\\\\\\/pb.tedcdn.com\\\\\\/bumpers\\\\\\/hls\\\\\\/video\\\\\\/in\\\\\\/Thousands-320k.ts\\\\n#EXTINF:1.9583,\\\\n#EXT-X-BYTERANGE:22748@534672\\\\nhttps:\\\\\\/\\\\\\/pb.tedcdn.com\\\\\\/bumpers\\\\\\/hls\\\\\\/video\\\\\\/in\\\\\\/Thousands-320k.ts\\\\n#EXT-X-DISCONTINUITY\\\",\\\"dataEncoding\\\":\\\"UTF-8\\\",\\\"label\\\":\\\"600k.m3u8?preroll=Thousands&uniqueId=4df94b1d\\\",\\\"responseMessage\\\":\\\"OK\\\",\\\"contentType\\\":\\\"application\\\\\\/json;charset=UTF-8\\\",\\\"responseCode\\\":\\\"200\\\"}\"}";
-    assertEquals(jsonOk2, jsonToTest2);
+  private List<DataFragment> buildFragments() {
+    DataFragment f1 = new DataFragment("10",
+        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_1.ts");
+    DataFragment f2 = new DataFragment("10",
+        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_2.ts");
+    DataFragment f3 = new DataFragment("10",
+        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_3.ts");
+    List<DataFragment> fragments = new ArrayList<>();
+    fragments.add(f1);
+    fragments.add(f2);
+    fragments.add(f3);
 
-    SampleResult[] subsubresults = subresults[0].getSubResults();
-
-    String jsonToTest3 = this.buildSampleSubSubResultJson(subsubresults, 0);
-    String jsonOk3 = "{\"Test\":\"{\\\"requestHeaders\\\":\\\"GET  https:\\\\\\/\\\\\\/pb.tedcdn.com\\\\\\/bumpers\\\\\\/hls\\\\\\/video\\\\\\/in\\\\\\/Thousands-320k_1.ts\\\\n\\\\n\\\\n\\\\n\\\\n\\\",\\\"responseHeaders\\\":\\\"URL: https:\\\\\\/\\\\\\/pb.tedcdn.com\\\\\\/bumpers\\\\\\/hls\\\\\\/video\\\\\\/in\\\\\\/Thousands-320k_1.ts\\\\nheaderKey1 : header11 header12 header13\\\\nheaderKey2 : header21 header22 header23\\\\nheaderKey3 : header31\\\\n\\\",\\\"success\\\":true,\\\"dataEncoding\\\":\\\"UTF-8\\\",\\\"label\\\":\\\"Thousands-320k_1.ts\\\",\\\"responseMessage\\\":\\\"OK\\\",\\\"contentType\\\":\\\"application\\\\\\/json;charset=UTF-8\\\",\\\"responseCode\\\":\\\"200\\\"}\"}";
-    assertEquals(jsonOk3, jsonToTest3);
-
-    String jsonToTest4 = this.buildSampleSubSubResultJson(subsubresults, 1);
-    String jsonOk4 = "{\"Test\":\"{\\\"requestHeaders\\\":\\\"GET  https:\\\\\\/\\\\\\/pb.tedcdn.com\\\\\\/bumpers\\\\\\/hls\\\\\\/video\\\\\\/in\\\\\\/Thousands-320k_2.ts\\\\n\\\\n\\\\n\\\\n\\\\n\\\",\\\"responseHeaders\\\":\\\"URL: https:\\\\\\/\\\\\\/pb.tedcdn.com\\\\\\/bumpers\\\\\\/hls\\\\\\/video\\\\\\/in\\\\\\/Thousands-320k_2.ts\\\\nheaderKey1 : header11 header12 header13\\\\nheaderKey2 : header21 header22 header23\\\\nheaderKey3 : header31\\\\n\\\",\\\"success\\\":true,\\\"dataEncoding\\\":\\\"UTF-8\\\",\\\"label\\\":\\\"Thousands-320k_2.ts\\\",\\\"responseMessage\\\":\\\"OK\\\",\\\"contentType\\\":\\\"application\\\\\\/json;charset=UTF-8\\\",\\\"responseCode\\\":\\\"200\\\"}\"}";
-    assertEquals(jsonOk4, jsonToTest4);
-
-    String jsonToTest5 = this.buildSampleSubSubResultJson(subsubresults, 2);
-    String jsonOk5 = "{\"Test\":\"{\\\"requestHeaders\\\":\\\"GET  https:\\\\\\/\\\\\\/pb.tedcdn.com\\\\\\/bumpers\\\\\\/hls\\\\\\/video\\\\\\/in\\\\\\/Thousands-320k_3.ts\\\\n\\\\n\\\\n\\\\n\\\\n\\\",\\\"responseHeaders\\\":\\\"URL: https:\\\\\\/\\\\\\/pb.tedcdn.com\\\\\\/bumpers\\\\\\/hls\\\\\\/video\\\\\\/in\\\\\\/Thousands-320k_3.ts\\\\nheaderKey1 : header11 header12 header13\\\\nheaderKey2 : header21 header22 header23\\\\nheaderKey3 : header31\\\\n\\\",\\\"success\\\":true,\\\"dataEncoding\\\":\\\"UTF-8\\\",\\\"label\\\":\\\"Thousands-320k_3.ts\\\",\\\"responseMessage\\\":\\\"OK\\\",\\\"contentType\\\":\\\"application\\\\\\/json;charset=UTF-8\\\",\\\"responseCode\\\":\\\"200\\\"}\"}";
-    assertEquals(jsonOk5, jsonToTest5);*/
+    return fragments;
   }
 
   private List<String> buildHeader(String val1, String val2, String val3) {
@@ -152,71 +138,92 @@ public class HlsSamplerTest {
     return respond;
   }
 
-  private String buildSampleResultJson(SampleResult result) throws Exception {
+  private JSONObject sampleResultToJson(SampleResult sample) {
     JSONObject json = new JSONObject();
-    JSONObject parent = new JSONObject();
-    json.put("requestHeaders", result.getRequestHeaders());
-    json.put("responseMessage", result.getResponseMessage());
-    json.put("label", result.getSampleLabel());
-    json.put("responseHeaders", result.getResponseHeaders());
-    json.put("responseCode", result.getResponseCode());
-    json.put("contentType", result.getContentType());
-    json.put("dataEncoding", result.getDataEncodingNoDefault());
-    parent.put("Test", json.toString());
-    return parent.toString();
-  }
-
-  private String buildSampleSubResultJson(SampleResult[] subresults, int pos, String payload)
-      throws Exception {
-    JSONObject json = new JSONObject();
-    JSONObject parent = new JSONObject();
-    json.put("requestHeaders", subresults[pos].getRequestHeaders());
-    json.put("success", subresults[pos].isSuccessful());
-    json.put("responseMessage", subresults[pos].getResponseMessage());
-    json.put("label", subresults[pos].getSampleLabel());
-    json.put("responseHeaders", subresults[pos].getResponseHeaders());
-    json.put("bytes", new String(payload.getBytes()));
-    json.put("responseCode", subresults[pos].getResponseCode());
-    json.put("contentType", subresults[pos].getContentType());
-    json.put("dataEncoding", subresults[pos].getDataEncodingNoDefault());
-    parent.put("Test", json.toString());
-    return parent.toString();
-  }
-
-  private String buildSampleSubSubResultJson(SampleResult[] subsubresults, int pos)
-      throws Exception {
-    JSONObject json = new JSONObject();
-    JSONObject parent = new JSONObject();
-    json.put("requestHeaders", subsubresults[pos].getRequestHeaders());
-    json.put("success", subsubresults[pos].isSuccessful());
-    json.put("responseMessage", subsubresults[pos].getResponseMessage());
-    json.put("label", subsubresults[pos].getSampleLabel());
-    json.put("responseHeaders", subsubresults[pos].getResponseHeaders());
-    json.put("responseCode", subsubresults[pos].getResponseCode());
-    json.put("contentType", subsubresults[pos].getContentType());
-    json.put("dataEncoding", subsubresults[pos].getDataEncodingNoDefault());
-    parent.put("Test", json.toString());
-    return parent.toString();
-  }
-
-  public String sampleResultToJson(SampleResult result) throws Exception {
-    ObjectMapper mapper = new ObjectMapper();
-    FilterProvider filters = new SimpleFilterProvider().addFilter(
-        "Test",
-        SimpleBeanPropertyFilter.filterOutAllExcept(
-            "requestHeaders",
-            "responseMessage",
-            "label",
-            "responseHeaders",
-            "responseCode",
-            "contentType",
-            "dataEncoding"
-        ));
-    return mapper.writer(filters).writeValueAsString(result);
+    json.put("requestHeaders", sample.getRequestHeaders());
+    json.put("responseMessage", sample.getResponseMessage());
+    json.put("label", sample.getSampleLabel());
+    json.put("responseHeaders", sample.getResponseHeaders());
+    json.put("responseCode", sample.getResponseCode());
+    json.put("contentType", sample.getContentType());
+    json.put("dataEncoding", sample.getDataEncodingNoDefault());
+    json.put("children", Arrays.stream(sample.getSubResults()).map(this::sampleResultToJson).collect(Collectors.toList()));
+    return json;
   }
 
   private SampleResult buildExpectedSampleResult() {
-    return sampler.sample(null);
+    sampler = new HlsSampler();
+
+
+    SampleResult subResult = sampler.sample(null);
+    SampleResult subResult1 = sampler.sample(null);
+    SampleResult subResult2 = sampler.sample(null);
+    SampleResult subResult3 = sampler.sample(null);
+
+    subResult1.setRequestHeaders(
+        "GET  https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_1.ts\n\n\n\n\n");
+    subResult1.setSuccessful(true);
+    subResult1.setResponseMessage("OK");
+    subResult1.setSampleLabel("Thousands-320k_1.ts");
+    subResult1.setResponseHeaders(
+        "URL: https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_1.ts\nheaderKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31 \n");
+    subResult1.setResponseData(String.valueOf(StandardCharsets.UTF_8));
+    subResult1.setResponseCode("200");
+    subResult1.setContentType("application/json;charset=UTF-8");
+    subResult1.setDataEncoding("UTF-8");
+
+    subResult2.setRequestHeaders(
+        "GET  https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_2.ts\n\n\n\n\n");
+    subResult2.setSuccessful(true);
+    subResult2.setResponseMessage("OK");
+    subResult2.setSampleLabel("Thousands-320k_2.ts");
+    subResult2.setResponseHeaders(
+        "URL: https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_2.ts\nheaderKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31 \n");
+    subResult2.setResponseData(String.valueOf(StandardCharsets.UTF_8));
+    subResult2.setResponseCode("200");
+    subResult2.setContentType("application/json;charset=UTF-8");
+    subResult2.setDataEncoding("UTF-8");
+
+    subResult3.setRequestHeaders(
+        "GET  https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_3.ts\n\n\n\n\n");
+    subResult3.setSuccessful(true);
+    subResult3.setResponseMessage("OK");
+    subResult3.setSampleLabel("Thousands-320k_3.ts");
+    subResult3.setResponseHeaders(
+        "URL: https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_3.ts\nheaderKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31 \n");
+    subResult3.setResponseData(String.valueOf(StandardCharsets.UTF_8));
+    subResult3.setResponseCode("200");
+    subResult3.setContentType("application/json;charset=UTF-8");
+    subResult3.setDataEncoding("UTF-8");
+
+    subResult.setRequestHeaders(
+        "GET  http://www.mock.com/path/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n\n\n\n\n");
+    subResult.setSuccessful(true);
+    subResult.setResponseMessage("OK");
+    subResult.setSampleLabel("600k.m3u8?preroll=Thousands&uniqueId=4df94b1d");
+    subResult.setResponseHeaders(
+        "headerKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31 \n");
+    subResult.setResponseData(String.valueOf(StandardCharsets.UTF_8));
+    subResult.setResponseCode("200");
+    subResult.setContentType("application/json;charset=UTF-8");
+    subResult.setDataEncoding("UTF-8");
+    subResult.addRawSubResult(subResult1);
+    subResult.addRawSubResult(subResult2);
+    subResult.addRawSubResult(subResult3);
+
+    SampleResult expected = sampler.sample(null);
+    expected.setRequestHeaders("GET  http://www.mock.com/path\n\n\n\n\n");
+    expected.setSuccessful(true);
+    expected.setResponseMessage("OK");
+    expected.setSampleLabel("Test");
+    expected.setResponseHeaders(
+        "headerKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31 \n");
+    expected.setResponseData(String.valueOf(StandardCharsets.UTF_8));
+    expected.setResponseCode("200");
+    expected.setContentType("application/json;charset=UTF-8");
+    expected.setDataEncoding("UTF-8");
+    expected.addRawSubResult(subResult);
+    return expected;
   }
 
 }
