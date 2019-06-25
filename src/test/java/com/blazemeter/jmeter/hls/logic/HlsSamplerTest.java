@@ -53,11 +53,16 @@ public class HlsSamplerTest {
     headers.put("headerKey2", header2);
     headers.put("headerKey3", header3);
 
-    DataRequest respond1 = buildDataRequest("http://www.mock.com/path\n", headers, payload1);
-    DataRequest respond2 = buildDataRequest("http://www.mock.com/path/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n", headers, payload2);
-    DataRequest respond3 = buildDataRequest("https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_1.ts\n", headers, "chunck");
-    DataRequest respond4 = buildDataRequest("https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_2.ts\n", headers, "chunck");
-    DataRequest respond5 = buildDataRequest("https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_3.ts\n", headers, "chunk");
+    DataRequest respond1 = buildDataRequest("http://www.mock.com/path", headers, payload1);
+    DataRequest respond2 = buildDataRequest(
+        "http://www.mock.com/path/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d",
+        headers, payload2);
+    DataRequest respond3 = buildDataRequest(
+        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_1.ts", headers, "chunck");
+    DataRequest respond4 = buildDataRequest(
+        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_2.ts", headers, "chunck");
+    DataRequest respond5 = buildDataRequest(
+        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_3.ts", headers, "chunk");
 
     Mockito.when(parserMock
         .getBaseUrl(Mockito.any(URL.class), Mockito.any(SampleResult.class), Mockito.anyBoolean()))
@@ -83,6 +88,8 @@ public class HlsSamplerTest {
     this.assertSampleResult(expected, result);
   }
 
+  //In this method we didn't use Arrays.asList since the test modifies
+  // the list and list provided by the method is immutable.
   private List<DataFragment> buildFragments() {
     DataFragment f1 = new DataFragment("10",
         "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_1.ts");
@@ -101,7 +108,7 @@ public class HlsSamplerTest {
   private DataRequest buildDataRequest(String url, Map<String, List<String>> headers,
       String payload) {
     DataRequest respond = new DataRequest();
-    respond.setRequestHeaders("GET  " + url);
+    respond.setRequestHeaders("GET  " + url + "\n");
     respond.setHeaders(headers);
     respond.setResponse(payload);
     respond.setResponseCode("200");
@@ -165,29 +172,33 @@ public class HlsSamplerTest {
   }
 
   private SampleResult buildSegmentSampleResult(int segmentNumber) {
-    SampleResult subResult = new SampleResult();
-
-    subResult.setRequestHeaders(
-        "GET  https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_" + segmentNumber
-            + ".ts\n\n\n\n\n");
-    subResult.setSuccessful(true);
-    subResult.setResponseMessage("OK");
-    subResult.setSampleLabel("Thousands-320k_" + segmentNumber + ".ts");
-    subResult.setResponseHeaders(
-        "URL: https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_" + segmentNumber
-            + ".ts\nheaderKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31\n");
-    subResult.setResponseData(String.valueOf(StandardCharsets.UTF_8));
-    subResult.setResponseCode("200");
-    subResult.setContentType("application/json;charset=UTF-8");
-    subResult.setDataEncoding("UTF-8");
+    SampleResult subResult = this.buildSampleResult(
+        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_" + segmentNumber + ".ts",
+        "Thousands-320k_" + segmentNumber + ".ts");
 
     return subResult;
   }
 
-  private void assertSampleResult(SampleResult expected,SampleResult actual) {
+  private SampleResult buildSampleResult(String url, String label) {
+    SampleResult sResult = new SampleResult();
+    sResult.setRequestHeaders("GET  " + url + "\n\n\n\n\n");
+    sResult.setSuccessful(true);
+    sResult.setResponseMessage("OK");
+    sResult.setSampleLabel(label);
+    sResult.setResponseHeaders(
+        "URL: " + url
+            + "\nheaderKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31\n");
+    sResult.setResponseData(String.valueOf(StandardCharsets.UTF_8));
+    sResult.setResponseCode("200");
+    sResult.setContentType("application/json;charset=UTF-8");
+    sResult.setDataEncoding("UTF-8");
+
+    return sResult;
+  }
+
+  private void assertSampleResult(SampleResult expected, SampleResult actual) {
     assertThat(sampleResultToJson(actual).toString())
         .isEqualTo(sampleResultToJson(expected).toString());
-
   }
 
 }
