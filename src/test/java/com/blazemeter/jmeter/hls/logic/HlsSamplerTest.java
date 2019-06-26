@@ -35,6 +35,7 @@ public class HlsSamplerTest {
     sampler.setVideoDuration(true);
     sampler.setParser(parserMock);
     sampler.setName("Test");
+    sampler.setResumeVideoStatus(true);
   }
 
   @Test
@@ -44,14 +45,8 @@ public class HlsSamplerTest {
 
     String payload1 = "#EXTM3U\n#EXT-X-VERSION:4\n#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=1395723,PROGRAM-ID=1,CODECS=\"avc1.42c01e,mp4a.40.2\",RESOLUTION=640x360,SUBTITLES=\"subs\"\n/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=170129,PROGRAM-ID=1,CODECS=\"avc1.42c00c,mp4a.40.2\",RESOLUTION=320x180,SUBTITLES=\"subs\"\n/videos/DianaLaufenberg_2010X/video/64k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=425858,PROGRAM-ID=1,CODECS=\"avc1.42c015,mp4a.40.2\",RESOLUTION=512x288,SUBTITLES=\"subs\"\n/videos/DianaLaufenberg_2010X/video/180k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=718158,PROGRAM-ID=1,CODECS=\"avc1.42c015,mp4a.40.2\",RESOLUTION=512x288,SUBTITLES=\"subs\"\n/videos/DianaLaufenberg_2010X/video/320k.m3u8?preroll=Thousands&uniqueId=4df94b1d";
     String payload2 = "#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXT-X-VERSION:4\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXTINF:5.0000,\n#EXT-X-BYTERANGE:440672@0\nhttps://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k.ts\n#EXTINF:5.0000,\n#EXT-X-BYTERANGE:94000@440672\nhttps://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k.ts\n#EXTINF:1.9583,\n#EXT-X-BYTERANGE:22748@534672\nhttps://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k.ts\n#EXT-X-DISCONTINUITY";
-    Map<String, List<String>> headers = new HashMap<>();
-    List<String> header1 = Arrays.asList("header11", "header12", "header13");
-    List<String> header2 = Arrays.asList("header21", "header22", "header23");
-    List<String> header3 = Arrays.asList("header31");
 
-    headers.put("headerKey1", header1);
-    headers.put("headerKey2", header2);
-    headers.put("headerKey3", header3);
+    Map<String, List<String>> headers = this.buildHeaders();
 
     DataRequest respond1 = buildDataRequest("http://www.mock.com/path", headers, payload1);
     DataRequest respond2 = buildDataRequest(
@@ -86,6 +81,19 @@ public class HlsSamplerTest {
     SampleResult expected = buildExpectedSampleResult();
 
     this.assertSampleResult(expected, result);
+  }
+
+  private Map<String, List<String>> buildHeaders() {
+    Map<String, List<String>> headers = new HashMap<>();
+    List<String> header1 = Arrays.asList("header11", "header12", "header13");
+    List<String> header2 = Arrays.asList("header21", "header22", "header23");
+    List<String> header3 = Arrays.asList("header31");
+
+    headers.put("headerKey1", header1);
+    headers.put("headerKey2", header2);
+    headers.put("headerKey3", header3);
+
+    return headers;
   }
 
   //In this method we didn't use Arrays.asList since the test modifies
@@ -136,37 +144,22 @@ public class HlsSamplerTest {
 
   private SampleResult buildExpectedSampleResult() {
 
-    SampleResult subResult = new SampleResult();
+    SampleResult subResult = this.buildSampleResult(
+        "http://www.mock.com/path/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d",
+        "600k.m3u8?preroll=Thousands&uniqueId=4df94b1d");
     SampleResult subResult1 = this.buildSegmentSampleResult(1);
     SampleResult subResult2 = this.buildSegmentSampleResult(2);
     SampleResult subResult3 = this.buildSegmentSampleResult(3);
 
-    subResult.setRequestHeaders(
-        "GET  http://www.mock.com/path/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n\n\n\n\n");
-    subResult.setSuccessful(true);
-    subResult.setResponseMessage("OK");
-    subResult.setSampleLabel("600k.m3u8?preroll=Thousands&uniqueId=4df94b1d");
     subResult.setResponseHeaders(
         "headerKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31\n");
-    subResult.setResponseData(String.valueOf(StandardCharsets.UTF_8));
-    subResult.setResponseCode("200");
-    subResult.setContentType("application/json;charset=UTF-8");
-    subResult.setDataEncoding("UTF-8");
     subResult.addRawSubResult(subResult1);
     subResult.addRawSubResult(subResult2);
     subResult.addRawSubResult(subResult3);
 
-    SampleResult expected = new SampleResult();
-    expected.setRequestHeaders("GET  http://www.mock.com/path\n\n\n\n\n");
-    expected.setSuccessful(true);
-    expected.setResponseMessage("OK");
-    expected.setSampleLabel("Test");
+    SampleResult expected = this.buildSampleResult("http://www.mock.com/path", "Test");
     expected.setResponseHeaders(
         "headerKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31\n");
-    expected.setResponseData(String.valueOf(StandardCharsets.UTF_8));
-    expected.setResponseCode("200");
-    expected.setContentType("application/json;charset=UTF-8");
-    expected.setDataEncoding("UTF-8");
     expected.addRawSubResult(subResult);
     return expected;
   }
