@@ -20,6 +20,9 @@ public class HlsSamplerTest {
 
   private HlsSampler sampler;
   private Parser parserMock;
+  private String headers = "headerKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31\n";
+  private String path = "/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d";
+  private String domain = "http://www.mock.com/path";
 
   @Before
   public void setup() {
@@ -49,15 +52,13 @@ public class HlsSamplerTest {
     Map<String, List<String>> headers = this.buildHeaders();
 
     DataRequest respond1 = buildDataRequest("http://www.mock.com/path", headers, payload1);
-    DataRequest respond2 = buildDataRequest(
-        "http://www.mock.com/path/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d",
-        headers, payload2);
+    DataRequest respond2 = buildDataRequest(domain + path, headers, payload2);
     DataRequest respond3 = buildDataRequest(
-        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_1.ts", headers, "chunck");
+        this.buildSegmentUrl(1), headers, "chunck");
     DataRequest respond4 = buildDataRequest(
-        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_2.ts", headers, "chunck");
+        this.buildSegmentUrl(2), headers, "chunck");
     DataRequest respond5 = buildDataRequest(
-        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_3.ts", headers, "chunk");
+        this.buildSegmentUrl(3), headers, "chunk");
 
     Mockito.when(parserMock
         .getBaseUrl(Mockito.any(URL.class), Mockito.any(SampleResult.class), Mockito.anyBoolean()))
@@ -70,8 +71,7 @@ public class HlsSamplerTest {
     Mockito.when(parserMock.extractMediaUrl(Mockito.any(String.class), Mockito.any(String.class),
         Mockito.any(Integer.class), Mockito.any(BandwidthOption.class),
         Mockito.any(ResolutionOption.class)))
-        .thenReturn(
-            "/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d");
+        .thenReturn(path);
     Mockito.when(parserMock.extractVideoUrl(Mockito.any()))
         .thenReturn(fragments);
     Mockito.when(parserMock.isLive(Mockito.any(String.class)))
@@ -100,11 +100,11 @@ public class HlsSamplerTest {
   // the list and list provided by the method is immutable.
   private List<DataFragment> buildFragments() {
     DataFragment f1 = new DataFragment("10",
-        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_1.ts");
+        this.buildSegmentUrl(1));
     DataFragment f2 = new DataFragment("10",
-        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_2.ts");
+        this.buildSegmentUrl(2));
     DataFragment f3 = new DataFragment("10",
-        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_3.ts");
+        this.buildSegmentUrl(3));
     List<DataFragment> fragments = new ArrayList<>();
     fragments.add(f1);
     fragments.add(f2);
@@ -144,32 +144,35 @@ public class HlsSamplerTest {
 
   private SampleResult buildExpectedSampleResult() {
 
-    SampleResult subResult = this.buildSampleResult(
-        "http://www.mock.com/path/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d",
-        "600k.m3u8?preroll=Thousands&uniqueId=4df94b1d");
+    SampleResult subResult = this
+        .buildSampleResult(domain + path, "600k.m3u8?preroll=Thousands&uniqueId=4df94b1d");
     SampleResult subResult1 = this.buildSegmentSampleResult(1);
     SampleResult subResult2 = this.buildSegmentSampleResult(2);
     SampleResult subResult3 = this.buildSegmentSampleResult(3);
 
-    subResult.setResponseHeaders(
-        "headerKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31\n");
+    subResult.setResponseHeaders(headers);
     subResult.addRawSubResult(subResult1);
     subResult.addRawSubResult(subResult2);
     subResult.addRawSubResult(subResult3);
 
-    SampleResult expected = this.buildSampleResult("http://www.mock.com/path", "Test");
-    expected.setResponseHeaders(
-        "headerKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31\n");
+    SampleResult expected = this.buildSampleResult(domain, "Test");
+    expected.setResponseHeaders(headers);
     expected.addRawSubResult(subResult);
     return expected;
   }
 
   private SampleResult buildSegmentSampleResult(int segmentNumber) {
     SampleResult subResult = this.buildSampleResult(
-        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_" + segmentNumber + ".ts",
+        this.buildSegmentUrl(segmentNumber),
         "Thousands-320k_" + segmentNumber + ".ts");
 
     return subResult;
+  }
+
+  private String buildSegmentUrl(int segmentNumber) {
+    String url =
+        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_" + segmentNumber + ".ts";
+    return url;
   }
 
   private SampleResult buildSampleResult(String url, String label) {
@@ -179,8 +182,7 @@ public class HlsSamplerTest {
     sResult.setResponseMessage("OK");
     sResult.setSampleLabel(label);
     sResult.setResponseHeaders(
-        "URL: " + url
-            + "\nheaderKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31\n");
+        "URL: " + url + "\n" + headers);
     sResult.setResponseData(String.valueOf(StandardCharsets.UTF_8));
     sResult.setResponseCode("200");
     sResult.setContentType("application/json;charset=UTF-8");
