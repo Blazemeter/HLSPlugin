@@ -20,15 +20,15 @@ public class HlsSamplerTest {
 
   private HlsSampler sampler;
   private Parser parserMock;
-  private String headers = "headerKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31\n";
-  private String path = "/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d";
-  private String domain = "http://www.mock.com/path";
+  static final String HEADERS = "headerKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31\n";
+  static final String PLAYLIST_PATH = "/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d";
+  static final String VIDEO_URL = "http://www.mock.com/PLAYLIST_PATH";
 
   @Before
   public void setup() {
     parserMock = Mockito.mock(Parser.class);
     sampler = new HlsSampler();
-    sampler.setURLData("http://www.mock.com/path");
+    sampler.setURLData("http://www.mock.com/PLAYLIST_PATH");
     sampler.setResData("640x360");
     sampler.setNetworkData("1395723");
     sampler.setBandwidthType(BandwidthOption.CUSTOM);
@@ -51,8 +51,8 @@ public class HlsSamplerTest {
 
     Map<String, List<String>> headers = this.buildHeaders();
 
-    DataRequest respond1 = buildDataRequest("http://www.mock.com/path", headers, payload1);
-    DataRequest respond2 = buildDataRequest(domain + path, headers, payload2);
+    DataRequest respond1 = buildDataRequest("http://www.mock.com/PLAYLIST_PATH", headers, payload1);
+    DataRequest respond2 = buildDataRequest(VIDEO_URL + PLAYLIST_PATH, headers, payload2);
     DataRequest respond3 = buildDataRequest(
         this.buildSegmentUrl(1), headers, "chunck");
     DataRequest respond4 = buildDataRequest(
@@ -71,7 +71,7 @@ public class HlsSamplerTest {
     Mockito.when(parserMock.extractMediaUrl(Mockito.any(String.class), Mockito.any(String.class),
         Mockito.any(Integer.class), Mockito.any(BandwidthOption.class),
         Mockito.any(ResolutionOption.class)))
-        .thenReturn(path);
+        .thenReturn(PLAYLIST_PATH);
     Mockito.when(parserMock.extractVideoUrl(Mockito.any()))
         .thenReturn(fragments);
     Mockito.when(parserMock.isLive(Mockito.any(String.class)))
@@ -99,16 +99,13 @@ public class HlsSamplerTest {
   //In this method we didn't use Arrays.asList since the test modifies
   // the list and list provided by the method is immutable.
   private List<DataFragment> buildFragments() {
-    DataFragment f1 = new DataFragment("10",
-        this.buildSegmentUrl(1));
-    DataFragment f2 = new DataFragment("10",
-        this.buildSegmentUrl(2));
-    DataFragment f3 = new DataFragment("10",
-        this.buildSegmentUrl(3));
     List<DataFragment> fragments = new ArrayList<>();
-    fragments.add(f1);
-    fragments.add(f2);
-    fragments.add(f3);
+    fragments.add(new DataFragment("10",
+        this.buildSegmentUrl(1)));
+    fragments.add(new DataFragment("10",
+        this.buildSegmentUrl(2)));
+    fragments.add(new DataFragment("10",
+        this.buildSegmentUrl(3)));
 
     return fragments;
   }
@@ -145,18 +142,16 @@ public class HlsSamplerTest {
   private SampleResult buildExpectedSampleResult() {
 
     SampleResult subResult = this
-        .buildSampleResult(domain + path, "600k.m3u8?preroll=Thousands&uniqueId=4df94b1d");
-    SampleResult subResult1 = this.buildSegmentSampleResult(1);
-    SampleResult subResult2 = this.buildSegmentSampleResult(2);
-    SampleResult subResult3 = this.buildSegmentSampleResult(3);
+        .buildSampleResult(VIDEO_URL + PLAYLIST_PATH,
+            "600k.m3u8?preroll=Thousands&uniqueId=4df94b1d");
+    subResult.addRawSubResult(this.buildSegmentSampleResult(1));
+    subResult.addRawSubResult(this.buildSegmentSampleResult(2));
+    subResult.addRawSubResult(this.buildSegmentSampleResult(3));
 
-    subResult.setResponseHeaders(headers);
-    subResult.addRawSubResult(subResult1);
-    subResult.addRawSubResult(subResult2);
-    subResult.addRawSubResult(subResult3);
+    subResult.setResponseHeaders(HEADERS);
 
-    SampleResult expected = this.buildSampleResult(domain, "Test");
-    expected.setResponseHeaders(headers);
+    SampleResult expected = this.buildSampleResult(VIDEO_URL, "Test");
+    expected.setResponseHeaders(HEADERS);
     expected.addRawSubResult(subResult);
     return expected;
   }
@@ -182,7 +177,7 @@ public class HlsSamplerTest {
     sResult.setResponseMessage("OK");
     sResult.setSampleLabel(label);
     sResult.setResponseHeaders(
-        "URL: " + url + "\n" + headers);
+        "URL: " + url + "\n" + HEADERS);
     sResult.setResponseData(String.valueOf(StandardCharsets.UTF_8));
     sResult.setResponseCode("200");
     sResult.setContentType("application/json;charset=UTF-8");
