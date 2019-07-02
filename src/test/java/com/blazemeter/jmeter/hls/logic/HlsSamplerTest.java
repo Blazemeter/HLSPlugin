@@ -1,11 +1,17 @@
 package com.blazemeter.jmeter.hls.logic;
 
 import static org.assertj.core.api.Java6Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,17 +24,20 @@ import org.mockito.Mockito;
 
 public class HlsSamplerTest {
 
+  private static final String HEADERS = "headerKey1 : header11 header12 header13\n"
+      + "headerKey2 : header21 header22 header23\n"
+      + "headerKey3 : header31\n";
+  private static final String PLAYLIST_PATH = "/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d";
+  private static final String VIDEO_URL = "http://www.mock.com/path";
+
   private HlsSampler sampler;
   private Parser parserMock;
-  static final String HEADERS = "headerKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31\n";
-  static final String PLAYLIST_PATH = "/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d";
-  static final String VIDEO_URL = "http://www.mock.com/PLAYLIST_PATH";
 
   @Before
   public void setup() {
     parserMock = Mockito.mock(Parser.class);
     sampler = new HlsSampler();
-    sampler.setURLData("http://www.mock.com/PLAYLIST_PATH");
+    sampler.setURLData(VIDEO_URL);
     sampler.setResData("640x360");
     sampler.setNetworkData("1395723");
     sampler.setBandwidthType(BandwidthOption.CUSTOM);
@@ -43,57 +52,76 @@ public class HlsSamplerTest {
 
   @Test
   public void testSample() throws Exception {
-
-    List<DataFragment> fragments = this.buildFragments();
-
-    String payload1 = "#EXTM3U\n#EXT-X-VERSION:4\n#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=1395723,PROGRAM-ID=1,CODECS=\"avc1.42c01e,mp4a.40.2\",RESOLUTION=640x360,SUBTITLES=\"subs\"\n/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=170129,PROGRAM-ID=1,CODECS=\"avc1.42c00c,mp4a.40.2\",RESOLUTION=320x180,SUBTITLES=\"subs\"\n/videos/DianaLaufenberg_2010X/video/64k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=425858,PROGRAM-ID=1,CODECS=\"avc1.42c015,mp4a.40.2\",RESOLUTION=512x288,SUBTITLES=\"subs\"\n/videos/DianaLaufenberg_2010X/video/180k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=718158,PROGRAM-ID=1,CODECS=\"avc1.42c015,mp4a.40.2\",RESOLUTION=512x288,SUBTITLES=\"subs\"\n/videos/DianaLaufenberg_2010X/video/320k.m3u8?preroll=Thousands&uniqueId=4df94b1d";
-    String payload2 = "#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXT-X-VERSION:4\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXTINF:5.0000,\n#EXT-X-BYTERANGE:440672@0\nhttps://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k.ts\n#EXTINF:5.0000,\n#EXT-X-BYTERANGE:94000@440672\nhttps://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k.ts\n#EXTINF:1.9583,\n#EXT-X-BYTERANGE:22748@534672\nhttps://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k.ts\n#EXT-X-DISCONTINUITY";
-
     Map<String, List<String>> headers = this.buildHeaders();
-
-    DataRequest respond1 = buildDataRequest("http://www.mock.com/PLAYLIST_PATH", headers, payload1);
-    DataRequest respond2 = buildDataRequest(VIDEO_URL + PLAYLIST_PATH, headers, payload2);
-    DataRequest respond3 = buildDataRequest(
-        this.buildSegmentUrl(1), headers, "chunck");
-    DataRequest respond4 = buildDataRequest(
-        this.buildSegmentUrl(2), headers, "chunck");
-    DataRequest respond5 = buildDataRequest(
-        this.buildSegmentUrl(3), headers, "chunk");
-
-    Mockito.when(parserMock
-        .getBaseUrl(Mockito.any(URL.class), Mockito.any(SampleResult.class), Mockito.anyBoolean()))
-        .thenReturn(respond1)
-        .thenReturn(respond2)
-        .thenReturn(respond3)
-        .thenReturn(respond4)
-        .thenReturn(respond5);
-
-    Mockito.when(parserMock.extractMediaUrl(Mockito.any(String.class), Mockito.any(String.class),
-        Mockito.any(Integer.class), Mockito.any(BandwidthOption.class),
-        Mockito.any(ResolutionOption.class)))
-        .thenReturn(PLAYLIST_PATH);
-    Mockito.when(parserMock.extractVideoUrl(Mockito.any()))
-        .thenReturn(fragments);
-    Mockito.when(parserMock.isLive(Mockito.any(String.class)))
-        .thenReturn(false);
-
+    setupMasterListParser(headers);
+    setupPlayListParser(headers);
+    setupFragmentParser(1, headers);
+    setupFragmentParser(2, headers);
+    setupFragmentParser(3, headers);
     SampleResult result = sampler.sample(null);
     SampleResult expected = buildExpectedSampleResult();
-
     this.assertSampleResult(expected, result);
   }
 
   private Map<String, List<String>> buildHeaders() {
     Map<String, List<String>> headers = new HashMap<>();
-    List<String> header1 = Arrays.asList("header11", "header12", "header13");
-    List<String> header2 = Arrays.asList("header21", "header22", "header23");
-    List<String> header3 = Arrays.asList("header31");
-
-    headers.put("headerKey1", header1);
-    headers.put("headerKey2", header2);
-    headers.put("headerKey3", header3);
-
+    headers.put("headerKey1", Arrays.asList("header11", "header12", "header13"));
+    headers.put("headerKey2", Arrays.asList("header21", "header22", "header23"));
+    headers.put("headerKey3", Collections.singletonList("header31"));
     return headers;
+  }
+
+  private void setupMasterListParser(Map<String, List<String>> headers) throws IOException {
+    String payload1 = "#EXTM3U\n"
+        + "#EXT-X-VERSION:4\n"
+        + "#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=1395723,PROGRAM-ID=1,CODECS=\"avc1.42c01e,mp4a.40.2\",RESOLUTION=640x360,SUBTITLES=\"subs\"\n"
+        + "/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n"
+        + "#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=170129,PROGRAM-ID=1,CODECS=\"avc1.42c00c,mp4a.40.2\",RESOLUTION=320x180,SUBTITLES=\"subs\"\n"
+        + "/videos/DianaLaufenberg_2010X/video/64k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n"
+        + "#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=425858,PROGRAM-ID=1,CODECS=\"avc1.42c015,mp4a.40.2\",RESOLUTION=512x288,SUBTITLES=\"subs\"\n"
+        + "/videos/DianaLaufenberg_2010X/video/180k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n"
+        + "#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=718158,PROGRAM-ID=1,CODECS=\"avc1.42c015,mp4a.40.2\",RESOLUTION=512x288,SUBTITLES=\"subs\"\n"
+        + "/videos/DianaLaufenberg_2010X/video/320k.m3u8?preroll=Thousands&uniqueId=4df94b1d";
+    setupUrlParser(VIDEO_URL, headers, payload1);
+    when(parserMock.extractMediaUrl(any(String.class), any(String.class),
+        any(Integer.class), any(BandwidthOption.class),
+        any(ResolutionOption.class)))
+        .thenReturn(PLAYLIST_PATH);
+  }
+
+  private void setupUrlParser(String url, Map<String, List<String>> headers, String payload)
+      throws IOException {
+    when(parserMock.getBaseUrl(eq(new URL(url)), any(SampleResult.class), anyBoolean()))
+        .thenReturn(buildDataRequest(url, headers, payload));
+  }
+
+  private void setupPlayListParser(Map<String, List<String>> headers) throws IOException {
+    String payload2 = "#EXTM3U\n"
+        + "EXT-X-TARGETDURATION:10\n"
+        + "#EXT-X-VERSION:4\n"
+        + "#EXT-X-MEDIA-SEQUENCE:0\n"
+        + "#EXT-X-PLAYLIST-TYPE:VOD\n"
+        + "#EXTINF:5.0000,\n"
+        + "#EXT-X-BYTERANGE:440672@0\n"
+        + "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k.ts\n"
+        + "#EXTINF:5.0000,\n"
+        + "#EXT-X-BYTERANGE:94000@440672\n"
+        + "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k.ts\n"
+        + "#EXTINF:1.9583,\n"
+        + "#EXT-X-BYTERANGE:22748@534672\n"
+        + "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k.ts\n"
+        + "#EXT-X-DISCONTINUITY";
+    setupUrlParser(VIDEO_URL + PLAYLIST_PATH, headers, payload2);
+    when(parserMock.extractVideoUrl(any()))
+        .thenReturn(buildFragments());
+    when(parserMock.isLive(any(String.class)))
+        .thenReturn(false);
+  }
+
+  private void setupFragmentParser(int fragmentNumber,
+      Map<String, List<String>> headers) throws IOException {
+    String segmentUrl = this.buildSegmentUrl(fragmentNumber);
+    setupUrlParser(segmentUrl, headers, "chunck");
   }
 
   //In this method we didn't use Arrays.asList since the test modifies
@@ -125,6 +153,7 @@ public class HlsSamplerTest {
     return respond;
   }
 
+  @SuppressWarnings("unchecked")
   private JSONObject sampleResultToJson(SampleResult sample) {
     JSONObject json = new JSONObject();
     json.put("requestHeaders", sample.getRequestHeaders());
@@ -157,17 +186,13 @@ public class HlsSamplerTest {
   }
 
   private SampleResult buildSegmentSampleResult(int segmentNumber) {
-    SampleResult subResult = this.buildSampleResult(
+    return this.buildSampleResult(
         this.buildSegmentUrl(segmentNumber),
         "Thousands-320k_" + segmentNumber + ".ts");
-
-    return subResult;
   }
 
   private String buildSegmentUrl(int segmentNumber) {
-    String url =
-        "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_" + segmentNumber + ".ts";
-    return url;
+    return "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k_" + segmentNumber + ".ts";
   }
 
   private SampleResult buildSampleResult(String url, String label) {
@@ -178,11 +203,10 @@ public class HlsSamplerTest {
     sResult.setSampleLabel(label);
     sResult.setResponseHeaders(
         "URL: " + url + "\n" + HEADERS);
-    sResult.setResponseData(String.valueOf(StandardCharsets.UTF_8));
+    sResult.setResponseData(String.valueOf(StandardCharsets.UTF_8), StandardCharsets.UTF_8.name());
     sResult.setResponseCode("200");
     sResult.setContentType("application/json;charset=UTF-8");
     sResult.setDataEncoding("UTF-8");
-
     return sResult;
   }
 
