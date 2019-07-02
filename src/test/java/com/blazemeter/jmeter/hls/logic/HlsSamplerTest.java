@@ -97,7 +97,7 @@ public class HlsSamplerTest {
 
   private void setupPlayListParser(Map<String, List<String>> headers) throws IOException {
     String payload2 = "#EXTM3U\n"
-        + "EXT-X-TARGETDURATION:10\n"
+        + "#EXT-X-TARGETDURATION:10\n"
         + "#EXT-X-VERSION:4\n"
         + "#EXT-X-MEDIA-SEQUENCE:0\n"
         + "#EXT-X-PLAYLIST-TYPE:VOD\n"
