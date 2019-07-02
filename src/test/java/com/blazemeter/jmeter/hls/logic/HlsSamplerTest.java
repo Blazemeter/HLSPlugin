@@ -22,13 +22,13 @@ public class HlsSamplerTest {
   private Parser parserMock;
   static final String HEADERS = "headerKey1 : header11 header12 header13\nheaderKey2 : header21 header22 header23\nheaderKey3 : header31\n";
   static final String PLAYLIST_PATH = "/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d";
-  static final String VIDEO_URL = "http://www.mock.com/PLAYLIST_PATH";
+  static final String VIDEO_URL = "http://www.mock.com/path";
 
   @Before
   public void setup() {
     parserMock = Mockito.mock(Parser.class);
     sampler = new HlsSampler();
-    sampler.setURLData("http://www.mock.com/PLAYLIST_PATH");
+    sampler.setURLData("http://www.mock.com/path");
     sampler.setResData("640x360");
     sampler.setNetworkData("1395723");
     sampler.setBandwidthType(BandwidthOption.CUSTOM);
@@ -38,7 +38,6 @@ public class HlsSamplerTest {
     sampler.setVideoDuration(true);
     sampler.setParser(parserMock);
     sampler.setName("Test");
-    sampler.setResumeVideoStatus(true);
   }
 
   @Test
@@ -51,7 +50,7 @@ public class HlsSamplerTest {
 
     Map<String, List<String>> headers = this.buildHeaders();
 
-    DataRequest respond1 = buildDataRequest("http://www.mock.com/PLAYLIST_PATH", headers, payload1);
+    DataRequest respond1 = buildDataRequest("http://www.mock.com/path", headers, payload1);
     DataRequest respond2 = buildDataRequest(VIDEO_URL + PLAYLIST_PATH, headers, payload2);
     DataRequest respond3 = buildDataRequest(
         this.buildSegmentUrl(1), headers, "chunck");
