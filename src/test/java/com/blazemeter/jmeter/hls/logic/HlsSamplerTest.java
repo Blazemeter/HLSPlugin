@@ -28,8 +28,8 @@ public class HlsSamplerTest {
       + "headerKey2 : header21 header22 header23\n"
       + "headerKey3 : header31\n";
   private static final String PLAYLIST_PATH = "/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d";
-  private static final String VIDEO_URL = "http://www.mock.com/path";
-
+  private static final String BASE_URL = "http://www.mock.com";
+  private static final String VIDEO_URL = BASE_URL + "/path";
   private HlsSampler sampler;
   private Parser parserMock;
 
@@ -111,7 +111,7 @@ public class HlsSamplerTest {
         + "#EXT-X-BYTERANGE:22748@534672\n"
         + "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k.ts\n"
         + "#EXT-X-DISCONTINUITY";
-    setupUrlParser(VIDEO_URL + PLAYLIST_PATH, headers, payload2);
+    setupUrlParser(BASE_URL + PLAYLIST_PATH, headers, payload2);
     when(parserMock.extractVideoUrl(any()))
         .thenReturn(buildFragments());
     when(parserMock.isLive(any(String.class)))
@@ -121,7 +121,7 @@ public class HlsSamplerTest {
   private void setupFragmentParser(int fragmentNumber,
       Map<String, List<String>> headers) throws IOException {
     String segmentUrl = this.buildSegmentUrl(fragmentNumber);
-    setupUrlParser(segmentUrl, headers, "chunck");
+    setupUrlParser(segmentUrl, headers, "chunk");
   }
 
   //In this method we didn't use Arrays.asList since the test modifies
@@ -171,7 +171,7 @@ public class HlsSamplerTest {
   private SampleResult buildExpectedSampleResult() {
 
     SampleResult subResult = this
-        .buildSampleResult(VIDEO_URL + PLAYLIST_PATH,
+        .buildSampleResult(BASE_URL + PLAYLIST_PATH,
             "600k.m3u8?preroll=Thousands&uniqueId=4df94b1d");
     subResult.addRawSubResult(this.buildSegmentSampleResult(1));
     subResult.addRawSubResult(this.buildSegmentSampleResult(2));
