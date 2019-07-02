@@ -153,7 +153,7 @@ public class HlsSampler extends AbstractSampler {
         playSeconds = Integer.parseInt(getPlaySecondsData());
       }
 
-      if (this.getResumeVideoStatus()) {
+      if (!this.getResumeVideoStatus()) {
         this.fragmentsDownloaded.clear();
       }
 
