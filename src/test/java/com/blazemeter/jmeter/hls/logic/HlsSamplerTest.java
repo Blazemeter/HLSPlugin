@@ -1,6 +1,7 @@
 package com.blazemeter.jmeter.hls.logic;
 
 import static org.assertj.core.api.Java6Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
@@ -57,7 +58,6 @@ public class HlsSamplerTest {
     sampler.setVideoDuration(true);
     sampler.setParser(parserMock);
     sampler.setName("Test");
-    sampler.setResumeVideoStatus(true);
   }
 
   private void setupParser() throws IOException {
@@ -134,7 +134,7 @@ public class HlsSamplerTest {
         + "#EXT-X-DISCONTINUITY";
     setupUrlParser(BASE_URL + PLAYLIST_PATH, headers, payload2);
     when(parserMock.extractVideoUrl(any()))
-        .thenReturn(buildFragments());
+        .thenAnswer(i -> buildFragments());
     when(parserMock.isLive(any(String.class)))
         .thenReturn(false);
   }
@@ -217,6 +217,33 @@ public class HlsSamplerTest {
     json.put("children", Arrays.stream(sample.getSubResults()).map(this::sampleResultToJson)
         .collect(Collectors.toList()));
     return json;
+  }
+
+  @Test
+  public void testResumeVideoDownloadBetweenIterationsOn() {
+    sampler.setPlaySecondsData("9");
+    sampler.setResumeVideoStatus(true);
+    SampleResult result = sampler.sample(null);
+    SampleResult result2 = sampler.sample(null);
+
+    assertEquals("Thousands-320k_2.ts", returnFragmentLabel(result2));
+  }
+
+  @Test
+  public void testResumeVideoDownloadBetweenIterationsOff() {
+    sampler.setPlaySecondsData("9");
+    sampler.setResumeVideoStatus(false);
+    SampleResult result = sampler.sample(null);
+    SampleResult result2 = sampler.sample(null);
+
+    assertEquals("Thousands-320k_1.ts", returnFragmentLabel(result2));
+  }
+
+  private String returnFragmentLabel(SampleResult result) {
+    SampleResult[] subresults = result.getSubResults();
+    SampleResult[] subSubresults = subresults[0].getSubResults();
+
+    return subSubresults[0].getSampleLabel();
   }
 
 }
