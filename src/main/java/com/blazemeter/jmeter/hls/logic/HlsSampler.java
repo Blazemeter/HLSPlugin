@@ -46,7 +46,6 @@ public class HlsSampler extends AbstractSampler {
 
   private static final String HLS_MASTER_LIST_LABEL_NAME = "HLS - Masterlist";
   private static final String HLS_FRAGMENT_LABEL_NAME = "HLS - Segment - ";
-  private static final String HLS_SAMPLER_NAME = "HLS - Sampler";
 
   private ArrayList<String> fragmentsDownloaded = new ArrayList<>();
   private Parser parser;
@@ -187,7 +186,7 @@ public class HlsSampler extends AbstractSampler {
 
           if (!isPresent) {
             fragmentOrder++;
-            frag.setOrderFrament(fragmentOrder);
+            frag.setFragmentOrder(fragmentOrder);
             fragmentToDownload.add(frag);
             fragmentsDownloaded.add(frag.getTsUri().trim());
             if (getVideoDuration()) {
@@ -199,16 +198,15 @@ public class HlsSampler extends AbstractSampler {
         getFragments(parser, fragmentToDownload, auxPath);
       }
 
-    } catch (IOException e1) {
-      LOG.error("Problem while getting video from {}", getURLData(), e1);
+    } catch (IOException ioException) {
+      LOG.error("Problem while getting video from {}", getURLData(), ioException);
       masterResult.sampleEnd();
       masterResult.setSuccessful(false);
-      masterResult.setResponseMessage("Exception: " + e1);
+      masterResult.setResponseMessage("Exception: " + ioException);
     }
 
     return masterResult;
   }
-
 
   private DataRequest getMasterList(SampleResult masterResult, Parser parser) throws IOException {
 
@@ -347,8 +345,7 @@ public class HlsSampler extends AbstractSampler {
     return subRespond;
   }
 
-  private List<SampleResult> getFragments(Parser parser, List<DataFragment> uris, String url) {
-    List<SampleResult> res = new ArrayList<>();
+  private void getFragments(Parser parser, List<DataFragment> uris, String url) {
     if (!uris.isEmpty()) {
       SampleResult result = new SampleResult();
       String uriString = uris.get(0).getTsUri();
@@ -369,7 +366,7 @@ public class HlsSampler extends AbstractSampler {
                 + getRequestHeader(this.getHeaderManager()));
         result.setSuccessful(respond.isSuccess());
         result.setResponseMessage(respond.getResponseMessage());
-        result.setSampleLabel(HLS_FRAGMENT_LABEL_NAME+uris.get(0).getOrderFrament());
+        result.setSampleLabel(HLS_FRAGMENT_LABEL_NAME + uris.get(0).getFragmentOrder());
         result.setResponseHeaders("URL: " + uriString + "\n" + respond.getHeadersAsString());
         result.setResponseCode(respond.getResponseCode());
         result.setContentType(respond.getContentType());
@@ -393,13 +390,14 @@ public class HlsSampler extends AbstractSampler {
       uris.remove(0);
       getFragments(parser, uris, url);
     }
-    return res;
   }
 
-  public void notifyListeners(SampleResult sampleResult){
+  private void notifyListeners(SampleResult sampleResult) {
     JMeterContext threadContext = getThreadContext();
-    SamplePackage pack = (SamplePackage) threadContext.getVariables().getObject(JMeterThread.PACKAGE_OBJECT);
-    SampleEvent event = new SampleEvent(sampleResult, getThreadName(),threadContext.getVariables(), false);
+    SamplePackage pack = (SamplePackage) threadContext.getVariables()
+        .getObject(JMeterThread.PACKAGE_OBJECT);
+    SampleEvent event = new SampleEvent(sampleResult, getThreadName(),
+        threadContext.getVariables(), false);
     pack.getSampleListeners().forEach(l -> l.sampleOccurred(event));
   }
 
