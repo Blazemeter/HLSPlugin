@@ -132,8 +132,8 @@ public class HlsSamplerTest {
         + "#EXT-X-BYTERANGE:22748@534672\n"
         + "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k.ts\n"
         + "#EXT-X-DISCONTINUITY";
-    //We are building the list each time due to the hls sampler modifying the returned list.
     setupUrlParser(BASE_URL + PLAYLIST_PATH, headers, payload2);
+    //We are building the list each time due to the hls sampler modifying the returned list.
     when(parserMock.extractVideoUrl(any()))
         .thenAnswer(i -> buildFragments());
     when(parserMock.isLive(any(String.class)))
