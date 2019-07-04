@@ -132,6 +132,7 @@ public class HlsSamplerTest {
         + "#EXT-X-BYTERANGE:22748@534672\n"
         + "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k.ts\n"
         + "#EXT-X-DISCONTINUITY";
+    //We are building the list each time due to the hls sampler modifying the returned list.
     setupUrlParser(BASE_URL + PLAYLIST_PATH, headers, payload2);
     when(parserMock.extractVideoUrl(any()))
         .thenAnswer(i -> buildFragments());
@@ -139,8 +140,6 @@ public class HlsSamplerTest {
         .thenReturn(false);
   }
 
-  //In this method we didn't use Arrays.asList since the test modifies
-  // the list and list provided by the method is immutable.
   private List<DataFragment> buildFragments() {
     return IntStream.rangeClosed(1, 3)
         .mapToObj(i -> new DataFragment("10", buildSegmentUrl(i)))
@@ -226,7 +225,7 @@ public class HlsSamplerTest {
     SampleResult result = sampler.sample(null);
     SampleResult result2 = sampler.sample(null);
 
-    assertEquals("Thousands-320k_2.ts", returnFragmentLabel(result2));
+    assertEquals("Thousands-320k_2.ts", getFirstSegmentLabel(result2));
   }
 
   @Test
@@ -236,10 +235,10 @@ public class HlsSamplerTest {
     SampleResult result = sampler.sample(null);
     SampleResult result2 = sampler.sample(null);
 
-    assertEquals("Thousands-320k_1.ts", returnFragmentLabel(result2));
+    assertEquals("Thousands-320k_1.ts", getFirstSegmentLabel(result2));
   }
 
-  private String returnFragmentLabel(SampleResult result) {
+  private String getFirstSegmentLabel(SampleResult result) {
     SampleResult[] subresults = result.getSubResults();
     SampleResult[] subSubresults = subresults[0].getSubResults();
 
