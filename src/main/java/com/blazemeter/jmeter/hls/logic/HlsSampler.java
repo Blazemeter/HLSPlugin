@@ -1,8 +1,14 @@
 package com.blazemeter.jmeter.hls.logic;
 
 import com.google.common.annotations.VisibleForTesting;
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.jmeter.protocol.http.control.CacheManager;
 import org.apache.jmeter.protocol.http.control.CookieManager;
+import org.apache.jmeter.protocol.http.control.Header;
 import org.apache.jmeter.protocol.http.control.HeaderManager;
 import org.apache.jmeter.protocol.http.util.HTTPConstants;
 import org.apache.jmeter.samplers.AbstractSampler;
@@ -16,15 +22,8 @@ import org.apache.jmeter.testelement.property.TestElementProperty;
 import org.apache.jmeter.threads.JMeterContext;
 import org.apache.jmeter.threads.JMeterThread;
 import org.apache.jmeter.threads.SamplePackage;
-import org.apache.jmeter.protocol.http.control.Header;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
 
 public class HlsSampler extends AbstractSampler {
 
@@ -206,11 +205,11 @@ public class HlsSampler extends AbstractSampler {
         fragmentsToDownload.forEach(f -> downloadFragment(parser, f, playlistPath));
       }
 
-    } catch (IOException ioException) {
-      LOG.error("Problem while getting video from {}", getURLData(), ioException);
+    } catch (IOException ex) {
+      LOG.error("Problem while getting video from {}", getURLData(), ex);
       masterResult.sampleEnd();
       masterResult.setSuccessful(false);
-      masterResult.setResponseMessage("Exception: " + ioException);
+      masterResult.setResponseMessage("Exception: " + ex);
     }
     masterResult.setSentBytes(totalSentBytes);
     return masterResult;
@@ -352,45 +351,45 @@ public class HlsSampler extends AbstractSampler {
   }
 
   private void downloadFragment(Parser parser, DataFragment fragment, String baseUrl) {
-      SampleResult result = new SampleResult();
-      String uriString = fragment.getTsUri();
-      if ((baseUrl != null) && (!uriString.startsWith("http"))) {
-        uriString = baseUrl + uriString;
-      }
+    SampleResult result = new SampleResult();
+    String uriString = fragment.getTsUri();
+    if ((baseUrl != null) && (!uriString.startsWith("http"))) {
+      uriString = baseUrl + uriString;
+    }
 
-      result.sampleStart();
+    result.sampleStart();
 
-      try {
+    try {
 
-        DataRequest respond = parser.getBaseUrl(new URL(uriString), result, false);
+      DataRequest respond = parser.getBaseUrl(new URL(uriString), result, false);
 
-        result.sampleEnd();
+      result.sampleEnd();
 
-        result.setRequestHeaders(
-            respond.getRequestHeaders() + "\n\n" + getCookieHeader(uriString) + "\n\n"
-                + getRequestHeader(this.getHeaderManager()));
-        result.setSuccessful(respond.isSuccess());
-        result.setResponseMessage(respond.getResponseMessage());
-        result.setSampleLabel(HLS_PREFIX + "SEGMENT-" + fragment.getFragmentNumber());
-        result.setResponseHeaders("URL: " + uriString + "\n" + respond.getHeadersAsString());
-        result.setResponseCode(respond.getResponseCode());
-        result.setContentType(respond.getContentType());
-        result.setBytes(result.getBytesAsLong() + (long) result.getRequestHeaders().length());
-        result.setHeadersSize(getHeaderBytes(result, respond));
-        result.setSentBytes(respond.getSentBytes());
-        result.setDataEncoding(respond.getContentEncoding());
+      result.setRequestHeaders(
+          respond.getRequestHeaders() + "\n\n" + getCookieHeader(uriString) + "\n\n"
+              + getRequestHeader(this.getHeaderManager()));
+      result.setSuccessful(respond.isSuccess());
+      result.setResponseMessage(respond.getResponseMessage());
+      result.setSampleLabel(HLS_PREFIX + "SEGMENT-" + fragment.getFragmentNumber());
+      result.setResponseHeaders("URL: " + uriString + "\n" + respond.getHeadersAsString());
+      result.setResponseCode(respond.getResponseCode());
+      result.setContentType(respond.getContentType());
+      result.setBytes(result.getBytesAsLong() + (long) result.getRequestHeaders().length());
+      result.setHeadersSize(getHeaderBytes(result, respond));
+      result.setSentBytes(respond.getSentBytes());
+      result.setDataEncoding(respond.getContentEncoding());
 
-        totalSentBytes += respond.getSentBytes();
+      totalSentBytes += respond.getSentBytes();
 
-      } catch (IOException e) {
-        LOG.error("Problem while getting fragments from {}", baseUrl, e);
-        result.sampleEnd();
-        result.setSuccessful(false);
-        result.setResponseMessage("Exception: " + e);
-        result.setSampleLabel(HLS_PREFIX + "SEGMENT-" + fragment.getFragmentNumber());
-      }
+    } catch (IOException e) {
+      LOG.error("Problem while getting fragments from {}", baseUrl, e);
+      result.sampleEnd();
+      result.setSuccessful(false);
+      result.setResponseMessage("Exception: " + e);
+      result.setSampleLabel(HLS_PREFIX + "SEGMENT-" + fragment.getFragmentNumber());
+    }
 
-      notifySampleListeners(result);
+    notifySampleListeners(result);
   }
 
   private void notifySampleListeners(SampleResult sampleResult) {
