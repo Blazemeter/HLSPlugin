@@ -3,7 +3,7 @@ package com.blazemeter.jmeter.hls.logic;
 public class DataFragment {
   private String duration;
   private String tsUri;
-  private int fragmentOrder;
+  private int fragmentNumber;
 
   public DataFragment(String duration, String tsUri) {
     this.duration = duration;
@@ -26,11 +26,11 @@ public class DataFragment {
     this.tsUri = tsUri;
   }
 
-  public int getFragmentOrder() {
-    return fragmentOrder;
+  public int getFragmentNumber() {
+    return fragmentNumber;
   }
 
-  public void setFragmentOrder(int fragmentOrder) {
-    this.fragmentOrder = fragmentOrder;
+  public void setFragmentNumber(int fragmentNumber) {
+    this.fragmentNumber = fragmentNumber;
   }
 }
