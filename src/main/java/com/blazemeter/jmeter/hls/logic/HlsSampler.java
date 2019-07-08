@@ -314,8 +314,6 @@ public class HlsSampler extends AbstractSampler {
       playlist = getBaseUrl(masterURL) + auxPath + playlistUri;
     }
 
-    //return playlistUri;
-
     auxPath = getBaseUrl(masterURL) + auxPath;
 
     return auxPath;
