@@ -44,13 +44,11 @@ public class HlsSampler extends AbstractSampler {
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
   private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
 
-  private static final String HLS_PREFIX = "bzm-HLS-";
-
   private ArrayList<String> fragmentsDownloaded = new ArrayList<>();
   private Parser parser;
   private String playlist;
-  private int totalSizeInBytes = 0;
-  private long totalSentBytes = 0;
+
+  String masterListResponse;
 
   public HlsSampler() {
     setName("HLS Sampler");
@@ -147,11 +145,13 @@ public class HlsSampler extends AbstractSampler {
     SampleResult masterResult = new SampleResult();
     boolean isVod = getVideoType() == VideoType.VOD;
 
-    try {
-      DataRequest masterList = getMasterList(masterResult, parser);
-      totalSentBytes += masterList.getSentBytes();
+    Long totalSentBytes = 0L;
 
-      String playlistPath = getPlaylistPath(masterList, parser);
+    try {
+      masterResult = downloadMasterList(parser);
+      totalSentBytes += masterResult.getSentBytes();
+
+      String playlistPath = getPlaylistPath(masterListResponse, parser);
 
       int playSeconds = 0;
       if (!getPlaySecondsData().isEmpty()) {
@@ -170,9 +170,8 @@ public class HlsSampler extends AbstractSampler {
         SampleResult playListSampleResult = new SampleResult();
         DataRequest playList = getPlayList(playListSampleResult, parser);
 
-        totalSentBytes += playList.getSentBytes();
 
-        playListSampleResult.setSampleLabel(HLS_PREFIX + "PLAYLIST");
+        playListSampleResult.setSampleLabel(this.getName() + " - " + "playlist");
         notifySampleListeners(playListSampleResult);
 
         List<DataFragment> videoUrl = parser.extractVideoUrl(playList.getResponse());
@@ -215,17 +214,22 @@ public class HlsSampler extends AbstractSampler {
     return masterResult;
   }
 
-  private DataRequest getMasterList(SampleResult masterResult, Parser parser) throws IOException {
+  private SampleResult downloadMasterList(Parser parser) throws IOException {
+
+    SampleResult masterResult = new SampleResult();
+
     masterResult.sampleStart();
     DataRequest respond = parser.getBaseUrl(new URL(getURLData()), masterResult, true);
     masterResult.sampleEnd();
+
+    masterListResponse = respond.getResponse();
 
     masterResult.setRequestHeaders(
         respond.getRequestHeaders() + "\n\n" + getCookieHeader(getURLData()) + "\n\n"
             + getRequestHeader(this.getHeaderManager()));
     masterResult.setSuccessful(respond.isSuccess());
     masterResult.setResponseMessage(respond.getResponseMessage());
-    masterResult.setSampleLabel(HLS_PREFIX + "MASTERLIST-" + this.getName());
+    masterResult.setSampleLabel(this.getName() + " - master list");
     masterResult.setResponseHeaders(respond.getHeadersAsString());
     masterResult.setResponseData(respond.getResponse().getBytes());
     masterResult.setResponseCode(respond.getResponseCode());
@@ -236,8 +240,7 @@ public class HlsSampler extends AbstractSampler {
     masterResult.setSentBytes(respond.getSentBytes());
     masterResult.setDataEncoding(respond.getContentEncoding());
 
-    return respond;
-
+    return masterResult;
   }
 
   private int getHeaderBytes(SampleResult masterResult, DataRequest respond) {
@@ -290,10 +293,10 @@ public class HlsSampler extends AbstractSampler {
     return headerString.toString();
   }
 
-  private String getPlaylistPath(DataRequest respond, Parser parser) throws MalformedURLException {
+  private String getPlaylistPath(String playlistData, Parser parser) throws MalformedURLException {
     URL masterURL = new URL(getURLData());
     String customBandwidth = this.getNetwordData();
-    String playlistUri = parser.extractMediaUrl(respond.getResponse(), this.getResData(),
+    String playlistUri = parser.extractMediaUrl(playlistData, this.getResData(),
         customBandwidth != null && !customBandwidth.isEmpty() ? Integer.valueOf(customBandwidth)
             : null,
         this.getBandwidthType(), this.getResolutionType());
@@ -311,10 +314,11 @@ public class HlsSampler extends AbstractSampler {
       playlist = getBaseUrl(masterURL) + auxPath + playlistUri;
     }
 
+    //return playlistUri;
+
     auxPath = getBaseUrl(masterURL) + auxPath;
 
     return auxPath;
-
   }
 
   private String getBaseUrl(URL masterURL) {
@@ -328,15 +332,14 @@ public class HlsSampler extends AbstractSampler {
     DataRequest subRespond = parser.getBaseUrl(new URL(playlist), playListResult, true);
     playListResult.sampleEnd();
 
-    String[] urlArray = playlist.split("/");
-    lastPath = urlArray[urlArray.length - 1];
+    lastPath = playlist.split("/")[playlist.split("/").length - 1];
 
     playListResult.setRequestHeaders(
         subRespond.getRequestHeaders() + "\n\n" + getCookieHeader(playlist) + "\n\n"
             + getRequestHeader(this.getHeaderManager()));
     playListResult.setSuccessful(subRespond.isSuccess());
     playListResult.setResponseMessage(subRespond.getResponseMessage());
-    playListResult.setSampleLabel(lastPath);
+    playListResult.setSampleLabel(this.getName() + " - " + lastPath);
     playListResult.setResponseHeaders(subRespond.getHeadersAsString());
     playListResult.setResponseData(subRespond.getResponse().getBytes());
     playListResult.setResponseCode(subRespond.getResponseCode());
@@ -359,6 +362,8 @@ public class HlsSampler extends AbstractSampler {
 
     result.sampleStart();
 
+    String lastPath = playlist.split("/")[playlist.split("/").length - 1];
+
     try {
 
       DataRequest respond = parser.getBaseUrl(new URL(uriString), result, false);
@@ -370,7 +375,7 @@ public class HlsSampler extends AbstractSampler {
               + getRequestHeader(this.getHeaderManager()));
       result.setSuccessful(respond.isSuccess());
       result.setResponseMessage(respond.getResponseMessage());
-      result.setSampleLabel(HLS_PREFIX + "SEGMENT-" + fragment.getFragmentNumber());
+      result.setSampleLabel(this.getName() + " - " + lastPath + " - " + fragment.getFragmentNumber());
       result.setResponseHeaders("URL: " + uriString + "\n" + respond.getHeadersAsString());
       result.setResponseCode(respond.getResponseCode());
       result.setContentType(respond.getContentType());
@@ -379,14 +384,12 @@ public class HlsSampler extends AbstractSampler {
       result.setSentBytes(respond.getSentBytes());
       result.setDataEncoding(respond.getContentEncoding());
 
-      totalSentBytes += respond.getSentBytes();
-
     } catch (IOException e) {
       LOG.error("Problem while getting fragments from {}", baseUrl, e);
       result.sampleEnd();
       result.setSuccessful(false);
       result.setResponseMessage("Exception: " + e);
-      result.setSampleLabel(HLS_PREFIX + "SEGMENT-" + fragment.getFragmentNumber());
+      result.setSampleLabel(this.getName() + " - " + lastPath + " - " + fragment.getFragmentNumber());
     }
 
     notifySampleListeners(result);
