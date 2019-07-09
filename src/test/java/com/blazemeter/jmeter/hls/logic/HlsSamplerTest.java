@@ -30,12 +30,15 @@ public class HlsSamplerTest {
   private static final String PLAYLIST_PATH = "/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d";
   private static final String VIDEO_URL = "http://www.mock.com/path";
 
+  private static final String PLAYLIST_URL = "https://www.mock.com/videos/DianaLaufenberg_2010X/video/600k.m3u8?preroll=Thousands&uniqueId=4df94b1d";
+
   private HlsSampler sampler;
   private Parser parserMock;
 
   @Before
   public void setup() {
     parserMock = Mockito.mock(Parser.class);
+
     sampler = new HlsSampler();
     sampler.setURLData(VIDEO_URL);
     sampler.setResData("640x360");
@@ -82,7 +85,7 @@ public class HlsSamplerTest {
         + "/videos/DianaLaufenberg_2010X/video/180k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n"
         + "#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=718158,PROGRAM-ID=1,CODECS=\"avc1.42c015,mp4a.40.2\",RESOLUTION=512x288,SUBTITLES=\"subs\"\n"
         + "/videos/DianaLaufenberg_2010X/video/320k.m3u8?preroll=Thousands&uniqueId=4df94b1d";
-    setupUrlParser(VIDEO_URL, headers, payload1);
+    setupUrlParser(PLAYLIST_URL, headers, payload1);
     when(parserMock.extractMediaUrl(any(String.class), any(String.class),
         any(Integer.class), any(BandwidthOption.class),
         any(ResolutionOption.class)))
