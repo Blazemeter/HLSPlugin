@@ -19,9 +19,7 @@ import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.testelement.property.CollectionProperty;
 import org.apache.jmeter.testelement.property.JMeterProperty;
 import org.apache.jmeter.testelement.property.TestElementProperty;
-import org.apache.jmeter.threads.JMeterContext;
-import org.apache.jmeter.threads.JMeterThread;
-import org.apache.jmeter.threads.SamplePackage;
+import org.apache.jmeter.threads.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -407,8 +405,12 @@ public class HlsSampler extends AbstractSampler {
 
   private void notifySampleListeners(SampleResult sampleResult) {
     JMeterContext threadContext = getThreadContext();
-    SamplePackage pack = (SamplePackage) threadContext.getVariables()
-        .getObject(JMeterThread.PACKAGE_OBJECT);
+
+    JMeterVariables threadContextVariables = threadContext.getVariables();
+    Object threadContextVariablesObject = threadContextVariables.getObject(JMeterThread.PACKAGE_OBJECT);
+
+    SamplePackage pack = (SamplePackage) threadContextVariablesObject;
+    //SamplePackage pack = (SamplePackage) threadContext.getVariables().getObject(JMeterThread.PACKAGE_OBJECT); //Original
     SampleEvent event = new SampleEvent(sampleResult, getThreadName(),
         threadContext.getVariables(), false);
     pack.getSampleListeners().forEach(l -> l.sampleOccurred(event));

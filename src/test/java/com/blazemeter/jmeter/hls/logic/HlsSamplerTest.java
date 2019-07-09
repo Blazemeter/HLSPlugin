@@ -85,7 +85,7 @@ public class HlsSamplerTest {
         + "/videos/DianaLaufenberg_2010X/video/180k.m3u8?preroll=Thousands&uniqueId=4df94b1d\n"
         + "#EXT-X-STREAM-INF:AUDIO=\"600k\",BANDWIDTH=718158,PROGRAM-ID=1,CODECS=\"avc1.42c015,mp4a.40.2\",RESOLUTION=512x288,SUBTITLES=\"subs\"\n"
         + "/videos/DianaLaufenberg_2010X/video/320k.m3u8?preroll=Thousands&uniqueId=4df94b1d";
-    setupUrlParser(PLAYLIST_URL, headers, payload1);
+    setupUrlParser(VIDEO_URL, headers, payload1);
     when(parserMock.extractMediaUrl(any(String.class), any(String.class),
         any(Integer.class), any(BandwidthOption.class),
         any(ResolutionOption.class)))
@@ -114,7 +114,7 @@ public class HlsSamplerTest {
         + "#EXT-X-BYTERANGE:22748@534672\n"
         + "https://pb.tedcdn.com/bumpers/hls/video/in/Thousands-320k.ts\n"
         + "#EXT-X-DISCONTINUITY";
-    setupUrlParser(VIDEO_URL + PLAYLIST_PATH, headers, payload2);
+    setupUrlParser(PLAYLIST_URL, headers, payload2);
     when(parserMock.extractVideoUrl(any()))
         .thenReturn(buildFragments());
     when(parserMock.isLive(any(String.class)))
