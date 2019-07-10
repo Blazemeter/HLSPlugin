@@ -19,7 +19,10 @@ import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.testelement.property.CollectionProperty;
 import org.apache.jmeter.testelement.property.JMeterProperty;
 import org.apache.jmeter.testelement.property.TestElementProperty;
-import org.apache.jmeter.threads.*;
+import org.apache.jmeter.threads.JMeterVariables;
+import org.apache.jmeter.threads.JMeterContext;
+import org.apache.jmeter.threads.SamplePackage;
+import org.apache.jmeter.threads.JMeterThread;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -141,13 +144,14 @@ public class HlsSampler extends AbstractSampler {
 
   @Override
   public SampleResult sample(Entry e) {
-    SampleResult masterListSampler, transactionResult;
+    SampleResult masterListSampler;
     boolean isVod = getVideoType() == VideoType.VOD;
 
     totalSentBytes = 0L;
     int totalHeaderSize = 0;
     long totalBodySize = 0L;
 
+    SampleResult transactionResult;
     try {
       masterListSampler = downloadMasterList(parser);
       notifySampleListeners(masterListSampler);
@@ -445,7 +449,7 @@ public class HlsSampler extends AbstractSampler {
     JMeterContext threadContext = getThreadContext();
     JMeterVariables threadContextVariables = threadContext.getVariables();
 
-    if (threadContextVariables != null){
+    if (threadContextVariables != null) {
       SamplePackage pack = (SamplePackage) threadContext.getVariables()
           .getObject(JMeterThread.PACKAGE_OBJECT);
       SampleEvent event = new SampleEvent(sampleResult, getThreadName(),
