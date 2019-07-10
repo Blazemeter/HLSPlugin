@@ -42,14 +42,16 @@ public class HlsSampler extends AbstractSampler {
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
   private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
 
-  private ArrayList<String> fragmentsDownloaded = new ArrayList<>();
+  private ArrayList<String> fragmentsDownloaded;
   private Parser parser;
 
   private String masterListResponse;
+  private long totalSentBytes;
 
   public HlsSampler() {
     setName("HLS Sampler");
     parser = new Parser();
+    fragmentsDownloaded = new ArrayList<>();
   }
 
   @VisibleForTesting
@@ -139,16 +141,23 @@ public class HlsSampler extends AbstractSampler {
 
   @Override
   public SampleResult sample(Entry e) {
-    SampleResult masterResult = new SampleResult();
+    SampleResult masterListSampler, transactionResult;
     boolean isVod = getVideoType() == VideoType.VOD;
 
-    Long totalSentBytes = 0L;
+    totalSentBytes = 0L;
+    int totalHeaderSize = 0;
+    long totalBodySize = 0L;
 
     try {
-      masterResult = downloadMasterList(parser);
-      totalSentBytes += masterResult.getSentBytes();
+      masterListSampler = downloadMasterList(parser);
+      notifySampleListeners(masterListSampler);
 
-      //String masterListBaseUrl = getPlaylistPath(masterListResponse, parser);
+      transactionResult = generateTransactionResult(masterListSampler);
+
+      totalSentBytes += masterListSampler.getSentBytes();
+      totalHeaderSize += masterListSampler.getHeadersSize();
+      totalBodySize += masterListSampler.getBodySizeAsLong();
+
       String masterListBaseUrl = getMasterURL();
       String playListURL = getPlaylistURL(masterListResponse, parser);
 
@@ -171,6 +180,10 @@ public class HlsSampler extends AbstractSampler {
 
         playListSampleResult.setSampleLabel(this.getName() + " - " + "playlist");
         notifySampleListeners(playListSampleResult);
+
+        totalBodySize += playListSampleResult.getBodySizeAsLong();
+        totalHeaderSize += playListSampleResult.getHeadersSize();
+        totalSentBytes += playListSampleResult.getSentBytes();
 
         List<DataFragment> videoUrl = parser.extractVideoUrl(playList.getResponse());
         List<DataFragment> fragmentsToDownload = new ArrayList<>();
@@ -206,12 +219,36 @@ public class HlsSampler extends AbstractSampler {
 
     } catch (IOException ex) {
       LOG.error("Problem while getting video from {}", getURLData(), ex);
-      masterResult.sampleEnd();
-      masterResult.setSuccessful(false);
-      masterResult.setResponseMessage("Exception: " + ex);
+      transactionResult = new SampleResult();
+      transactionResult.sampleEnd();
+      transactionResult.setSuccessful(false);
+      transactionResult.setResponseMessage("Exception: " + ex);
     }
-    masterResult.setSentBytes(totalSentBytes);
-    return masterResult;
+    transactionResult.setSentBytes(totalSentBytes);
+    transactionResult.setHeadersSize(totalHeaderSize);
+    transactionResult.setBodySize(totalBodySize);
+
+    return transactionResult;
+  }
+
+  private SampleResult generateTransactionResult(SampleResult masterListSampler) {
+    SampleResult transactionResult = new SampleResult();
+
+    transactionResult.setRequestHeaders(masterListSampler.getRequestHeaders());
+    transactionResult.setSuccessful(masterListSampler.isSuccessful());
+    transactionResult.setResponseMessage(masterListSampler.getResponseMessage());
+    transactionResult.setSampleLabel(this.getName() + " - transaction");
+    transactionResult.setResponseHeaders(masterListSampler.getResponseHeaders());
+    transactionResult.setResponseData(masterListSampler.getResponseData());
+    transactionResult.setResponseCode(masterListSampler.getResponseCode());
+    transactionResult.setContentType(masterListSampler.getContentType());
+    transactionResult
+        .setBytes(masterListSampler.getSentBytes());
+    transactionResult.setHeadersSize(masterListSampler.getHeadersSize());
+    transactionResult.setSentBytes(masterListSampler.getSentBytes());
+    transactionResult.setDataEncoding(masterListSampler.getDataEncodingNoDefault());
+
+    return transactionResult;
   }
 
   private SampleResult downloadMasterList(Parser parser) throws IOException {
@@ -333,12 +370,11 @@ public class HlsSampler extends AbstractSampler {
 
   private DataRequest getPlayList(SampleResult playListResult, Parser parser,
                                   String playListURL) throws IOException {
-    String lastPath;
     playListResult.sampleStart();
     DataRequest subRespond = parser.getBaseUrl(new URL(playListURL), playListResult, true);
     playListResult.sampleEnd();
 
-    lastPath = playListURL.split("/")[playListURL.split("/").length - 1];
+    String lastPath = playListURL.split("/")[playListURL.split("/").length - 1];
 
     playListResult.setRequestHeaders(
         subRespond.getRequestHeaders() + "\n\n" + getCookieHeader(playListURL) + "\n\n"
@@ -391,6 +427,8 @@ public class HlsSampler extends AbstractSampler {
       result.setSentBytes(respond.getSentBytes());
       result.setDataEncoding(respond.getContentEncoding());
 
+      totalSentBytes += respond.getSentBytes();
+
     } catch (IOException e) {
       LOG.error("Problem while getting fragments from {}", baseUrl, e);
       result.sampleEnd();
@@ -405,15 +443,15 @@ public class HlsSampler extends AbstractSampler {
 
   private void notifySampleListeners(SampleResult sampleResult) {
     JMeterContext threadContext = getThreadContext();
-
     JMeterVariables threadContextVariables = threadContext.getVariables();
-    Object threadContextVariablesObject = threadContextVariables.getObject(JMeterThread.PACKAGE_OBJECT);
 
-    SamplePackage pack = (SamplePackage) threadContextVariablesObject;
-    //SamplePackage pack = (SamplePackage) threadContext.getVariables().getObject(JMeterThread.PACKAGE_OBJECT); //Original
-    SampleEvent event = new SampleEvent(sampleResult, getThreadName(),
-        threadContext.getVariables(), false);
-    pack.getSampleListeners().forEach(l -> l.sampleOccurred(event));
+    if (threadContextVariables != null){
+      SamplePackage pack = (SamplePackage) threadContext.getVariables()
+          .getObject(JMeterThread.PACKAGE_OBJECT);
+      SampleEvent event = new SampleEvent(sampleResult, getThreadName(),
+          threadContext.getVariables(), false);
+      pack.getSampleListeners().forEach(l -> l.sampleOccurred(event));
+    }
   }
 
   @Override

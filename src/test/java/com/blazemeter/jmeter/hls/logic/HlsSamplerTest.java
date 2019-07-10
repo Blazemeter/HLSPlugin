@@ -172,19 +172,9 @@ public class HlsSamplerTest {
   }
 
   private SampleResult buildExpectedSampleResult() {
-
-    SampleResult subResult = this
-        .buildSampleResult(VIDEO_URL + PLAYLIST_PATH,
-            "600k.m3u8?preroll=Thousands&uniqueId=4df94b1d");
-    subResult.addRawSubResult(this.buildSegmentSampleResult(1));
-    subResult.addRawSubResult(this.buildSegmentSampleResult(2));
-    subResult.addRawSubResult(this.buildSegmentSampleResult(3));
-
-    subResult.setResponseHeaders(HEADERS);
-
     SampleResult expected = this.buildSampleResult(VIDEO_URL, "Test");
     expected.setResponseHeaders(HEADERS);
-    expected.addRawSubResult(subResult);
+    expected.setSampleLabel("Test - transaction");
     return expected;
   }
 
