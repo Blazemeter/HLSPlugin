@@ -222,20 +222,20 @@ public class HlsSamplerTest {
   public void testResumeVideoDownloadBetweenIterationsOn() {
     sampler.setPlaySecondsData("9");
     sampler.setResumeVideoStatus(true);
+    sampler.sample(null);
     SampleResult result = sampler.sample(null);
-    SampleResult result2 = sampler.sample(null);
 
-    assertEquals("Thousands-320k_2.ts", getFirstSegmentLabel(result2));
+    assertEquals("Thousands-320k_2.ts", getFirstSegmentLabel(result));
   }
 
   @Test
   public void testResumeVideoDownloadBetweenIterationsOff() {
     sampler.setPlaySecondsData("9");
     sampler.setResumeVideoStatus(false);
+    sampler.sample(null);
     SampleResult result = sampler.sample(null);
-    SampleResult result2 = sampler.sample(null);
 
-    assertEquals("Thousands-320k_1.ts", getFirstSegmentLabel(result2));
+    assertEquals("Thousands-320k_1.ts", getFirstSegmentLabel(result));
   }
 
   private String getFirstSegmentLabel(SampleResult result) {

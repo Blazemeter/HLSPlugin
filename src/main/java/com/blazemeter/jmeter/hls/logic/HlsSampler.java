@@ -6,6 +6,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import org.apache.jmeter.protocol.http.control.CacheManager;
 import org.apache.jmeter.protocol.http.control.CookieManager;
 import org.apache.jmeter.protocol.http.control.HeaderManager;
@@ -38,6 +39,8 @@ public class HlsSampler extends AbstractSampler {
   private static final String HEADER_MANAGER = "HLSRequest.header_manager";
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
   private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
+
+  private boolean isPlaylistPresent = false;
 
   private ArrayList<String> fragmentsDownloaded = new ArrayList<>();
   private Parser parser;
@@ -160,7 +163,11 @@ public class HlsSampler extends AbstractSampler {
       while ((playSeconds >= currenTimeseconds) && !out) {
 
         SampleResult playListResult = new SampleResult();
+        if (isPlaylistPresent) {
+          TimeUnit.SECONDS.sleep((long) (playSeconds - currenTimeseconds));
+        }
         DataRequest subRespond = getPlayList(playListResult, parser);
+        isPlaylistPresent = true;
 
         List<DataFragment> videoUri = parser.extractVideoUrl(subRespond.getResponse());
         List<DataFragment> fragmentToDownload = new ArrayList<>();
@@ -212,6 +219,8 @@ public class HlsSampler extends AbstractSampler {
       masterResult.sampleEnd();
       masterResult.setSuccessful(false);
       masterResult.setResponseMessage("Exception: " + ex);
+    } catch (InterruptedException ex) {
+      ex.printStackTrace();
     }
     return masterResult;
   }
