@@ -19,10 +19,11 @@ import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.testelement.property.CollectionProperty;
 import org.apache.jmeter.testelement.property.JMeterProperty;
 import org.apache.jmeter.testelement.property.TestElementProperty;
-import org.apache.jmeter.threads.JMeterVariables;
 import org.apache.jmeter.threads.JMeterContext;
-import org.apache.jmeter.threads.SamplePackage;
 import org.apache.jmeter.threads.JMeterThread;
+import org.apache.jmeter.threads.JMeterVariables;
+import org.apache.jmeter.threads.SamplePackage;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
