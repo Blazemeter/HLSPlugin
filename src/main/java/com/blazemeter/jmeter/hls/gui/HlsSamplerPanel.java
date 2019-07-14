@@ -1,14 +1,12 @@
 package com.blazemeter.jmeter.hls.gui;
 
-import com.blazemeter.jmeter.hls.logic.BandwidthOption;
-import com.blazemeter.jmeter.hls.logic.ResolutionOption;
-import com.blazemeter.jmeter.hls.logic.VideoType;
+import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
+import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
 import java.awt.event.ItemEvent;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
 import javax.swing.GroupLayout;
 import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
@@ -17,27 +15,23 @@ import javax.swing.LayoutStyle;
 
 public class HlsSamplerPanel extends JPanel {
 
-  private JTextField urlField = new JTextField();
-  private JTextField resolField = new JTextField();
+  private JTextField masterUrlField = new JTextField();
+
+  private JRadioButton playVideoDurationOption = new JRadioButton("Video duration (seconds):");
   private JTextField playSecondsField = new JTextField();
-  private JTextField bandwidthField = new JTextField();
 
-  private JRadioButton rPlayPartBtn = new JRadioButton("Video duration (seconds):");
+  private JRadioButton customResolutionOption = new JRadioButton("Custom resolution: ");
+  private JTextField customResolutionField = new JTextField();
+  private JRadioButton maxResolutionOption = new JRadioButton("Max resolution available");
+  private JRadioButton minResolutionOption = new JRadioButton("Min resolution available", true);
 
-  private JRadioButton rVodStream = new JRadioButton("VOD", true);
-  private JRadioButton rliveStream = new JRadioButton("Live stream");
-  private JRadioButton rEventStream = new JRadioButton("Event stream");
+  private JCheckBox resumeDownloadOption = new JCheckBox(
+      "Resume video download between iterations");
 
-  private JRadioButton rCustomResol = new JRadioButton("Custom resolution: ");
-  private JRadioButton rMaximumResol = new JRadioButton("Max resolution available");
-  private JRadioButton rMinimumResol = new JRadioButton("Min resolution available", true);
-  private JCheckBox rResumeDownload = new JCheckBox("Resume video download between iterations");
-
-  private JRadioButton rCustomBandwidth = new JRadioButton("Custom bandwidth: ");
-  private JRadioButton rMaximumBandwidth = new JRadioButton("Max bandwidth available");
-  private JRadioButton rMinimumBandwidth = new JRadioButton("Min bandwidth available", true);
-
-  private JComboBox<String> jProtocolCombo = new JComboBox<>(new String[]{"https", "http"});
+  private JRadioButton customBandwidthOption = new JRadioButton("Custom bandwidth: ");
+  private JTextField customBandwidthField = new JTextField();
+  private JRadioButton maxBandwidthOption = new JRadioButton("Max bandwidth available");
+  private JRadioButton minBandwidthOption = new JRadioButton("Min bandwidth available", true);
 
   public HlsSamplerPanel() {
     initComponents();
@@ -51,7 +45,7 @@ public class HlsSamplerPanel extends JPanel {
     GroupLayout layout = new GroupLayout(this);
     layout.setAutoCreateContainerGaps(true);
     layout.setAutoCreateGaps(true);
-    this.setLayout(layout);
+    setLayout(layout);
     layout.setHorizontalGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
         .addComponent(videoPanel, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE,
             Short.MAX_VALUE)
@@ -65,9 +59,9 @@ public class HlsSamplerPanel extends JPanel {
 
     );
     layout.setVerticalGroup(layout.createSequentialGroup()
-        .addComponent(videoPanel, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE,
-            GroupLayout.DEFAULT_SIZE)
-        .addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+        .addComponent(videoPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
+            GroupLayout.PREFERRED_SIZE)
+        .addGroup(layout.createParallelGroup()
             .addComponent(networkOptions, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
                 GroupLayout.PREFERRED_SIZE)
             .addComponent(playOptions, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
@@ -78,43 +72,32 @@ public class HlsSamplerPanel extends JPanel {
   }
 
   private JPanel buildVideoPanel() {
-    JLabel urlFieldLabel = new JLabel("URL  ");
-    ButtonGroup videoTypeRadiosGroup = new ButtonGroup();
-    videoTypeRadiosGroup.add(rVodStream);
-    videoTypeRadiosGroup.add(rliveStream);
-    videoTypeRadiosGroup.add(rEventStream);
-
     JPanel panel = new JPanel();
     panel.setBorder(BorderFactory.createTitledBorder("Video"));
     GroupLayout layout = new GroupLayout(panel);
     layout.setAutoCreateContainerGaps(true);
     panel.setLayout(layout);
+    JLabel urlFieldLabel = new JLabel("URL  ");
     layout.setHorizontalGroup(layout.createSequentialGroup()
         .addComponent(urlFieldLabel)
-        .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
-        .addComponent(urlField)
-        .addPreferredGap(LayoutStyle.ComponentPlacement.UNRELATED)
-        .addComponent(rVodStream)
-        .addComponent(rliveStream)
-        .addComponent(rEventStream));
-    layout.setVerticalGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+        .addComponent(masterUrlField));
+    layout.setVerticalGroup(layout.createParallelGroup()
         .addComponent(urlFieldLabel)
-        .addComponent(urlField, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
-            GroupLayout.PREFERRED_SIZE)
-        .addComponent(rVodStream)
-        .addComponent(rliveStream)
-        .addComponent(rEventStream));
+        .addComponent(masterUrlField));
     return panel;
   }
 
   private JPanel buildPlayOptionsPanel() {
-    JRadioButton rPlayVideoBtn = new JRadioButton("Whole video", true);
+    JPanel panel = new JPanel();
+    panel.setBorder(BorderFactory.createTitledBorder("Play options"));
+
     ButtonGroup wholePartRadiosGroup = new ButtonGroup();
-    wholePartRadiosGroup.add(rPlayVideoBtn);
-    wholePartRadiosGroup.add(rPlayPartBtn);
+    JRadioButton playWholeVideoOption = new JRadioButton("Whole video", true);
+    wholePartRadiosGroup.add(playWholeVideoOption);
+    wholePartRadiosGroup.add(playVideoDurationOption);
 
     playSecondsField.setEnabled(false);
-    rPlayPartBtn.addItemListener(e -> {
+    playVideoDurationOption.addItemListener(e -> {
       if (e.getStateChange() == ItemEvent.SELECTED) {
         playSecondsField.setEnabled(true);
       } else if (e.getStateChange() == ItemEvent.DESELECTED) {
@@ -126,231 +109,175 @@ public class HlsSamplerPanel extends JPanel {
     });
 
     ButtonGroup resolutionRadiosGroup = new ButtonGroup();
-    resolutionRadiosGroup.add(rCustomResol);
-    resolutionRadiosGroup.add(rMaximumResol);
-    resolutionRadiosGroup.add(rMinimumResol);
+    resolutionRadiosGroup.add(customResolutionOption);
+    resolutionRadiosGroup.add(maxResolutionOption);
+    resolutionRadiosGroup.add(minResolutionOption);
 
-    resolField.setEnabled(false);
-    rCustomResol.addItemListener(e -> {
+    customResolutionField.setEnabled(false);
+    customResolutionOption.addItemListener(e -> {
       if (e.getStateChange() == ItemEvent.SELECTED) {
-        resolField.setEnabled(true);
+        customResolutionField.setEnabled(true);
       } else if (e.getStateChange() == ItemEvent.DESELECTED) {
-        resolField.setText("");
-        resolField.setEnabled(false);
+        customResolutionField.setText("");
+        customResolutionField.setEnabled(false);
       }
       validate();
       repaint();
     });
 
-    JPanel panel = new JPanel();
-    panel.setBorder(BorderFactory.createTitledBorder("Play options"));
     GroupLayout layout = new GroupLayout(panel);
     layout.setAutoCreateContainerGaps(true);
     panel.setLayout(layout);
     layout.setHorizontalGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
-        .addComponent(rPlayVideoBtn)
+        .addComponent(playWholeVideoOption)
         .addGroup(layout.createSequentialGroup()
-            .addComponent(rPlayPartBtn)
+            .addComponent(playVideoDurationOption)
             .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
             .addComponent(playSecondsField))
         .addGroup(layout.createSequentialGroup()
-            .addComponent(rCustomResol)
+            .addComponent(customResolutionOption)
             .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
-            .addComponent(resolField))
-        .addComponent(rMinimumResol)
-        .addComponent(rMaximumResol)
-        .addComponent(rResumeDownload));
+            .addComponent(customResolutionField))
+        .addComponent(minResolutionOption)
+        .addComponent(maxResolutionOption)
+        .addComponent(resumeDownloadOption));
     layout.setVerticalGroup(layout.createSequentialGroup()
-        .addComponent(rPlayVideoBtn)
+        .addComponent(playWholeVideoOption)
         .addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
-            .addComponent(rPlayPartBtn)
+            .addComponent(playVideoDurationOption)
             .addComponent(playSecondsField))
         .addPreferredGap(LayoutStyle.ComponentPlacement.UNRELATED)
         .addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
-            .addComponent(rCustomResol)
-            .addComponent(resolField))
-        .addComponent(rMinimumResol)
-        .addComponent(rMaximumResol)
+            .addComponent(customResolutionOption)
+            .addComponent(customResolutionField))
+        .addComponent(minResolutionOption)
+        .addComponent(maxResolutionOption)
         .addPreferredGap(LayoutStyle.ComponentPlacement.UNRELATED)
-        .addComponent(rResumeDownload));
+        .addComponent(resumeDownloadOption));
     return panel;
   }
 
   private JPanel buildNetworkOptionsPanel() {
+    JPanel panel = new JPanel();
+    panel.setBorder(BorderFactory.createTitledBorder("Network options"));
+
     JLabel bitsPerSecond = new JLabel("bits / s");
-    JLabel protocol = new JLabel("Protocol");
-
     ButtonGroup bandwidthRadiosGroup = new ButtonGroup();
-    bandwidthRadiosGroup.add(rCustomBandwidth);
-    bandwidthRadiosGroup.add(rMinimumBandwidth);
-    bandwidthRadiosGroup.add(rMaximumBandwidth);
+    bandwidthRadiosGroup.add(customBandwidthOption);
+    bandwidthRadiosGroup.add(minBandwidthOption);
+    bandwidthRadiosGroup.add(maxBandwidthOption);
 
-    bandwidthField.setEnabled(false);
-    rCustomBandwidth.addItemListener(e -> {
+    customBandwidthField.setEnabled(false);
+    customBandwidthOption.addItemListener(e -> {
       if (e.getStateChange() == ItemEvent.SELECTED) {
-        bandwidthField.setEnabled(true);
+        customBandwidthField.setEnabled(true);
       } else if (e.getStateChange() == ItemEvent.DESELECTED) {
-        bandwidthField.setText("");
-        bandwidthField.setEnabled(false);
+        customBandwidthField.setText("");
+        customBandwidthField.setEnabled(false);
       }
       validate();
       repaint();
     });
 
-    JPanel panel = new JPanel();
-    panel.setBorder(BorderFactory.createTitledBorder("Network options"));
     GroupLayout layout = new GroupLayout(panel);
     layout.setAutoCreateContainerGaps(true);
     panel.setLayout(layout);
     layout.setHorizontalGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
         .addGroup(layout.createSequentialGroup()
-            .addComponent(protocol)
+            .addComponent(customBandwidthOption)
             .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
-            .addComponent(jProtocolCombo))
-        .addGroup(layout.createSequentialGroup()
-            .addComponent(rCustomBandwidth)
-            .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
-            .addComponent(bandwidthField)
+            .addComponent(customBandwidthField)
             .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
             .addComponent(bitsPerSecond))
-        .addComponent(rMinimumBandwidth)
-        .addComponent(rMaximumBandwidth));
+        .addComponent(minBandwidthOption)
+        .addComponent(maxBandwidthOption));
     layout.setVerticalGroup(layout.createSequentialGroup()
-        .addGroup(layout.createParallelGroup()
-            .addComponent(protocol, 25, 25, 25)
-            .addComponent(jProtocolCombo))
         .addPreferredGap(LayoutStyle.ComponentPlacement.UNRELATED)
         .addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
-            .addComponent(rCustomBandwidth)
-            .addComponent(bandwidthField)
+            .addComponent(customBandwidthOption)
+            .addComponent(customBandwidthField)
             .addComponent(bitsPerSecond))
-        .addComponent(rMinimumBandwidth)
-        .addComponent(rMaximumBandwidth));
+        .addComponent(minBandwidthOption)
+        .addComponent(maxBandwidthOption));
     return panel;
   }
 
-  public void setUrlData(String urlData) {
-    urlField.setText(urlData);
+  public void setMasterUrl(String masterUrl) {
+    masterUrlField.setText(masterUrl);
   }
 
-  public String getUrlData() {
-    return urlField.getText();
+  public String getMasterUrl() {
+    return masterUrlField.getText();
   }
 
-  public void setResData(String resData) {
-    resolField.setText(resData);
+  public boolean isPlayVideoDuration() {
+    return playVideoDurationOption.isSelected();
   }
 
-  public String getResData() {
-    return resolField.getText();
+  public void setPlayVideoDuration(boolean check) {
+    playVideoDurationOption.setSelected(check);
   }
 
-  public void setNetData(String netData) {
-    bandwidthField.setText(netData);
-  }
-
-  public String getNetData() {
-    return bandwidthField.getText();
-  }
-
-  public void setPlaySecondsData(String seconds) {
-    playSecondsField.setText(seconds);
-  }
-
-  public String getPlaySecondsData() {
+  public String getPlaySeconds() {
     return playSecondsField.getText();
   }
 
-  public void setVideoDuration(boolean check) {
-    rPlayPartBtn.setSelected(check);
-  }
-
-  public void setResumeStatus(boolean check) {
-    rResumeDownload.setSelected(check);
+  public void setPlaySeconds(String seconds) {
+    playSecondsField.setText(seconds);
   }
 
   public boolean getResumeVideoStatus() {
-    return rResumeDownload.isSelected();
+    return resumeDownloadOption.isSelected();
   }
 
-  public boolean getVideoDuration() {
-    return rPlayPartBtn.isSelected();
+  public void setResumeStatus(boolean check) {
+    resumeDownloadOption.setSelected(check);
   }
 
-  public void setVideoType(VideoType option) {
-    switch (option) {
-      case EVENT:
-        rEventStream.setSelected(true);
-        break;
-      case LIVE:
-        rliveStream.setSelected(true);
-        break;
-      default:
-        rVodStream.setSelected(true);
-    }
-  }
-
-  public void setResolutionType(ResolutionOption option) {
-    switch (option) {
-      case MIN:
-        rMinimumResol.setSelected(true);
-        break;
-      case MAX:
-        rMaximumResol.setSelected(true);
-        break;
-      default:
-        rCustomResol.setSelected(true);
-    }
-  }
-
-  public void setBandwidthType(BandwidthOption option) {
-    switch (option) {
-      case MIN:
-        rMinimumBandwidth.setSelected(true);
-        break;
-      case MAX:
-        rMaximumBandwidth.setSelected(true);
-        break;
-      default:
-        rCustomBandwidth.setSelected(true);
-    }
-  }
-
-  public void setProtocol(String protocolValue) {
-    jProtocolCombo.setSelectedItem(protocolValue);
-  }
-
-  public String getProtocol() {
-    return jProtocolCombo.getSelectedItem().toString();
-  }
-
-  public ResolutionOption getResolutionType() {
-    if (rCustomResol.isSelected()) {
-      return ResolutionOption.CUSTOM;
-    } else if (rMinimumResol.isSelected()) {
-      return ResolutionOption.MIN;
+  public ResolutionSelector getResolutionSelector() {
+    if (customResolutionOption.isSelected()) {
+      return new ResolutionSelector.CustomResolutionSelector(customResolutionField.getText());
+    } else if (minResolutionOption.isSelected()) {
+      return ResolutionSelector.MIN;
     } else {
-      return ResolutionOption.MAX;
+      return ResolutionSelector.MAX;
     }
   }
 
-  public BandwidthOption getBandwidthType() {
-    if (rCustomBandwidth.isSelected()) {
-      return BandwidthOption.CUSTOM;
-    } else if (rMinimumBandwidth.isSelected()) {
-      return BandwidthOption.MIN;
+  public void setResolutionSelector(ResolutionSelector option) {
+    if (option == ResolutionSelector.MIN) {
+      minResolutionOption.setSelected(true);
+    } else if (option == ResolutionSelector.MAX) {
+      maxResolutionOption.setSelected(true);
     } else {
-      return BandwidthOption.MAX;
+      customResolutionOption.setSelected(true);
+      String customResolution = option.getCustomResolution();
+      customResolutionField.setText(customResolution == null ? "" : customResolution);
     }
   }
 
-  public VideoType videoType() {
-    if (rVodStream.isSelected()) {
-      return VideoType.VOD;
-    } else if (rliveStream.isSelected()) {
-      return VideoType.LIVE;
+  public BandwidthSelector getBandwidthSelector() {
+    if (customBandwidthOption.isSelected()) {
+      String bandwidth = customBandwidthField.getText();
+      return new BandwidthSelector.CustomBandwidthSelector(
+          !bandwidth.isEmpty() ? Integer.valueOf(bandwidth) : null);
+    } else if (minBandwidthOption.isSelected()) {
+      return BandwidthSelector.MIN;
     } else {
-      return VideoType.EVENT;
+      return BandwidthSelector.MAX;
     }
   }
+
+  public void setBandwidthSelector(BandwidthSelector option) {
+    if (option == BandwidthSelector.MIN) {
+      minBandwidthOption.setSelected(true);
+    } else if (option == BandwidthSelector.MAX) {
+      maxBandwidthOption.setSelected(true);
+    } else {
+      customBandwidthOption.setSelected(true);
+      Integer customBandwidth = option.getCustomBandwidth();
+      customBandwidthField.setText(customBandwidth == null ? "" : customBandwidth.toString());
+    }
+  }
+
 }
