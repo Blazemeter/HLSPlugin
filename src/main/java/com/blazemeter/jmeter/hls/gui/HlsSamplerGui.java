@@ -19,6 +19,7 @@ public class HlsSamplerGui extends AbstractSamplerGui {
     add(hlsSamplerPanel, BorderLayout.CENTER);
   }
 
+  @Override
   public String getStaticLabel() {
     return "bzm - HLS Sampler";
   }
@@ -28,12 +29,14 @@ public class HlsSamplerGui extends AbstractSamplerGui {
     throw new IllegalStateException("This shouldn't be called");
   }
 
+  @Override
   public TestElement createTestElement() {
     HlsSampler sampler = new HlsSampler();
     modifyTestElement(sampler);
     return sampler;
   }
 
+  @Override
   public void configure(TestElement el) {
     super.configure(el);
     HlsSampler sampler = (HlsSampler) el;
@@ -45,6 +48,7 @@ public class HlsSamplerGui extends AbstractSamplerGui {
     hlsSamplerPanel.setBandwidthSelector(sampler.getBandwidthSelector());
   }
 
+  @Override
   public void modifyTestElement(TestElement s) {
     this.configureTestElement(s);
     if (s instanceof HlsSampler) {
@@ -68,4 +72,5 @@ public class HlsSamplerGui extends AbstractSamplerGui {
     hlsSamplerPanel.setResolutionSelector(ResolutionSelector.MIN);
     hlsSamplerPanel.setBandwidthSelector(BandwidthSelector.MIN);
   }
+
 }

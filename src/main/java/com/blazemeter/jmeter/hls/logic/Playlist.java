@@ -73,7 +73,7 @@ public class Playlist {
       return URI.create(uri.getScheme() + "://" + uri.getRawAuthority() + ret.toString());
     } else {
       String basePath = uri.getPath();
-      basePath = basePath.substring(0, basePath.lastIndexOf("/") + 1);
+      basePath = basePath.substring(0, basePath.lastIndexOf('/') + 1);
       return URI.create(
           uri.getScheme() + "://" + uri.getRawAuthority() + basePath + ret.toString());
     }
@@ -84,9 +84,9 @@ public class Playlist {
     final List<MediaSegment> segments = new ArrayList<>();
     Matcher m = MEDIA_SEGMENT_PATTERN.matcher(body);
     while (m.find()) {
-      URI uri = buildAbsoluteUri(m.group(3));
+      URI segmentUri = buildAbsoluteUri(m.group(3));
       float durationSecs = Float.parseFloat(m.group(1));
-      segments.add(new MediaSegment(sequenceNumber++, uri, durationSecs));
+      segments.add(new MediaSegment(sequenceNumber++, segmentUri, durationSecs));
     }
     return segments;
   }

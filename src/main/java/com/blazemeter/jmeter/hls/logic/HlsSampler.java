@@ -36,10 +36,10 @@ public class HlsSampler extends HTTPSampler {
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
   private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
 
-  private final Function<URI, SampleResult> uriSampler;
-  private final Consumer<SampleResult> sampleResultNotifier;
+  private final transient Function<URI, SampleResult> uriSampler;
+  private final transient Consumer<SampleResult> sampleResultNotifier;
 
-  private long lastSegmentNumber = -1;
+  private transient long lastSegmentNumber = -1;
 
   public HlsSampler() {
     setName("HLS Sampler");
