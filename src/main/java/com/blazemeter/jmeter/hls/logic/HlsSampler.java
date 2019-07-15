@@ -4,9 +4,13 @@ import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.jmeter.protocol.http.control.CacheManager;
 import org.apache.jmeter.protocol.http.control.CookieManager;
 import org.apache.jmeter.protocol.http.control.HeaderManager;
@@ -39,8 +43,6 @@ public class HlsSampler extends AbstractSampler {
   private static final String HEADER_MANAGER = "HLSRequest.header_manager";
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
   private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
-
-  private boolean isPlaylistPresent = false;
 
   private ArrayList<String> fragmentsDownloaded = new ArrayList<>();
   private Parser parser;
@@ -145,6 +147,7 @@ public class HlsSampler extends AbstractSampler {
     boolean firstTime = true;
     boolean containNewFragments = false;
     List<String> list = new ArrayList<>();
+    List<DataFragment> videoUri = null;
 
     try {
 
@@ -159,18 +162,23 @@ public class HlsSampler extends AbstractSampler {
       if (!this.getResumeVideoStatus()) {
         this.fragmentsDownloaded.clear();
       }
-
+      int targetDuration = 0;
       while ((playSeconds >= currenTimeseconds) && !out) {
 
         SampleResult playListResult = new SampleResult();
-        if (isPlaylistPresent) {
-          TimeUnit.SECONDS.sleep((long) (playSeconds - currenTimeseconds));
-        }
-        DataRequest subRespond = getPlayList(playListResult, parser);
-        isPlaylistPresent = true;
 
-        List<DataFragment> videoUri = parser.extractVideoUrl(subRespond.getResponse());
+        long consumedTime = 0;
+        DataRequest subRespond = getPlayList(playListResult, parser);
+
+        videoUri = getUpdatedPlaylist(subRespond.getResponse(), targetDuration,
+            playListResult);
         List<DataFragment> fragmentToDownload = new ArrayList<>();
+
+        Pattern pattern = Pattern.compile("X-TARGETDURATION:(\\d+)");
+        Matcher matcher = pattern.matcher(subRespond.getResponse());
+        if (matcher.find()) {
+          targetDuration = Integer.parseInt(matcher.group(1)) * 1000;
+        }
 
         if (firstTime) {
           if ((getVideoType() == VideoType.LIVE && (parser.isLive(subRespond.getResponse())))
@@ -181,9 +189,11 @@ public class HlsSampler extends AbstractSampler {
           }
         }
 
-        while ((!videoUri.isEmpty()) && (playSeconds >= currenTimeseconds)) {
-          DataFragment frag = videoUri.remove(0);
+        while ((!videoUri.isEmpty()) && (playSeconds >= currenTimeseconds)
+            && consumedTime < (long) targetDuration) {
+          Instant start = Instant.now();
 
+          DataFragment frag = videoUri.remove(0);
           boolean isPresent = false;
           int length = fragmentsDownloaded.size();
 
@@ -199,8 +209,10 @@ public class HlsSampler extends AbstractSampler {
               currenTimeseconds += Float.parseFloat(frag.getDuration());
             }
           }
+          Instant finish = Instant.now();
+          long timeElapsed = Duration.between(start, finish).toMillis();
+          consumedTime += timeElapsed;
         }
-
         List<SampleResult> videoFragment = getFragments(parser, fragmentToDownload, auxPath);
         for (SampleResult sam : videoFragment) {
           playListResult.addSubResult(sam);
@@ -211,7 +223,6 @@ public class HlsSampler extends AbstractSampler {
           list.add(playListResult.getSampleLabel());
           containNewFragments = false;
         }
-
       }
 
     } catch (IOException ex) {
@@ -223,6 +234,19 @@ public class HlsSampler extends AbstractSampler {
       ex.printStackTrace();
     }
     return masterResult;
+  }
+
+  private List<DataFragment> getUpdatedPlaylist(String subRespond, int targetDuration,
+      SampleResult playListResult)
+      throws IOException, InterruptedException {
+    DataRequest getSubRespond = getPlayList(playListResult, parser);
+    List<DataFragment> updatedVideoUri = parser.extractVideoUrl(subRespond);
+    while (getSubRespond.getResponse().equals(subRespond)) {
+      TimeUnit.SECONDS.sleep(targetDuration / 1000);
+      getSubRespond = getPlayList(playListResult, parser);
+      updatedVideoUri = parser.extractVideoUrl(getSubRespond.getResponse());
+    }
+    return updatedVideoUri;
   }
 
   private DataRequest getMasterList(SampleResult masterResult, Parser parser) throws IOException {

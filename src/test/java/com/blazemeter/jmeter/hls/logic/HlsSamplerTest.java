@@ -244,5 +244,4 @@ public class HlsSamplerTest {
 
     return subSubresults[0].getSampleLabel();
   }
-
 }
