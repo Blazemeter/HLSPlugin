@@ -3,6 +3,7 @@ package com.blazemeter.jmeter.hls.gui;
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
 import com.blazemeter.jmeter.hls.logic.HlsSampler;
 import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
+import com.google.common.annotations.VisibleForTesting;
 import java.awt.BorderLayout;
 import org.apache.jmeter.samplers.gui.AbstractSamplerGui;
 import org.apache.jmeter.testelement.TestElement;
@@ -17,6 +18,11 @@ public class HlsSamplerGui extends AbstractSamplerGui {
     setBorder(makeBorder());
     add(makeTitlePanel(), BorderLayout.NORTH);
     add(hlsSamplerPanel, BorderLayout.CENTER);
+  }
+
+  @VisibleForTesting
+  public HlsSamplerGui(HlsSamplerPanel panel) {
+    hlsSamplerPanel = panel;
   }
 
   @Override
