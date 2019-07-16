@@ -36,7 +36,7 @@ public class Playlist {
 
   public URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
       BandwidthSelector bandwidthSelector) {
-    Integer lastMatchedBandwidth = null;
+    Long lastMatchedBandwidth = null;
     String lastMatchedResolution = null;
     String mediaPlaylistUri = null;
     Matcher streamMatcher = STREAM_PATTERN.matcher(body);
@@ -48,7 +48,7 @@ public class Playlist {
         continue;
       }
 
-      int streamBandwidth = Integer.parseInt(bandwidthMatcher.group(1));
+      long streamBandwidth = Long.parseLong(bandwidthMatcher.group(1));
       Matcher resolutionMatcher = RESOLUTION_PATTERN.matcher(stream);
       String streamResolution = resolutionMatcher.find() ? resolutionMatcher.group(1) : null;
       String matchedUri = streamMatcher.group(2);

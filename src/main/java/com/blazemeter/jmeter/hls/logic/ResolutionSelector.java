@@ -1,5 +1,6 @@
 package com.blazemeter.jmeter.hls.logic;
 
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,6 +57,12 @@ public abstract class ResolutionSelector {
         return customResolution.equals(resolution);
       }
     }
+
+    @Override
+    public String toString() {
+      return getName() + ":" + customResolution;
+    }
+
   }
 
   public static ResolutionSelector fromStringAndCustomResolution(String str,
@@ -72,12 +79,35 @@ public abstract class ResolutionSelector {
   public abstract boolean matches(String resolution, String lastMatch);
 
   protected int resolutionCompare(String r1, String r2) {
-    return Integer.compare(getResolutionPixels(r1), getResolutionPixels(r2));
+    return Long.compare(getResolutionPixels(r1), getResolutionPixels(r2));
   }
 
-  private int getResolutionPixels(String resolution) {
+  private long getResolutionPixels(String resolution) {
     String[] dimensions = resolution.split("x");
-    return Integer.parseInt(dimensions[0]) * Integer.parseInt(dimensions[1]);
+    return Long.parseLong(dimensions[0]) * Long.parseLong(dimensions[1]);
+  }
+
+  @Override
+  public String toString() {
+    return getName();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    ResolutionSelector that = (ResolutionSelector) o;
+    return Objects.equals(customResolution, that.customResolution) &&
+        Objects.equals(name, that.name);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(customResolution, name);
   }
 
 }

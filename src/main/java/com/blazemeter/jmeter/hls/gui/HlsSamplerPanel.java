@@ -7,6 +7,7 @@ import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
 import javax.swing.GroupLayout;
 import javax.swing.JCheckBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
@@ -15,23 +16,22 @@ import javax.swing.LayoutStyle;
 
 public class HlsSamplerPanel extends JPanel {
 
-  private JTextField masterUrlField = new JTextField();
+  private JTextField masterUrlField;
 
-  private JRadioButton playVideoDurationOption = new JRadioButton("Video duration (seconds):");
-  private JTextField playSecondsField = new JTextField();
+  private JRadioButton playVideoDurationOption;
+  private JTextField playSecondsField;
 
-  private JRadioButton customResolutionOption = new JRadioButton("Custom resolution: ");
-  private JTextField customResolutionField = new JTextField();
-  private JRadioButton maxResolutionOption = new JRadioButton("Max resolution available");
-  private JRadioButton minResolutionOption = new JRadioButton("Min resolution available", true);
+  private JRadioButton customResolutionOption;
+  private JTextField customResolutionField;
+  private JRadioButton maxResolutionOption;
+  private JRadioButton minResolutionOption;
 
-  private JCheckBox resumeDownloadOption = new JCheckBox(
-      "Resume video download between iterations");
+  private JCheckBox resumeDownloadOption;
 
-  private JRadioButton customBandwidthOption = new JRadioButton("Custom bandwidth: ");
-  private JTextField customBandwidthField = new JTextField();
-  private JRadioButton maxBandwidthOption = new JRadioButton("Max bandwidth available");
-  private JRadioButton minBandwidthOption = new JRadioButton("Min bandwidth available", true);
+  private JRadioButton customBandwidthOption;
+  private JTextField customBandwidthField;
+  private JRadioButton maxBandwidthOption;
+  private JRadioButton minBandwidthOption;
 
   public HlsSamplerPanel() {
     initComponents();
@@ -74,10 +74,13 @@ public class HlsSamplerPanel extends JPanel {
   private JPanel buildVideoPanel() {
     JPanel panel = new JPanel();
     panel.setBorder(BorderFactory.createTitledBorder("Video"));
+
+    JLabel urlFieldLabel = new JLabel("URL  ");
+    masterUrlField = namedComponent("masterUrlField", new JTextField());
+
     GroupLayout layout = new GroupLayout(panel);
     layout.setAutoCreateContainerGaps(true);
     panel.setLayout(layout);
-    JLabel urlFieldLabel = new JLabel("URL  ");
     layout.setHorizontalGroup(layout.createSequentialGroup()
         .addComponent(urlFieldLabel)
         .addComponent(masterUrlField));
@@ -87,12 +90,22 @@ public class HlsSamplerPanel extends JPanel {
     return panel;
   }
 
+  private static <T extends JComponent> T namedComponent(String name, T component) {
+    component.setName(name);
+    return component;
+  }
+
   private JPanel buildPlayOptionsPanel() {
     JPanel panel = new JPanel();
     panel.setBorder(BorderFactory.createTitledBorder("Play options"));
 
+    JRadioButton playWholeVideoOption = namedComponent("playWholeVideoOption",
+        new JRadioButton("Whole video", true));
+    playSecondsField = namedComponent("playSecondsField", new JTextField());
+    playVideoDurationOption = namedComponent("playVideoDurationOption",
+        new JRadioButton("Video duration (seconds):"));
+
     ButtonGroup wholePartRadiosGroup = new ButtonGroup();
-    JRadioButton playWholeVideoOption = new JRadioButton("Whole video", true);
     wholePartRadiosGroup.add(playWholeVideoOption);
     wholePartRadiosGroup.add(playVideoDurationOption);
 
@@ -107,6 +120,15 @@ public class HlsSamplerPanel extends JPanel {
       validate();
       repaint();
     });
+
+    maxResolutionOption = namedComponent("maxResolutionOption",
+        new JRadioButton("Max resolution available"));
+    minResolutionOption = namedComponent("minResolutionOption",
+        new JRadioButton("Min resolution available", true));
+    customResolutionOption = namedComponent("customResolutionOption",
+        new JRadioButton("Custom resolution: "));
+    customResolutionField = namedComponent("customResolutionField",
+        new JTextField());
 
     ButtonGroup resolutionRadiosGroup = new ButtonGroup();
     resolutionRadiosGroup.add(customResolutionOption);
@@ -124,6 +146,9 @@ public class HlsSamplerPanel extends JPanel {
       validate();
       repaint();
     });
+
+    resumeDownloadOption = namedComponent("resumeDownloadOption", new JCheckBox(
+        "Resume video download between iterations"));
 
     GroupLayout layout = new GroupLayout(panel);
     layout.setAutoCreateContainerGaps(true);
@@ -161,7 +186,16 @@ public class HlsSamplerPanel extends JPanel {
     JPanel panel = new JPanel();
     panel.setBorder(BorderFactory.createTitledBorder("Network options"));
 
+    maxBandwidthOption = namedComponent("maxBandwidthOption",
+        new JRadioButton("Max bandwidth available"));
+    minBandwidthOption = namedComponent("minBandwidthOption",
+        new JRadioButton("Min bandwidth available", true));
+    customBandwidthOption = namedComponent("customBandwidthOption",
+        new JRadioButton("Custom bandwidth: "));
+    customBandwidthField = namedComponent("customBandwidthField",
+        new JTextField());
     JLabel bitsPerSecond = new JLabel("bits / s");
+
     ButtonGroup bandwidthRadiosGroup = new ButtonGroup();
     bandwidthRadiosGroup.add(customBandwidthOption);
     bandwidthRadiosGroup.add(minBandwidthOption);
@@ -260,7 +294,7 @@ public class HlsSamplerPanel extends JPanel {
     if (customBandwidthOption.isSelected()) {
       String bandwidth = customBandwidthField.getText();
       return new BandwidthSelector.CustomBandwidthSelector(
-          !bandwidth.isEmpty() ? Integer.valueOf(bandwidth) : null);
+          !bandwidth.isEmpty() ? Long.valueOf(bandwidth) : null);
     } else if (minBandwidthOption.isSelected()) {
       return BandwidthSelector.MIN;
     } else {
@@ -275,7 +309,7 @@ public class HlsSamplerPanel extends JPanel {
       maxBandwidthOption.setSelected(true);
     } else {
       customBandwidthOption.setSelected(true);
-      Integer customBandwidth = option.getCustomBandwidth();
+      Long customBandwidth = option.getCustomBandwidth();
       customBandwidthField.setText(customBandwidth == null ? "" : customBandwidth.toString());
     }
   }
