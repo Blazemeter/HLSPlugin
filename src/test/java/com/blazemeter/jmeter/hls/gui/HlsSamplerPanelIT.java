@@ -1,8 +1,9 @@
-package com.blazemeter.jmeter.hls.logic;
+package com.blazemeter.jmeter.hls.gui;
 
 import static org.assertj.swing.fixture.Containers.showInFrame;
 
-import com.blazemeter.jmeter.hls.gui.HlsSamplerPanel;
+import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
+import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
 import org.assertj.core.api.JUnitSoftAssertions;
 import org.assertj.swing.fixture.FrameFixture;
 import org.assertj.swing.fixture.JCheckBoxFixture;
@@ -16,9 +17,9 @@ import org.junit.Test;
 public class HlsSamplerPanelIT {
 
   private static final String MASTER_URL = "http://test/test.m3u8";
-  public static final String CUSTOM_RESOLUTION = "640x460";
   public static final String PLAY_SECONDS = "30";
   public static final long CUSTOM_BANDWIDTH = 12000;
+  public static final String CUSTOM_RESOLUTION = "640x460";
 
   @Rule
   public final JUnitSoftAssertions softly = new JUnitSoftAssertions();
