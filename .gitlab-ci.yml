@@ -27,7 +27,7 @@ build_and_analyze:
     - docker
   only:
     - master
-  script: /execute-on-vnc.sh mvn --batch-mode -Psonar clean install sonar:sonar -Dsonar.host.url=http://sonar.abstracta.us -Dsonar.login=$SONAR_TOKEN
+  script: /execute-on-vnc.sh mvn --batch-mode -Psonar clean install sonar:sonar -Dsonar.host.url=https://sonar.abstracta.us -Dsonar.login=$SONAR_TOKEN
   artifacts:
     paths:
       - target/jmeter-bzm-hls-*.jar
