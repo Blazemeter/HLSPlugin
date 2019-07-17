@@ -159,7 +159,7 @@ public class HlsSamplerTest {
     return json.toString();
   }
 
-  @Test
+ /* @Test
   public void shouldDownloadSegmentWhenUriIsFromMasterPlaylist() throws Exception {
     String masterPlaylist = getPlaylist("masterPlaylist.m3u8");
     String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
@@ -175,7 +175,7 @@ public class HlsSamplerTest {
         buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URL, masterPlaylist),
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, mediaPlaylistUri, mediaPlaylist),
         buildSegmentSampleResult(0)));
-  }
+  }*/
 
   @Test
   public void shouldDownloadAllSegmentsWhenSampleWholeVideoAndVOD() throws Exception {
