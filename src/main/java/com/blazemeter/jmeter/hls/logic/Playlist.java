@@ -34,19 +34,15 @@ public class Playlist {
     this.targetDuration = targetDuration;
   }
 
-  public static Playlist fromUriAndBody(URI uri, String body, Playlist playlist) {
+  public static Playlist fromUriAndBody(URI uri, String body) {
     Matcher m = Pattern.compile("#EXT-X-TARGETDURATION:(\\d+)").matcher(body);
     long targetDuration;
     if (m.find()) {
       targetDuration = Long.parseLong(m.group(1));
     } else {
-      throw new IllegalArgumentException("Missing target duration on playlist");
+      targetDuration = 0;
     }
-    if (Objects.equals(playlist, new Playlist(uri, body, targetDuration))) {
-      return playlist;
-    } else {
-      return new Playlist(uri, body, targetDuration);
-    }
+    return new Playlist(uri, body, targetDuration);
   }
 
   public URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,

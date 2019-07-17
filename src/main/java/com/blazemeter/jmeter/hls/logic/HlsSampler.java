@@ -145,7 +145,7 @@ public class HlsSampler extends HTTPSampler {
     }
 
     Playlist masterPlaylist = Playlist
-        .fromUriAndBody(masterUri, masterListResult.getResponseDataAsString(), null);
+        .fromUriAndBody(masterUri, masterListResult.getResponseDataAsString());
     URI mediaPlaylistUri = masterPlaylist
         .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
     Playlist mediaPlaylist;
@@ -156,7 +156,7 @@ public class HlsSampler extends HTTPSampler {
         return null;
       }
       mediaPlaylist = Playlist
-          .fromUriAndBody(mediaPlaylistUri, playListResult.getResponseDataAsString(), null);
+          .fromUriAndBody(mediaPlaylistUri, playListResult.getResponseDataAsString());
     } else {
       mediaPlaylist = masterPlaylist;
     }
@@ -223,25 +223,24 @@ public class HlsSampler extends HTTPSampler {
 
   private Playlist getUpdatedPlaylist(URI mediaPlaylistUri, String name, Playlist playlist)
       throws InterruptedException {
-
+    Thread.sleep(playlist.getReloadTimeMillisForDurationMultiplier((long) 1));
     SampleResult playListResult = download(mediaPlaylistUri, name);
     if (!playListResult.isSuccessful()) {
       LOG.error("Problem downloading playlist list {}", mediaPlaylistUri);
       return null;
     }
     Playlist updatedMediaPlaylist = Playlist
-        .fromUriAndBody(mediaPlaylistUri, playListResult.getResponseDataAsString(), playlist);
+        .fromUriAndBody(mediaPlaylistUri, playListResult.getResponseDataAsString());
 
     while (updatedMediaPlaylist.equals(playlist)) {
-      Thread.sleep(updatedMediaPlaylist.getReloadTimeMillisForDurationMultiplier((long) 1));
+      Thread.sleep(updatedMediaPlaylist.getReloadTimeMillisForDurationMultiplier((long) 0.5));
       playListResult = download(mediaPlaylistUri, name);
       if (!playListResult.isSuccessful()) {
         LOG.error("Problem downloading playlist list {}", mediaPlaylistUri);
         return null;
       }
       updatedMediaPlaylist = Playlist
-          .fromUriAndBody(mediaPlaylistUri, playListResult.getResponseDataAsString(),
-              updatedMediaPlaylist);
+          .fromUriAndBody(mediaPlaylistUri, playListResult.getResponseDataAsString());
 
     }
     return updatedMediaPlaylist;
