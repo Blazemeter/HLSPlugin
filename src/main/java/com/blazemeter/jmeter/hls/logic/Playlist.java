@@ -1,9 +1,6 @@
 package com.blazemeter.jmeter.hls.logic;
 
-import static java.time.Instant.now;
-
 import java.net.URI;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -29,7 +26,7 @@ public class Playlist {
   private final URI uri;
   private final String body;
   private final long targetDuration;
-  private Instant downloadTimestamp = now();
+  private long downloadTimestamp = System.currentTimeMillis();
 
   private Playlist(URI uri, String body, long targetDuration) {
     this.uri = uri;
@@ -128,9 +125,9 @@ public class Playlist {
   }
 
   public long getReloadTimeMillisForDurationMultiplier(long targetDurationMultiplier) {
-    /*return (this.targetDuration * targetDurationMultiplier * 1000) - (now().toEpochMilli()
-        - downloadTimestamp.toEpochMilli());*/
-    return 5000;
+    long timeDiff = (System.currentTimeMillis() - downloadTimestamp);
+    long getMultipliedTargetDuration = this.targetDuration * targetDurationMultiplier * 1000;
+    return getMultipliedTargetDuration - timeDiff;
   }
 
   @Override
