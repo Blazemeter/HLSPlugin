@@ -179,12 +179,14 @@ public class HlsSampler extends HTTPSampler {
         }
       }
       playListEnd = mediaPlaylist.hasEnd() && !mediaSegmentsIt.hasNext();
-      if (!playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd) {
-        try {
+
+      try {
+        if (!playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd) {
           mediaPlaylist = getUpdatedPlaylist(mediaPlaylistUri, "media playlist", mediaPlaylist);
-        } catch (InterruptedException e) {
-          e.printStackTrace();
         }
+      } catch (InterruptedException e) {
+        System.out.println("Problem downloading playlist");
+        Thread.currentThread().interrupt();
       }
     } while (!playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd);
     return null;

@@ -36,12 +36,7 @@ public class Playlist {
 
   public static Playlist fromUriAndBody(URI uri, String body) {
     Matcher m = Pattern.compile("#EXT-X-TARGETDURATION:(\\d+)").matcher(body);
-    long targetDuration;
-    if (m.find()) {
-      targetDuration = Long.parseLong(m.group(1));
-    } else {
-      targetDuration = 0;
-    }
+    long targetDuration = m.find() ? Long.parseLong(m.group(1)) : 0;
     return new Playlist(uri, body, targetDuration);
   }
 
