@@ -1,8 +1,8 @@
 package com.blazemeter.jmeter.hls.logic;
 
-import java.util.Iterator;
-import java.net.URI;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.util.Iterator;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.jmeter.protocol.http.control.CacheManager;
@@ -18,6 +18,7 @@ import org.apache.jmeter.threads.JMeterVariables;
 import org.apache.jmeter.threads.SamplePackage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 
 public class HlsSampler extends HTTPSampler {
 
