@@ -165,27 +165,29 @@ public class HlsSampler extends HTTPSampler {
         isPlayVideoDuration() && !getPlaySeconds().isEmpty() ? Integer.parseInt(getPlaySeconds())
             : 0;
     float consumedSeconds = 0;
-    boolean playListEnd;
+    boolean playListEnd = false;
 
     do {
       Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
-      while (mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds, consumedSeconds)) {
-        MediaSegment segment = mediaSegmentsIt.next();
-        long segmentSequenceNumber = segment.getSequenceNumber();
-        if (segmentSequenceNumber > lastSegmentNumber) {
-          download(segment.getUri(), "segment " + segmentSequenceNumber);
-          lastSegmentNumber = segmentSequenceNumber;
-          consumedSeconds += segment.getDurationSeconds();
-        }
-      }
-      playListEnd = mediaPlaylist.hasEnd() && !mediaSegmentsIt.hasNext();
-
       try {
+        while (mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds, consumedSeconds)) {
+          MediaSegment segment = mediaSegmentsIt.next();
+          long segmentSequenceNumber = segment.getSequenceNumber();
+          if (segmentSequenceNumber > lastSegmentNumber) {
+            download(segment.getUri(), "segment " + segmentSequenceNumber);
+            lastSegmentNumber = segmentSequenceNumber;
+            consumedSeconds += segment.getDurationSeconds();
+          }
+        }
+        playListEnd = mediaPlaylist.hasEnd() && !mediaSegmentsIt.hasNext();
         if (!playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd) {
           mediaPlaylist = getUpdatedPlaylist(mediaPlaylistUri, "media playlist", mediaPlaylist);
+          if (mediaPlaylist == null) {
+            return null;
+          }
         }
       } catch (InterruptedException e) {
-        System.out.println("Problem downloading playlist");
+        LOG.error("Problem downloading playlist");
         Thread.currentThread().interrupt();
       }
     } while (!playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd);
@@ -225,7 +227,7 @@ public class HlsSampler extends HTTPSampler {
 
   private Playlist getUpdatedPlaylist(URI mediaPlaylistUri, String name, Playlist playlist)
       throws InterruptedException {
-    Thread.sleep(playlist.getReloadTimeMillisForDurationMultiplier((long) 1));
+    Thread.sleep(playlist.getReloadTimeMillisForDurationMultiplier((float) 1));
     SampleResult playListResult = download(mediaPlaylistUri, name);
     if (!playListResult.isSuccessful()) {
       LOG.error("Problem downloading playlist list {}", mediaPlaylistUri);
@@ -235,7 +237,7 @@ public class HlsSampler extends HTTPSampler {
         .fromUriAndBody(mediaPlaylistUri, playListResult.getResponseDataAsString());
 
     while (updatedMediaPlaylist.equals(playlist)) {
-      Thread.sleep(updatedMediaPlaylist.getReloadTimeMillisForDurationMultiplier((long) 0.5));
+      Thread.sleep(updatedMediaPlaylist.getReloadTimeMillisForDurationMultiplier((float) 0.5));
       playListResult = download(mediaPlaylistUri, name);
       if (!playListResult.isSuccessful()) {
         LOG.error("Problem downloading playlist list {}", mediaPlaylistUri);
