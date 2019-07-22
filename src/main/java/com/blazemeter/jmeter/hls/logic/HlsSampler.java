@@ -19,7 +19,6 @@ import org.apache.jmeter.threads.SamplePackage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 public class HlsSampler extends HTTPSampler {
 
   private static final Logger LOG = LoggerFactory.getLogger(HlsSampler.class);
@@ -43,12 +42,6 @@ public class HlsSampler extends HTTPSampler {
   private transient long lastSegmentNumber = -1;
 
   private volatile boolean interrupted;
-
-  public boolean interrupt() {
-    interrupted = super.interrupt();
-
-    return interrupted;
-  }
 
   public HlsSampler() {
     setName("HLS Sampler");
@@ -179,7 +172,8 @@ public class HlsSampler extends HTTPSampler {
 
     do {
       Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
-      while (!interrupted && mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds, consumedSeconds)) {
+      while (!interrupted && mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds,
+          consumedSeconds)) {
         MediaSegment segment = mediaSegmentsIt.next();
         long segmentSequenceNumber = segment.getSequenceNumber();
         if (segmentSequenceNumber > lastSegmentNumber) {
@@ -198,7 +192,7 @@ public class HlsSampler extends HTTPSampler {
         mediaPlaylist = Playlist
             .fromUriAndBody(mediaPlaylistUri, playListResult.getResponseDataAsString());
       }
-    } while (!interrupted&& !playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd);
+    } while (!interrupted && !playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd);
     return null;
   }
 
@@ -231,6 +225,12 @@ public class HlsSampler extends HTTPSampler {
 
   private boolean playedRequestedTime(int playSeconds, float consumedSeconds) {
     return playSeconds != 0 && playSeconds <= consumedSeconds;
+  }
+
+  public boolean interrupt() {
+    interrupted = super.interrupt();
+
+    return interrupted;
   }
 
 }
