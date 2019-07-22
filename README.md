@@ -2,6 +2,8 @@
 
 The HLS protocol provides a reliable, cost-effective means of delivering continuous and long-form video over the Internet. It allows a receiver to adapt the bitrate of the media to the current network conditions, in order to maintain uninterrupted playback at the best possible quality.
 
+For more information related to HLS, please refer to the  [wikipedia page](https://en.wikipedia.org/wiki/HTTP_Live_Streaming) or to one informative page [this one](https://tools.ietf.org/html/rfc8216).
+
 #### In a HTTP Live Streaming process:
 
 - The audio/video to be streamed is reproduced by a media encoder at different quality levels, bitrates and resolutions. Each version is called a variant.
@@ -87,3 +89,11 @@ You can set listeners to evaluate the results of your tests. The View Results Tr
 ![](docs/HLSResults.png)
 
 Assertions are supported for the master playlist and variant (child) playlist. Examples: Response Assertion and Duration Assertion. Select `Main sample only` in assertion to test the master playlist response and `Sub-samples only` to test the variant (child) playlist response.
+
+## Stop/Interrupt Buttons
+
+In this plugin in particular, the Stop and the Interrupt button behaves in a different way as one can expect. For example:
+
+When the Stop button is pressed, JMeter will stop every download that is taking place, add the sampler that was interrupted and end up the excecution.
+
+On the contrary, the Interrupt button will wait for all the downloads to finish before closing the connections and finishing the excution.
