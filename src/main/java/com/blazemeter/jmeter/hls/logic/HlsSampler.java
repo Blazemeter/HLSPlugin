@@ -1,8 +1,8 @@
 package com.blazemeter.jmeter.hls.logic;
 
-import java.net.MalformedURLException;
-import java.net.URI;
 import java.util.Iterator;
+import java.net.URI;
+import java.net.MalformedURLException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.jmeter.protocol.http.control.CacheManager;
@@ -41,10 +41,19 @@ public class HlsSampler extends HTTPSampler {
 
   private transient long lastSegmentNumber = -1;
 
+  private volatile boolean interrupted;
+
+  public boolean interrupt() {
+    interrupted = super.interrupt();
+
+    return interrupted;
+  }
+
   public HlsSampler() {
     setName("HLS Sampler");
     uriSampler = this::downloadUri;
     sampleResultNotifier = this::notifySampleListeners;
+    interrupted = false;
   }
 
   public HlsSampler(Function<URI, SampleResult> uriSampler,
@@ -169,7 +178,7 @@ public class HlsSampler extends HTTPSampler {
 
     do {
       Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
-      while (mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds, consumedSeconds)) {
+      while (!interrupted && mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds, consumedSeconds)) {
         MediaSegment segment = mediaSegmentsIt.next();
         long segmentSequenceNumber = segment.getSequenceNumber();
         if (segmentSequenceNumber > lastSegmentNumber) {
@@ -188,7 +197,7 @@ public class HlsSampler extends HTTPSampler {
         mediaPlaylist = Playlist
             .fromUriAndBody(mediaPlaylistUri, playListResult.getResponseDataAsString());
       }
-    } while (!playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd);
+    } while (!interrupted&& !playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd);
     return null;
   }
 
