@@ -115,10 +115,10 @@ public class Playlist {
     return playlist.contains("\n#EXT-X-ENDLIST");
   }
 
-  public long getReloadTimeMillisForDurationMultiplier(float targetDurationMultiplier) {
-    long timeDiff = (System.currentTimeMillis() - downloadTimestamp);
+  public float getReloadTimeMillisForDurationMultiplier(float targetDurationMultiplier) {
+    float timeDiff = (System.currentTimeMillis() - downloadTimestamp);
     float getMultipliedTargetDuration = this.targetDuration * targetDurationMultiplier * 1000;
-    return (long) getMultipliedTargetDuration - timeDiff;
+    return getMultipliedTargetDuration - timeDiff;
   }
 
   @Override

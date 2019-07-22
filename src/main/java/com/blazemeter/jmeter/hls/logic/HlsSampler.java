@@ -165,11 +165,11 @@ public class HlsSampler extends HTTPSampler {
         isPlayVideoDuration() && !getPlaySeconds().isEmpty() ? Integer.parseInt(getPlaySeconds())
             : 0;
     float consumedSeconds = 0;
-    boolean playListEnd = false;
+    boolean playListEnd;
+    try {
+      do {
+        Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
 
-    do {
-      Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
-      try {
         while (mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds, consumedSeconds)) {
           MediaSegment segment = mediaSegmentsIt.next();
           long segmentSequenceNumber = segment.getSequenceNumber();
@@ -186,11 +186,11 @@ public class HlsSampler extends HTTPSampler {
             return null;
           }
         }
-      } catch (InterruptedException e) {
-        LOG.error("Problem downloading playlist");
-        Thread.currentThread().interrupt();
-      }
-    } while (!playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd);
+      } while (!playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd);
+    } catch (InterruptedException e) {
+      LOG.error("Sampler has been interrupted: " + e);
+      Thread.currentThread().interrupt();
+    }
     return null;
   }
 
@@ -227,20 +227,23 @@ public class HlsSampler extends HTTPSampler {
 
   private Playlist getUpdatedPlaylist(URI mediaPlaylistUri, String name, Playlist playlist)
       throws InterruptedException {
-    Thread.sleep(playlist.getReloadTimeMillisForDurationMultiplier((float) 1));
+    Thread.sleep((long) playlist.getReloadTimeMillisForDurationMultiplier(1));
     SampleResult playListResult = download(mediaPlaylistUri, name);
     if (!playListResult.isSuccessful()) {
-      LOG.error("Problem downloading playlist list {}", mediaPlaylistUri);
+      LOG.error("Problem downloading playlist list {}: {}", mediaPlaylistUri,
+          playListResult.getResponseMessage());
       return null;
     }
     Playlist updatedMediaPlaylist = Playlist
         .fromUriAndBody(mediaPlaylistUri, playListResult.getResponseDataAsString());
 
     while (updatedMediaPlaylist.equals(playlist)) {
-      Thread.sleep(updatedMediaPlaylist.getReloadTimeMillisForDurationMultiplier((float) 0.5));
+      Thread
+          .sleep((long) updatedMediaPlaylist.getReloadTimeMillisForDurationMultiplier((float) 0.5));
       playListResult = download(mediaPlaylistUri, name);
       if (!playListResult.isSuccessful()) {
-        LOG.error("Problem downloading playlist list {}", mediaPlaylistUri);
+        LOG.error("Problem downloading playlist list {}: {}", mediaPlaylistUri,
+            playListResult.getResponseMessage());
         return null;
       }
       updatedMediaPlaylist = Playlist
