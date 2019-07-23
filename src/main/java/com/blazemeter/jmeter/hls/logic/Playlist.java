@@ -1,8 +1,12 @@
 package com.blazemeter.jmeter.hls.logic;
 
 import java.net.URI;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -24,14 +28,24 @@ public class Playlist {
 
   private final URI uri;
   private final String body;
+  private final long targetDuration;
+  private final Instant downloadTimestamp;
 
-  private Playlist(URI uri, String body) {
+  private Playlist(URI uri, String body, long targetDuration, Instant downloadTimestamp) {
     this.uri = uri;
     this.body = body;
+    this.targetDuration = targetDuration;
+    this.downloadTimestamp = downloadTimestamp;
   }
 
-  public static Playlist fromUriAndBody(URI uri, String body) {
-    return new Playlist(uri, body);
+  public static Playlist fromUriAndBody(URI uri, String body, Instant timestamp) {
+    Matcher m = Pattern.compile("#EXT-X-TARGETDURATION:(\\d+)").matcher(body);
+    long targetDuration = m.find() ? Long.parseLong(m.group(1)) : 0;
+    return new Playlist(uri, body, targetDuration, timestamp);
+  }
+
+  public URI getUri() {
+    return uri;
   }
 
   public URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
@@ -107,6 +121,32 @@ public class Playlist {
 
   private boolean hasEndMarker(String playlist) {
     return playlist.contains("\n#EXT-X-ENDLIST");
+  }
+
+  public long getReloadTimeMillisForDurationMultiplier(double targetDurationMultiplier,
+      Instant now) {
+    long timeDiffMillis = downloadTimestamp.until(now, ChronoUnit.MILLIS);
+    long reloadPeriodMillis = TimeUnit.SECONDS.toMillis(Math
+        .round(this.targetDuration * targetDurationMultiplier));
+    return Math.max(0, reloadPeriodMillis - timeDiffMillis);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    Playlist playlist = (Playlist) o;
+    return Objects.equals(uri, playlist.uri) &&
+        Objects.equals(body, playlist.body);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(uri, body);
   }
 
 }

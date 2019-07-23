@@ -10,9 +10,14 @@ import com.google.common.io.Resources;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -44,6 +49,8 @@ public class HlsSamplerTest {
   private static final String EVENT_MEDIA_PLAYLIST_PART_2_NAME = "eventMediaPlaylist-Part2.m3u8";
   private static final URI MEDIA_PLAYLIST_URI = URI.create("http://example.com/audio-only.m3u8");
   private static final String MASTER_PLAYLIST_NAME = "masterPlaylist.m3u8";
+  private static final long TARGET_TIME_MILLIS = 10000;
+  private static final long TIME_THRESHOLD_MILLIS = 5000;
 
   private HlsSampler sampler;
   private SegmentResultFallbackUriSamplerMock uriSampler = new SegmentResultFallbackUriSamplerMock();
@@ -52,11 +59,27 @@ public class HlsSamplerTest {
   @Captor
   private ArgumentCaptor<SampleResult> sampleResultCaptor;
 
+  private TimeMachine timeMachine = new TimeMachine() {
+
+    private Instant now = Instant.now();
+
+    @Override
+    public synchronized void awaitMillis(long millis) {
+      now = now.plusMillis(millis);
+    }
+
+    @Override
+    public synchronized Instant now() {
+      return now;
+    }
+  };
+
   @Before
   public void setUp() {
-    sampler = new HlsSampler(uriSampler, sampleResultNotifier);
+    sampler = new HlsSampler(uriSampler, sampleResultNotifier, timeMachine);
     sampler.setName(SAMPLER_NAME);
     sampler.setMasterUrl(MASTER_URI.toString());
+    buildSampler(uriSampler);
   }
 
   private class SegmentResultFallbackUriSamplerMock implements Function<URI, SampleResult> {
@@ -358,6 +381,86 @@ public class HlsSamplerTest {
         buildSegmentSampleResult(0),
         buildErrorSampleResult(buildSegmentSampleName(1), failingSegmentUri),
         buildSegmentSampleResult(2)));
+  }
+
+  private void buildSampler(Function<URI, SampleResult> uriSampler) {
+    sampler = new HlsSampler(uriSampler, sampleResultNotifier, timeMachine);
+    sampler.setName(SAMPLER_NAME);
+    sampler.setMasterUrl(MASTER_URI.toString());
+  }
+
+  @Test
+  public void shouldWaitTargetTimeForPlaylistReloadWhenSegmentsDownloadFasterThanTargetTime()
+      throws Exception {
+    TimedUriSampler timedUriSampler = new TimedUriSampler(uriSampler, timeMachine, 0);
+    buildSampler(timedUriSampler);
+    setupUriSamplerPlaylist(MASTER_URI, getPlaylist(EVENT_MEDIA_PLAYLIST_PART_1_NAME),
+        getPlaylist(EVENT_MEDIA_PLAYLIST_PART_2_NAME));
+    sampler.sample();
+    List<Instant> timestamps = timedUriSampler.getUriSamplesTimeStamps(MASTER_URI);
+    assertThat(timestamps.get(0).until(timestamps.get(1), ChronoUnit.MILLIS))
+        .isBetween(TARGET_TIME_MILLIS, TARGET_TIME_MILLIS + TIME_THRESHOLD_MILLIS);
+  }
+
+  private static class TimedUriSampler implements Function<URI, SampleResult> {
+
+    private final Function<URI, SampleResult> baseUriSampler;
+    private final TimeMachine timeMachine;
+    private final long downloadTimeMillis;
+    private final Map<URI, List<Instant>> samplesTimestamps = new HashMap<>();
+
+    private TimedUriSampler(Function<URI, SampleResult> baseUriSampler, TimeMachine timeMachine,
+        long downloadTimeMillis) {
+      this.baseUriSampler = baseUriSampler;
+      this.timeMachine = timeMachine;
+      this.downloadTimeMillis = downloadTimeMillis;
+    }
+
+    @Override
+    public SampleResult apply(URI uri) {
+      try {
+        samplesTimestamps.computeIfAbsent(uri, k -> new ArrayList<>()).add(timeMachine.now());
+        timeMachine.awaitMillis(downloadTimeMillis);
+        return baseUriSampler.apply(uri);
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    private List<Instant> getUriSamplesTimeStamps(URI uri) {
+      return samplesTimestamps.get(uri);
+    }
+
+  }
+
+  @Test
+  public void shouldNotWaitWhenSegmentsDownloadSlowerThanTargetTime() throws Exception {
+    int segmentsCount = 3;
+    long requestDownloadTime = TARGET_TIME_MILLIS / (segmentsCount - 1);
+    TimedUriSampler timedUriSampler = new TimedUriSampler(uriSampler, timeMachine,
+        requestDownloadTime);
+    buildSampler(timedUriSampler);
+    setupUriSamplerPlaylist(MASTER_URI, getPlaylist(EVENT_MEDIA_PLAYLIST_PART_1_NAME),
+        getPlaylist(EVENT_MEDIA_PLAYLIST_PART_2_NAME));
+    sampler.sample();
+    List<Instant> timestamps = timedUriSampler.getUriSamplesTimeStamps(MASTER_URI);
+    assertThat(timestamps.get(0).until(timestamps.get(1), ChronoUnit.MILLIS))
+        .isBetween(requestDownloadTime * (segmentsCount + 1),
+            requestDownloadTime * (segmentsCount + 1) + TIME_THRESHOLD_MILLIS);
+  }
+
+  @Test
+  public void shouldWaitHalfTargetTimeForPlaylistReloadWhenReloadGetsSamePlaylistBody()
+      throws Exception {
+    TimedUriSampler timedUriSampler = new TimedUriSampler(uriSampler, timeMachine, 0);
+    buildSampler(timedUriSampler);
+    String mediaPlaylistPart1 = getPlaylist(EVENT_MEDIA_PLAYLIST_PART_1_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylistPart1, mediaPlaylistPart1,
+        getPlaylist(EVENT_MEDIA_PLAYLIST_PART_2_NAME));
+    sampler.sample();
+    List<Instant> timestamps = timedUriSampler.getUriSamplesTimeStamps(MASTER_URI);
+    assertThat(timestamps.get(1).until(timestamps.get(2), ChronoUnit.MILLIS))
+        .isBetween(TARGET_TIME_MILLIS / 2, TARGET_TIME_MILLIS / 2 + TIME_THRESHOLD_MILLIS);
   }
 
 }
