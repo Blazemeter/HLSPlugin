@@ -36,7 +36,7 @@ public class HlsSampler extends HTTPSampler {
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
   private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
 
-  private long lastSegmentNumber = -1;
+  private transient long lastSegmentNumber = -1;
 
   private final transient Function<URI, SampleResult> uriSampler;
   private final transient Consumer<SampleResult> sampleResultNotifier;
@@ -106,12 +106,12 @@ public class HlsSampler extends HTTPSampler {
     String bandwidth = getPropertyAsString(CUSTOM_BANDWIDTH_PROPERTY_NAME);
     return BandwidthSelector
         .fromStringAndCustomBandwidth(getPropertyAsString(BANDWIDTH_TYPE_PROPERTY_NAME),
-            bandwidth != null && !bandwidth.isEmpty() ? Integer.valueOf(bandwidth) : null);
+            bandwidth != null && !bandwidth.isEmpty() ? Long.valueOf(bandwidth) : null);
   }
 
   public void setBandwidthSelector(BandwidthSelector selector) {
     setProperty(BANDWIDTH_TYPE_PROPERTY_NAME, selector.getName());
-    Integer bandwidth = selector.getCustomBandwidth();
+    Long bandwidth = selector.getCustomBandwidth();
     setProperty(CUSTOM_BANDWIDTH_PROPERTY_NAME, bandwidth != null ? bandwidth.toString() : null);
   }
 

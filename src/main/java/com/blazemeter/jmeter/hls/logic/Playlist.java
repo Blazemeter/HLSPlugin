@@ -45,7 +45,7 @@ public class Playlist {
 
   public URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
       BandwidthSelector bandwidthSelector) {
-    Integer lastMatchedBandwidth = null;
+    Long lastMatchedBandwidth = null;
     String lastMatchedResolution = null;
     String mediaPlaylistUri = null;
     Matcher streamMatcher = STREAM_PATTERN.matcher(body);
@@ -57,7 +57,7 @@ public class Playlist {
         continue;
       }
 
-      int streamBandwidth = Integer.parseInt(bandwidthMatcher.group(1));
+      long streamBandwidth = Long.parseLong(bandwidthMatcher.group(1));
       Matcher resolutionMatcher = RESOLUTION_PATTERN.matcher(stream);
       String streamResolution = resolutionMatcher.find() ? resolutionMatcher.group(1) : null;
       String matchedUri = streamMatcher.group(2);
@@ -82,7 +82,7 @@ public class Playlist {
       return URI.create(uri.getScheme() + "://" + uri.getRawAuthority() + ret.toString());
     } else {
       String basePath = uri.getPath();
-      basePath = basePath.substring(0, basePath.lastIndexOf("/") + 1);
+      basePath = basePath.substring(0, basePath.lastIndexOf('/') + 1);
       return URI.create(
           uri.getScheme() + "://" + uri.getRawAuthority() + basePath + ret.toString());
     }
@@ -93,9 +93,9 @@ public class Playlist {
     final List<MediaSegment> segments = new ArrayList<>();
     Matcher m = MEDIA_SEGMENT_PATTERN.matcher(body);
     while (m.find()) {
-      URI uri = buildAbsoluteUri(m.group(3));
+      URI segmentUri = buildAbsoluteUri(m.group(3));
       float durationSecs = Float.parseFloat(m.group(1));
-      segments.add(new MediaSegment(sequenceNumber++, uri, durationSecs));
+      segments.add(new MediaSegment(sequenceNumber++, segmentUri, durationSecs));
     }
     return segments;
   }
