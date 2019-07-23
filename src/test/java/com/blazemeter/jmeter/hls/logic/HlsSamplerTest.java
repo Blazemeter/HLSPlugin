@@ -12,6 +12,9 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,6 +48,7 @@ public class HlsSamplerTest {
   private static final String VOD_MEDIA_PLAYLIST_NAME = "vodMediaPlaylist.m3u8";
   private static final String EVENT_MEDIA_PLAYLIST_PART_1_NAME = "eventMediaPlaylist-Part1.m3u8";
   private static final String EVENT_MEDIA_PLAYLIST_PART_2_NAME = "eventMediaPlaylist-Part2.m3u8";
+  private static final long TARGET_TIME_MILLIS = 3000;
 
   private HlsSampler sampler;
   @Mock
@@ -54,11 +58,28 @@ public class HlsSamplerTest {
   @Captor
   private ArgumentCaptor<SampleResult> sampleResultCaptor;
 
+  @Mock
+  TimeMachine timeMachine = new TimeMachine() {
+
+    private Instant now = Instant.now();
+
+    @Override
+    public void awaitMillis(long millis) {
+      now = now.plusMillis(millis);
+    }
+
+    @Override
+    public Instant now() {
+      return now;
+    }
+  };
+
   @Before
   public void setUp() {
-    sampler = new HlsSampler(uriSampler, sampleResultNotifier);
+    sampler = new HlsSampler(uriSampler, sampleResultNotifier, timeMachine);
     sampler.setName(SAMPLER_NAME);
     sampler.setMasterUrl(MASTER_URL);
+    buildSampler(uriSampler);
   }
 
   @Test
@@ -284,6 +305,48 @@ public class HlsSamplerTest {
         buildSegmentSampleResult(2),
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URL, mediaPlaylist2),
         buildSegmentSampleResult(3)));
+  }
+
+  private void buildSampler(Function<URI, SampleResult> uriSampler) {
+    sampler = new HlsSampler(uriSampler, sampleResultNotifier, timeMachine);
+    sampler.setName(SAMPLER_NAME);
+    sampler.setMasterUrl(MASTER_URI.toString());
+  }
+
+  @Test
+  public void shouldWaitTargetTimeForPlaylistReloadWhenSegmentsDownloadFasterThanTargetTime()
+      throws Exception {
+    TimedUriSampler timedUriSampler = new TimedUriSampler(uriSampler, timeMachine);
+    buildSampler(timedUriSampler);
+    setupUriSampler(MASTER_URI, getPlaylist(EVENT_MEDIA_PLAYLIST_PART_1_NAME),
+        getPlaylist(EVENT_MEDIA_PLAYLIST_PART_2_NAME));
+    sampler.sample();
+    List<Instant> timestamps = timedUriSampler.getUriSamplesTimeStamps(MASTER_URI);
+    assertThat(timestamps.get(0).until(timestamps.get(1), ChronoUnit.MILLIS))
+        .isGreaterThanOrEqualTo(TARGET_TIME_MILLIS);
+  }
+
+  private static class TimedUriSampler implements Function<URI, SampleResult> {
+
+    private final Function<URI, SampleResult> baseUriSampler;
+    private final TimeMachine timeMachine;
+    private final Map<URI, List<Instant>> samplesTimestamps = new HashMap<>();
+
+    private TimedUriSampler(Function<URI, SampleResult> baseUriSampler, TimeMachine timeMachine) {
+      this.baseUriSampler = baseUriSampler;
+      this.timeMachine = timeMachine;
+    }
+
+    @Override
+    public SampleResult apply(URI uri) {
+      samplesTimestamps.computeIfAbsent(uri, k -> new ArrayList<>()).add(timeMachine.now());
+      return baseUriSampler.apply(uri);
+    }
+
+    private List<Instant> getUriSamplesTimeStamps(URI uri) {
+      return samplesTimestamps.get(uri);
+    }
+
   }
 
 }

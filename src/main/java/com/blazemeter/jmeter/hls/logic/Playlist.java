@@ -22,22 +22,25 @@ public class Playlist {
       .compile("#EXTINF:(\\d+\\.?\\d*).*\\r?\\n((?:#.*:.*\\r?\\n)*)(.*)");
   private static final Pattern MEDIA_SEQUENCE_PATTERN = Pattern
       .compile("#EXT-X-MEDIA-SEQUENCE:(\\d+)");
+  private static TimeMachine timeMachine;
 
   private final URI uri;
   private final String body;
   private final long targetDuration;
   private long downloadTimestamp = System.currentTimeMillis();
 
-  private Playlist(URI uri, String body, long targetDuration) {
+  private Playlist(URI uri, String body, long targetDuration,
+      TimeMachine timeMachine) {
     this.uri = uri;
     this.body = body;
     this.targetDuration = targetDuration;
+    this.timeMachine = timeMachine;
   }
 
   public static Playlist fromUriAndBody(URI uri, String body) {
     Matcher m = Pattern.compile("#EXT-X-TARGETDURATION:(\\d+)").matcher(body);
     long targetDuration = m.find() ? Long.parseLong(m.group(1)) : 0;
-    return new Playlist(uri, body, targetDuration);
+    return new Playlist(uri, body, targetDuration, timeMachine);
   }
 
   public URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
@@ -115,9 +118,9 @@ public class Playlist {
     return playlist.contains("\n#EXT-X-ENDLIST");
   }
 
-  public float getReloadTimeMillisForDurationMultiplier(float targetDurationMultiplier) {
-    float timeDiff = (System.currentTimeMillis() - downloadTimestamp);
-    float getMultipliedTargetDuration = this.targetDuration * targetDurationMultiplier * 1000;
+  public long getReloadTimeMillisForDurationMultiplier(double targetDurationMultiplier) {
+    long timeDiff = (timeMachine.now().toEpochMilli() - downloadTimestamp);
+    long getMultipliedTargetDuration = this.targetDuration * (long) targetDurationMultiplier * 1000;
     return getMultipliedTargetDuration - timeDiff;
   }
 

@@ -36,22 +36,27 @@ public class HlsSampler extends HTTPSampler {
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
   private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
 
-  private final Function<URI, SampleResult> uriSampler;
-  private final Consumer<SampleResult> sampleResultNotifier;
-
   private long lastSegmentNumber = -1;
+
+  private final transient Function<URI, SampleResult> uriSampler;
+  private final transient Consumer<SampleResult> sampleResultNotifier;
+  private final transient TimeMachine timeMachine;
+
 
   public HlsSampler() {
     setName("HLS Sampler");
     uriSampler = this::downloadUri;
     sampleResultNotifier = this::notifySampleListeners;
+    timeMachine = TimeMachine.SYSTEM;
   }
 
   public HlsSampler(Function<URI, SampleResult> uriSampler,
-      Consumer<SampleResult> sampleResultNotifier) {
+      Consumer<SampleResult> sampleResultNotifier,
+      TimeMachine timeMachine) {
     setName("HLS Sampler");
     this.uriSampler = uriSampler;
     this.sampleResultNotifier = sampleResultNotifier;
+    this.timeMachine = timeMachine;
   }
 
   public String getMasterUrl() {
@@ -227,30 +232,32 @@ public class HlsSampler extends HTTPSampler {
 
   private Playlist getUpdatedPlaylist(URI mediaPlaylistUri, String name, Playlist playlist)
       throws InterruptedException {
-    Thread.sleep((long) playlist.getReloadTimeMillisForDurationMultiplier(1));
+    timeMachine.awaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1));
     SampleResult playListResult = download(mediaPlaylistUri, name);
     if (!playListResult.isSuccessful()) {
-      LOG.error("Problem downloading playlist list {}: {}", mediaPlaylistUri,
-          playListResult.getResponseMessage());
-      return null;
+      logPlaylistDownloadFailure(playListResult, mediaPlaylistUri);
     }
     Playlist updatedMediaPlaylist = Playlist
         .fromUriAndBody(mediaPlaylistUri, playListResult.getResponseDataAsString());
 
     while (updatedMediaPlaylist.equals(playlist)) {
-      Thread
-          .sleep((long) updatedMediaPlaylist.getReloadTimeMillisForDurationMultiplier((float) 0.5));
+      timeMachine.awaitMillis(updatedMediaPlaylist.getReloadTimeMillisForDurationMultiplier(0.5));
       playListResult = download(mediaPlaylistUri, name);
       if (!playListResult.isSuccessful()) {
-        LOG.error("Problem downloading playlist list {}: {}", mediaPlaylistUri,
-            playListResult.getResponseMessage());
-        return null;
+        logPlaylistDownloadFailure(playListResult, mediaPlaylistUri);
       }
       updatedMediaPlaylist = Playlist
           .fromUriAndBody(mediaPlaylistUri, playListResult.getResponseDataAsString());
 
     }
     return updatedMediaPlaylist;
+  }
+
+  private SampleResult logPlaylistDownloadFailure(SampleResult playListResult,
+      URI mediaPlaylistUri) {
+    LOG.error("Problem downloading playlist list {}: {}", mediaPlaylistUri,
+        playListResult.getResponseMessage());
+    return null;
   }
 
 }
