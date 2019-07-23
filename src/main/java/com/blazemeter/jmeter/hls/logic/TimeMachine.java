@@ -16,7 +16,7 @@ public interface TimeMachine {
     }
   };
 
-  void awaitMillis(long Millis) throws InterruptedException;
+  void awaitMillis(long millis) throws InterruptedException;
 
   Instant now();
 }
