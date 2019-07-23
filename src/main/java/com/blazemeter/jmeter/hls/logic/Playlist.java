@@ -1,9 +1,12 @@
 package com.blazemeter.jmeter.hls.logic;
 
 import java.net.URI;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -22,25 +25,27 @@ public class Playlist {
       .compile("#EXTINF:(\\d+\\.?\\d*).*\\r?\\n((?:#.*:.*\\r?\\n)*)(.*)");
   private static final Pattern MEDIA_SEQUENCE_PATTERN = Pattern
       .compile("#EXT-X-MEDIA-SEQUENCE:(\\d+)");
-  private static TimeMachine timeMachine;
 
   private final URI uri;
   private final String body;
   private final long targetDuration;
-  private long downloadTimestamp = System.currentTimeMillis();
+  private final Instant downloadTimestamp;
 
-  private Playlist(URI uri, String body, long targetDuration,
-      TimeMachine timeMachine) {
+  private Playlist(URI uri, String body, long targetDuration, Instant downloadTimestamp) {
     this.uri = uri;
     this.body = body;
     this.targetDuration = targetDuration;
-    this.timeMachine = timeMachine;
+    this.downloadTimestamp = downloadTimestamp;
   }
 
-  public static Playlist fromUriAndBody(URI uri, String body) {
+  public static Playlist fromUriAndBody(URI uri, String body, Instant timestamp) {
     Matcher m = Pattern.compile("#EXT-X-TARGETDURATION:(\\d+)").matcher(body);
     long targetDuration = m.find() ? Long.parseLong(m.group(1)) : 0;
-    return new Playlist(uri, body, targetDuration, timeMachine);
+    return new Playlist(uri, body, targetDuration, timestamp);
+  }
+
+  public URI getUri() {
+    return uri;
   }
 
   public URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
@@ -118,10 +123,12 @@ public class Playlist {
     return playlist.contains("\n#EXT-X-ENDLIST");
   }
 
-  public long getReloadTimeMillisForDurationMultiplier(double targetDurationMultiplier) {
-    long timeDiff = (timeMachine.now().toEpochMilli() - downloadTimestamp);
-    long getMultipliedTargetDuration = this.targetDuration * (long) targetDurationMultiplier * 1000;
-    return getMultipliedTargetDuration - timeDiff;
+  public long getReloadTimeMillisForDurationMultiplier(double targetDurationMultiplier,
+      Instant now) {
+    long timeDiffMillis = downloadTimestamp.until(now, ChronoUnit.MILLIS);
+    long reloadPeriodMillis = TimeUnit.SECONDS.toMillis(Math
+        .round(this.targetDuration * targetDurationMultiplier));
+    return Math.max(0, reloadPeriodMillis - timeDiffMillis);
   }
 
   @Override
@@ -141,4 +148,5 @@ public class Playlist {
   public int hashCode() {
     return Objects.hash(uri, body);
   }
+
 }
