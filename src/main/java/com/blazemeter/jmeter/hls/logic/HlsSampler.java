@@ -141,65 +141,86 @@ public class HlsSampler extends HTTPSampler {
     }
 
     URI masterUri = URI.create(getMasterUrl());
-    SampleResult masterListResult = download(masterUri, "master playlist");
-    if (!masterListResult.isSuccessful()) {
-      LOG.error("Problem downloading master list {}", masterUri);
-      return null;
-    }
+    System.out.println("Sample - Before donwloading the master list: "+interrupted);
 
-    Playlist masterPlaylist = Playlist
-        .fromUriAndBody(masterUri, masterListResult.getResponseDataAsString());
-    URI mediaPlaylistUri = masterPlaylist
-        .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
-    Playlist mediaPlaylist;
-    if (!mediaPlaylistUri.equals(masterUri)) {
-      SampleResult playListResult = download(mediaPlaylistUri, "media playlist");
-      if (!playListResult.isSuccessful()) {
-        LOG.error("Problem downloading playlist list {}", mediaPlaylistUri);
+    if (!interrupted){
+      SampleResult masterListResult = download(masterUri, "master playlist");
+      if (!masterListResult.isSuccessful()) {
+        LOG.error("Problem downloading master list {}", masterUri);
         return null;
       }
-      mediaPlaylist = Playlist
-          .fromUriAndBody(mediaPlaylistUri, playListResult.getResponseDataAsString());
-    } else {
-      mediaPlaylist = masterPlaylist;
+
+      if (!interrupted){
+        Playlist masterPlaylist = Playlist
+            .fromUriAndBody(masterUri, masterListResult.getResponseDataAsString());
+        URI mediaPlaylistUri = masterPlaylist
+            .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
+
+        Playlist mediaPlaylist;
+        if (!interrupted && !mediaPlaylistUri.equals(masterUri)) {
+          SampleResult playListResult = download(mediaPlaylistUri, "media playlist");
+          if (!playListResult.isSuccessful()) {
+            LOG.error("Problem downloading playlist list {}", mediaPlaylistUri);
+            return null;
+          }
+          mediaPlaylist = Playlist
+              .fromUriAndBody(mediaPlaylistUri, playListResult.getResponseDataAsString());
+        } else {
+          mediaPlaylist = masterPlaylist;
+        }
+        int playSeconds =
+            isPlayVideoDuration() && !getPlaySeconds().isEmpty() ? Integer.parseInt(getPlaySeconds())
+                : 0;
+        float consumedSeconds = 0;
+        boolean playListEnd;
+        do {
+
+          Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
+
+          System.out.println("Sample - (While 1) Estado del interrupted: "+interrupted);
+
+          while (!interrupted && mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds,
+              consumedSeconds)) {
+            System.out.println("Sample - (While 2) Estado del interrupted: "+interrupted);
+            MediaSegment segment = mediaSegmentsIt.next();
+            long segmentSequenceNumber = segment.getSequenceNumber();
+            if (segmentSequenceNumber > lastSegmentNumber) {
+              download(segment.getUri(), "segment " + segmentSequenceNumber);
+              lastSegmentNumber = segmentSequenceNumber;
+              consumedSeconds += segment.getDurationSeconds();
+            }
+          }
+          playListEnd = mediaPlaylist.hasEnd() && !mediaSegmentsIt.hasNext();
+          if (!interrupted && !playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd) {
+            SampleResult playListResult = download(mediaPlaylistUri, "media playlist");
+            if (!playListResult.isSuccessful()) {
+              LOG.error("Problem downloading playlist list {}", mediaPlaylistUri);
+              return null;
+            }
+            mediaPlaylist = Playlist
+                .fromUriAndBody(mediaPlaylistUri, playListResult.getResponseDataAsString());
+          }
+        } while (!interrupted && !playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd);
+
+      }
+
     }
 
-    int playSeconds =
-        isPlayVideoDuration() && !getPlaySeconds().isEmpty() ? Integer.parseInt(getPlaySeconds())
-            : 0;
-    float consumedSeconds = 0;
-    boolean playListEnd;
 
-    do {
-      Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
-      while (!interrupted && mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds,
-          consumedSeconds)) {
-        MediaSegment segment = mediaSegmentsIt.next();
-        long segmentSequenceNumber = segment.getSequenceNumber();
-        if (segmentSequenceNumber > lastSegmentNumber) {
-          download(segment.getUri(), "segment " + segmentSequenceNumber);
-          lastSegmentNumber = segmentSequenceNumber;
-          consumedSeconds += segment.getDurationSeconds();
-        }
-      }
-      playListEnd = mediaPlaylist.hasEnd() && !mediaSegmentsIt.hasNext();
-      if (!playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd) {
-        SampleResult playListResult = download(mediaPlaylistUri, "media playlist");
-        if (!playListResult.isSuccessful()) {
-          LOG.error("Problem downloading playlist list {}", mediaPlaylistUri);
-          return null;
-        }
-        mediaPlaylist = Playlist
-            .fromUriAndBody(mediaPlaylistUri, playListResult.getResponseDataAsString());
-      }
-    } while (!interrupted && !playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd);
+
+
+
+
     return null;
   }
 
   private SampleResult download(URI uri, String name) {
+    System.out.println("Before Download - "+name+" - Interrupted "+interrupted);
     SampleResult result = uriSampler.apply(uri);
+    System.out.println("Before Download - "+name+" - Interrupted "+interrupted);
     result.setSampleLabel(getName() + " - " + name);
     sampleResultNotifier.accept(result);
+
     return result;
   }
 
@@ -228,7 +249,8 @@ public class HlsSampler extends HTTPSampler {
   }
 
   public boolean interrupt() {
-    interrupted = super.interrupt();
+    interrupted = true;
+    super.interrupt();
 
     return interrupted;
   }

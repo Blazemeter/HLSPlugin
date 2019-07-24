@@ -13,6 +13,7 @@ import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -44,6 +45,7 @@ public class HlsSamplerTest {
   private static final String EVENT_MEDIA_PLAYLIST_PART_2_NAME = "eventMediaPlaylist-Part2.m3u8";
   private static final URI MEDIA_PLAYLIST_URI = URI.create("http://example.com/audio-only.m3u8");
   private static final String MASTER_PLAYLIST_NAME = "masterPlaylist.m3u8";
+  private static final long TEST_TIMEOUT = 150000l;
 
   private HlsSampler sampler;
   private SegmentResultFallbackUriSamplerMock uriSampler = new SegmentResultFallbackUriSamplerMock();
@@ -54,6 +56,10 @@ public class HlsSamplerTest {
 
   @Before
   public void setUp() {
+    buildSampler(uriSampler);
+  }
+
+  private void buildSampler(Function<URI, SampleResult> uriSampler) {
     sampler = new HlsSampler(uriSampler, sampleResultNotifier);
     sampler.setName(SAMPLER_NAME);
     sampler.setMasterUrl(MASTER_URI.toString());
@@ -157,6 +163,10 @@ public class HlsSamplerTest {
   private void verifyNotifiedSampleResults(List<SampleResult> results) {
     verify(sampleResultNotifier, atLeastOnce()).accept(sampleResultCaptor.capture());
     //we convert to json to easily compare and trace issues
+
+    List<String> expected = toJson(results);
+    List<String> result = toJson(sampleResultCaptor.getAllValues());
+
     assertThat(toJson(sampleResultCaptor.getAllValues())).isEqualTo(toJson(results));
   }
 
@@ -358,6 +368,94 @@ public class HlsSamplerTest {
         buildSegmentSampleResult(0),
         buildErrorSampleResult(buildSegmentSampleName(1), failingSegmentUri),
         buildSegmentSampleResult(2)));
+  }
+
+  @Test(timeout = TEST_TIMEOUT)
+  public void shouldOnlyDownloadMediaPlaylistWhenInterruptMediaPlaylistDownload() throws Exception {
+    DownloadBlockingUriSampler uriSampler = new DownloadBlockingUriSampler(this.uriSampler, 2);
+    buildSampler(uriSampler);
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    runWithAsyncSample(() -> {
+      uriSampler.awaitStartDownload();
+      sampler.interrupt();
+      uriSampler.endDownload();
+      return null;
+    });
+    verifyNotifiedSampleResults(Collections.singletonList(
+        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist)));
+  }
+
+  private void runWithAsyncSample(Callable<Void> run) throws Exception {
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    try {
+      Future<Object> sampleResult = executor.submit(() -> sampler.sample());
+      run.call();
+      sampleResult.get();
+    } finally {
+      executor.shutdown();
+    }
+  }
+
+  private class DownloadBlockingUriSampler implements Function<URI, SampleResult> {
+
+    private final Function<URI, SampleResult> uriSampler;
+    private final int blockingDownloadsCount;
+    private final Semaphore startDownloadLock;
+    private final Semaphore endDownloadLock;
+    private int currentDownload;
+
+    private DownloadBlockingUriSampler(Function<URI, SampleResult> uriSampler,
+                                       int blockingDownloadsCount) {
+      this.uriSampler = uriSampler;
+      this.blockingDownloadsCount = blockingDownloadsCount;
+      this.startDownloadLock = new Semaphore(0);
+      this.endDownloadLock = new Semaphore(0);
+    }
+
+    @Override
+    public SampleResult apply(URI uri) {
+      startDownloadLock.release();
+      if (currentDownload < blockingDownloadsCount) {
+        currentDownload++;
+        try {
+          endDownloadLock.acquire();
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
+      }
+      return uriSampler.apply(uri);
+    }
+
+    private void awaitStartDownload() throws InterruptedException {
+      startDownloadLock.acquire();
+    }
+
+    private void endDownload() {
+      endDownloadLock.release();
+    }
+
+  }
+
+  @Test(timeout = TEST_TIMEOUT)
+  public void shouldDownloadPlaylistAndFirstSegmentWhenInterruptSegmentDownload() throws Exception {
+    DownloadBlockingUriSampler uriSampler = new DownloadBlockingUriSampler(this.uriSampler, 2);
+    buildSampler(uriSampler);
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+
+    runWithAsyncSample(() -> {
+      uriSampler.awaitStartDownload();
+      uriSampler.endDownload();
+      uriSampler.awaitStartDownload();
+      sampler.interrupt();
+      uriSampler.endDownload();
+      return null;
+    });
+
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildSegmentSampleResult(0)));
   }
 
 }
