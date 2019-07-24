@@ -79,6 +79,21 @@ public class HlsSamplerTest {
     }
   };
 
+  private TimeMachine timeMachine = new TimeMachine() {
+
+    private Instant now = Instant.now();
+
+    @Override
+    public synchronized void awaitMillis(long millis) {
+      now = now.plusMillis(millis);
+    }
+
+    @Override
+    public synchronized Instant now() {
+      return now;
+    }
+  };
+
   @Before
   public void setUp() {
     buildSampler(uriSampler);
@@ -88,6 +103,7 @@ public class HlsSamplerTest {
     sampler = new HlsSampler(uriSampler, sampleResultNotifier, timeMachine);
     sampler.setName(SAMPLER_NAME);
     sampler.setMasterUrl(MASTER_URI.toString());
+    buildSampler(uriSampler);
   }
 
   private class SegmentResultFallbackUriSamplerMock implements Function<URI, SampleResult> {
@@ -416,7 +432,7 @@ public class HlsSamplerTest {
     private final Map<URI, List<Instant>> samplesTimestamps = new HashMap<>();
 
     private TimedUriSampler(Function<URI, SampleResult> baseUriSampler, TimeMachine timeMachine,
-                            long downloadTimeMillis) {
+        long downloadTimeMillis) {
       this.baseUriSampler = baseUriSampler;
       this.timeMachine = timeMachine;
       this.downloadTimeMillis = downloadTimeMillis;
