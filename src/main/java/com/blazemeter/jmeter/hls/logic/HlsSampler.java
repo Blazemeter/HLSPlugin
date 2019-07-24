@@ -168,7 +168,7 @@ public class HlsSampler extends HTTPSampler {
         }
 
         int playSeconds = isPlayVideoDuration() && !getPlaySeconds().isEmpty()
-                ? Integer.parseInt(getPlaySeconds()) : 0; 
+                ? Integer.parseInt(getPlaySeconds()) : 0;
 
         float consumedSeconds = 0;
         boolean playListEnd;
@@ -249,8 +249,8 @@ public class HlsSampler extends HTTPSampler {
 
   private Playlist getUpdatedPlaylist(Playlist playlist)
       throws InterruptedException {
-    timeMachine
-        .awaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1, timeMachine.now()));
+    timeMachine.awaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1,
+        timeMachine.now()));
     Playlist updatedMediaPlaylist = downloadPlaylist("media playlist", playlist.getUri());
     while (updatedMediaPlaylist != null && updatedMediaPlaylist.equals(playlist)) {
       timeMachine.awaitMillis(
@@ -262,6 +262,7 @@ public class HlsSampler extends HTTPSampler {
 
   public boolean interrupt() {
     interrupted = true;
+    timeMachine.countdown();
     super.interrupt();
 
     return interrupted;

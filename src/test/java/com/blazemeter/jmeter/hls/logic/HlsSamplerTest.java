@@ -18,8 +18,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ExecutorService;
@@ -67,15 +69,21 @@ public class HlsSamplerTest {
   private TimeMachine timeMachine = new TimeMachine() {
 
     private Instant now = Instant.now();
+    private CountDownLatch COUNT_DOWN_LATCH = new CountDownLatch(1);
 
     @Override
-    public synchronized void awaitMillis(long millis) {
-      now = now.plusMillis(millis);
+    public synchronized void awaitMillis(long millis) throws InterruptedException{
+      COUNT_DOWN_LATCH.await(millis, TimeUnit.MILLISECONDS);
     }
 
     @Override
     public synchronized Instant now() {
       return now;
+    }
+
+    @Override
+    public void countdown() {
+      COUNT_DOWN_LATCH.countDown();
     }
   };
 
@@ -549,6 +557,7 @@ public class HlsSamplerTest {
       uriSampler.endDownload();
       uriSampler.awaitStartDownload();
       sampler.interrupt();
+      Thread.currentThread().interrupt();
       uriSampler.endDownload();
       return null;
     });
