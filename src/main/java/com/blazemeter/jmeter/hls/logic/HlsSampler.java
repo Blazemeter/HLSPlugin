@@ -147,13 +147,13 @@ public class HlsSampler extends HTTPSampler {
 
     URI masterUri = URI.create(getMasterUrl());
 
-    if (!interrupted){
+    if (!interrupted) {
       Playlist masterPlaylist = downloadPlaylist("master playlist", masterUri);
       if (masterPlaylist == null) {
         return null;
       }
 
-      if (!interrupted){
+      if (!interrupted) {
         URI mediaPlaylistUri = masterPlaylist
             .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
         Playlist mediaPlaylist;
