@@ -43,7 +43,6 @@ public class HlsSampler extends HTTPSampler {
   private final transient Consumer<SampleResult> sampleResultNotifier;
   private final transient TimeMachine timeMachine;
 
-
   public HlsSampler() {
     setName("HLS Sampler");
     uriSampler = this::downloadUri;
