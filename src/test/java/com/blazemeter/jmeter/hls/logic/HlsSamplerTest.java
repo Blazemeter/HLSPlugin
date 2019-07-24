@@ -79,21 +79,6 @@ public class HlsSamplerTest {
     }
   };
 
-  private TimeMachine timeMachine = new TimeMachine() {
-
-    private Instant now = Instant.now();
-
-    @Override
-    public synchronized void awaitMillis(long millis) {
-      now = now.plusMillis(millis);
-    }
-
-    @Override
-    public synchronized Instant now() {
-      return now;
-    }
-  };
-
   @Before
   public void setUp() {
     buildSampler(uriSampler);
