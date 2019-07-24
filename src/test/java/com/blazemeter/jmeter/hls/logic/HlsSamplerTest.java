@@ -45,7 +45,7 @@ public class HlsSamplerTest {
   private static final String EVENT_MEDIA_PLAYLIST_PART_2_NAME = "eventMediaPlaylist-Part2.m3u8";
   private static final URI MEDIA_PLAYLIST_URI = URI.create("http://example.com/audio-only.m3u8");
   private static final String MASTER_PLAYLIST_NAME = "masterPlaylist.m3u8";
-  private static final long TEST_TIMEOUT = 150000l;
+  private static final long TEST_TIMEOUT = 10000l;
 
   private HlsSampler sampler;
   private SegmentResultFallbackUriSamplerMock uriSampler = new SegmentResultFallbackUriSamplerMock();
@@ -457,5 +457,53 @@ public class HlsSamplerTest {
         buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildSegmentSampleResult(0)));
   }
+
+  @Test(timeout = TEST_TIMEOUT)
+  public void shouldDownloadOnlyMasterListWhenInterruptDuringMasterListDownload() throws Exception {
+    DownloadBlockingUriSampler uriSampler = new DownloadBlockingUriSampler(this.uriSampler, 1);
+    buildSampler(uriSampler);
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+
+    runWithAsyncSample(() -> {
+      uriSampler.awaitStartDownload();
+      sampler.interrupt();
+      uriSampler.endDownload();
+      return null;
+    });
+
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist)));
+  }
+
+  @Test(timeout = TEST_TIMEOUT)
+  public void shouldNotDownloadPlayListWhenInterruptDuringLastSegmentDownload() throws Exception {
+    DownloadBlockingUriSampler uriSampler = new DownloadBlockingUriSampler(this.uriSampler, 3);
+    buildSampler(uriSampler);
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+
+    runWithAsyncSample(() -> {
+      uriSampler.awaitStartDownload();
+      uriSampler.endDownload();
+      uriSampler.awaitStartDownload();
+      uriSampler.endDownload();
+      uriSampler.awaitStartDownload();
+      uriSampler.endDownload();
+      uriSampler.awaitStartDownload();
+      sampler.interrupt();
+      uriSampler.endDownload();
+
+      return null;
+    });
+
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildSegmentSampleResult(0),
+        buildSegmentSampleResult(1),
+        buildSegmentSampleResult(2)));
+  }
+
+
 
 }
