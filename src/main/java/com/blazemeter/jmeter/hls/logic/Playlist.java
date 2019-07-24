@@ -124,7 +124,7 @@ public class Playlist {
   }
 
   public long getReloadTimeMillisForDurationMultiplier(double targetDurationMultiplier,
-                                                       Instant now) {
+      Instant now) {
     long timeDiffMillis = downloadTimestamp.until(now, ChronoUnit.MILLIS);
     long reloadPeriodMillis = TimeUnit.SECONDS.toMillis(Math
         .round(this.targetDuration * targetDurationMultiplier));
