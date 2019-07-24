@@ -77,7 +77,7 @@ public class HlsSamplerTest {
     public synchronized Instant now() {
       return now;
     }
-  };
+  }; 
 
   @Before
   public void setUp() {
