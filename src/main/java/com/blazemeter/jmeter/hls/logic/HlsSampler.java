@@ -168,7 +168,7 @@ public class HlsSampler extends HTTPSampler {
         }
 
         int playSeconds = isPlayVideoDuration() && !getPlaySeconds().isEmpty()
-                ? Integer.parseInt(getPlaySeconds()) : 0;
+                ? Integer.parseInt(getPlaySeconds()) : 0; 
 
         float consumedSeconds = 0;
         boolean playListEnd;
