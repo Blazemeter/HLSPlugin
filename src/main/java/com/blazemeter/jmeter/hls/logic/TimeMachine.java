@@ -15,7 +15,7 @@ public interface TimeMachine {
 
     @Override
     public void awaitMillis(long millis) throws InterruptedException {
-      COUNT_DOWN_LATCH.await(millis, TimeUnit.SECONDS);
+      COUNT_DOWN_LATCH.await(millis, TimeUnit.MILLISECONDS);
     }
 
     @Override
