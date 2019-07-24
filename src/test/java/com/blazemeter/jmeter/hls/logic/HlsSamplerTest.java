@@ -197,9 +197,6 @@ public class HlsSamplerTest {
     verify(sampleResultNotifier, atLeastOnce()).accept(sampleResultCaptor.capture());
     //we convert to json to easily compare and trace issues
 
-    List<String> expected = toJson(results);
-    List<String> result = toJson(sampleResultCaptor.getAllValues());
-
     assertThat(toJson(sampleResultCaptor.getAllValues())).isEqualTo(toJson(results));
   }
 
@@ -612,7 +609,4 @@ public class HlsSamplerTest {
         buildSegmentSampleResult(1),
         buildSegmentSampleResult(2)));
   }
-
-
-
 }
