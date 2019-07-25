@@ -7,15 +7,15 @@ import java.util.concurrent.TimeUnit;
 public interface TimeMachine {
 
   TimeMachine SYSTEM = new TimeMachine() {
-
+    CountDownLatch countDownLatch = new CountDownLatch(1);
     @Override
-    public void countdown() {
-      COUNT_DOWN_LATCH.countDown();
+    public void interrupt() {
+      countDownLatch.countDown();
     }
 
     @Override
     public void awaitMillis(long millis) throws InterruptedException {
-      COUNT_DOWN_LATCH.await(millis, TimeUnit.MILLISECONDS);
+      countDownLatch.await(millis, TimeUnit.MILLISECONDS);
     }
 
     @Override
@@ -24,11 +24,9 @@ public interface TimeMachine {
     }
   };
 
-  CountDownLatch COUNT_DOWN_LATCH = new CountDownLatch(1);
-
   void awaitMillis(long millis) throws InterruptedException;
 
   Instant now();
 
-  void countdown();
+  void interrupt();
 }
