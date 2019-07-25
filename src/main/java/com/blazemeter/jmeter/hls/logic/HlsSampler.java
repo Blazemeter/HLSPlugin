@@ -23,246 +23,246 @@ import org.slf4j.LoggerFactory;
 
 public class HlsSampler extends HTTPSampler {
 
-    private static final Logger LOG = LoggerFactory.getLogger(HlsSampler.class);
+  private static final Logger LOG = LoggerFactory.getLogger(HlsSampler.class);
 
-    private static final String MASTER_URL_PROPERTY_NAME = "HLS.URL_DATA";
-    private static final String CUSTOM_RESOLUTION_PROPERTY_NAME = "HLS.RES_DATA";
-    private static final String CUSTOM_BANDWIDTH_PROPERTY_NAME = "HLS.NET_DATA";
-    private static final String PLAY_SECONDS_PROPERTY_NAME = "HLS.SECONDS_DATA";
-    private static final String PLAY_VIDEO_DURATION_PROPERTY_NAME = "HLS.DURATION";
-    private static final String RESOLUTION_TYPE_PROPERTY_NAME = "HLS.RESOLUTION_TYPE";
-    private static final String BANDWIDTH_TYPE_PROPERTY_NAME = "HLS.BANDWIDTH_TYPE";
-    private static final String RESUME_DOWNLOAD_PROPERTY_NAME = "HLS.RESUME_DOWNLOAD";
+  private static final String MASTER_URL_PROPERTY_NAME = "HLS.URL_DATA";
+  private static final String CUSTOM_RESOLUTION_PROPERTY_NAME = "HLS.RES_DATA";
+  private static final String CUSTOM_BANDWIDTH_PROPERTY_NAME = "HLS.NET_DATA";
+  private static final String PLAY_SECONDS_PROPERTY_NAME = "HLS.SECONDS_DATA";
+  private static final String PLAY_VIDEO_DURATION_PROPERTY_NAME = "HLS.DURATION";
+  private static final String RESOLUTION_TYPE_PROPERTY_NAME = "HLS.RESOLUTION_TYPE";
+  private static final String BANDWIDTH_TYPE_PROPERTY_NAME = "HLS.BANDWIDTH_TYPE";
+  private static final String RESUME_DOWNLOAD_PROPERTY_NAME = "HLS.RESUME_DOWNLOAD";
 
-    private static final String HEADER_MANAGER = "HLSRequest.header_manager";
-    private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
-    private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
+  private static final String HEADER_MANAGER = "HLSRequest.header_manager";
+  private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
+  private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
 
-    private transient long lastSegmentNumber = -1;
+  private transient long lastSegmentNumber = -1;
 
-    private final transient Function<URI, SampleResult> uriSampler;
-    private final transient Consumer<SampleResult> sampleResultNotifier;
-    private final transient TimeMachine timeMachine;
+  private final transient Function<URI, SampleResult> uriSampler;
+  private final transient Consumer<SampleResult> sampleResultNotifier;
+  private final transient TimeMachine timeMachine;
 
-    private volatile boolean interrupted;
+  private volatile boolean interrupted;
 
-    public HlsSampler() {
-        setName("HLS Sampler");
-        uriSampler = this::downloadUri;
-        sampleResultNotifier = this::notifySampleListeners;
-        timeMachine = TimeMachine.SYSTEM;
-        interrupted = false;
+  public HlsSampler() {
+    setName("HLS Sampler");
+    uriSampler = this::downloadUri;
+    sampleResultNotifier = this::notifySampleListeners;
+    timeMachine = TimeMachine.SYSTEM;
+    interrupted = false;
+  }
+
+  public HlsSampler(Function<URI, SampleResult> uriSampler,
+                    Consumer<SampleResult> sampleResultNotifier,
+                    TimeMachine timeMachine) {
+    setName("HLS Sampler");
+    this.uriSampler = uriSampler;
+    this.sampleResultNotifier = sampleResultNotifier;
+    this.timeMachine = timeMachine;
+  }
+
+  public String getMasterUrl() {
+    return this.getPropertyAsString(MASTER_URL_PROPERTY_NAME);
+  }
+
+  public void setMasterUrl(String url) {
+    this.setProperty(MASTER_URL_PROPERTY_NAME, url);
+  }
+
+  public boolean isPlayVideoDuration() {
+    return this.getPropertyAsBoolean(PLAY_VIDEO_DURATION_PROPERTY_NAME);
+  }
+
+  public void setPlayVideoDuration(boolean res) {
+    this.setProperty(PLAY_VIDEO_DURATION_PROPERTY_NAME, res);
+  }
+
+  public String getPlaySeconds() {
+    return this.getPropertyAsString(PLAY_SECONDS_PROPERTY_NAME);
+  }
+
+  public void setPlaySeconds(String seconds) {
+    this.setProperty(PLAY_SECONDS_PROPERTY_NAME, seconds);
+  }
+
+  public boolean getResumeVideoStatus() {
+    return this.getPropertyAsBoolean(RESUME_DOWNLOAD_PROPERTY_NAME);
+  }
+
+  public void setResumeVideoStatus(boolean res) {
+    this.setProperty(RESUME_DOWNLOAD_PROPERTY_NAME, res);
+  }
+
+  public ResolutionSelector getResolutionSelector() {
+    return ResolutionSelector
+        .fromStringAndCustomResolution(getPropertyAsString(RESOLUTION_TYPE_PROPERTY_NAME),
+            getPropertyAsString(CUSTOM_RESOLUTION_PROPERTY_NAME));
+  }
+
+  public void setResolutionSelector(ResolutionSelector selector) {
+    setProperty(RESOLUTION_TYPE_PROPERTY_NAME, selector.getName());
+    setProperty(CUSTOM_RESOLUTION_PROPERTY_NAME, selector.getCustomResolution());
+  }
+
+  public BandwidthSelector getBandwidthSelector() {
+    String bandwidth = getPropertyAsString(CUSTOM_BANDWIDTH_PROPERTY_NAME);
+    return BandwidthSelector
+        .fromStringAndCustomBandwidth(getPropertyAsString(BANDWIDTH_TYPE_PROPERTY_NAME),
+            bandwidth != null && !bandwidth.isEmpty() ? Long.valueOf(bandwidth) : null);
+  }
+
+  public void setBandwidthSelector(BandwidthSelector selector) {
+    setProperty(BANDWIDTH_TYPE_PROPERTY_NAME, selector.getName());
+    Long bandwidth = selector.getCustomBandwidth();
+    setProperty(CUSTOM_BANDWIDTH_PROPERTY_NAME, bandwidth != null ? bandwidth.toString() : null);
+  }
+
+  // implemented for backwards compatibility
+  @Override
+  public CookieManager getCookieManager() {
+    CookieManager ret = (CookieManager) getProperty(COOKIE_MANAGER).getObjectValue();
+    return ret != null ? ret : super.getCookieManager();
+  }
+
+  // implemented for backwards compatibility
+  @Override
+  public HeaderManager getHeaderManager() {
+    HeaderManager ret = (HeaderManager) getProperty(HEADER_MANAGER).getObjectValue();
+    return ret != null ? ret : super.getHeaderManager();
+  }
+
+  // implemented for backwards compatibility
+  @Override
+  public CacheManager getCacheManager() {
+    CacheManager ret = (CacheManager) getProperty(CACHE_MANAGER).getObjectValue();
+    return ret != null ? ret : super.getCacheManager();
+  }
+
+  @Override
+  public SampleResult sample() {
+    if (!this.getResumeVideoStatus()) {
+      lastSegmentNumber = -1;
     }
 
-    public HlsSampler(Function<URI, SampleResult> uriSampler,
-                      Consumer<SampleResult> sampleResultNotifier,
-                      TimeMachine timeMachine) {
-        setName("HLS Sampler");
-        this.uriSampler = uriSampler;
-        this.sampleResultNotifier = sampleResultNotifier;
-        this.timeMachine = timeMachine;
+    URI masterUri = URI.create(getMasterUrl());
+
+    Playlist masterPlaylist = downloadPlaylist("master playlist", masterUri);
+    if (masterPlaylist == null) {
+      return null;
     }
 
-    public String getMasterUrl() {
-        return this.getPropertyAsString(MASTER_URL_PROPERTY_NAME);
-    }
+    URI mediaPlaylistUri = masterPlaylist
+        .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
+    Playlist mediaPlaylist;
 
-    public void setMasterUrl(String url) {
-        this.setProperty(MASTER_URL_PROPERTY_NAME, url);
-    }
-
-    public boolean isPlayVideoDuration() {
-        return this.getPropertyAsBoolean(PLAY_VIDEO_DURATION_PROPERTY_NAME);
-    }
-
-    public void setPlayVideoDuration(boolean res) {
-        this.setProperty(PLAY_VIDEO_DURATION_PROPERTY_NAME, res);
-    }
-
-    public String getPlaySeconds() {
-        return this.getPropertyAsString(PLAY_SECONDS_PROPERTY_NAME);
-    }
-
-    public void setPlaySeconds(String seconds) {
-        this.setProperty(PLAY_SECONDS_PROPERTY_NAME, seconds);
-    }
-
-    public boolean getResumeVideoStatus() {
-        return this.getPropertyAsBoolean(RESUME_DOWNLOAD_PROPERTY_NAME);
-    }
-
-    public void setResumeVideoStatus(boolean res) {
-        this.setProperty(RESUME_DOWNLOAD_PROPERTY_NAME, res);
-    }
-
-    public ResolutionSelector getResolutionSelector() {
-        return ResolutionSelector
-                .fromStringAndCustomResolution(getPropertyAsString(RESOLUTION_TYPE_PROPERTY_NAME),
-                        getPropertyAsString(CUSTOM_RESOLUTION_PROPERTY_NAME));
-    }
-
-    public void setResolutionSelector(ResolutionSelector selector) {
-        setProperty(RESOLUTION_TYPE_PROPERTY_NAME, selector.getName());
-        setProperty(CUSTOM_RESOLUTION_PROPERTY_NAME, selector.getCustomResolution());
-    }
-
-    public BandwidthSelector getBandwidthSelector() {
-        String bandwidth = getPropertyAsString(CUSTOM_BANDWIDTH_PROPERTY_NAME);
-        return BandwidthSelector
-                .fromStringAndCustomBandwidth(getPropertyAsString(BANDWIDTH_TYPE_PROPERTY_NAME),
-                        bandwidth != null && !bandwidth.isEmpty() ? Long.valueOf(bandwidth) : null);
-    }
-
-    public void setBandwidthSelector(BandwidthSelector selector) {
-        setProperty(BANDWIDTH_TYPE_PROPERTY_NAME, selector.getName());
-        Long bandwidth = selector.getCustomBandwidth();
-        setProperty(CUSTOM_BANDWIDTH_PROPERTY_NAME, bandwidth != null ? bandwidth.toString() : null);
-    }
-
-    // implemented for backwards compatibility
-    @Override
-    public CookieManager getCookieManager() {
-        CookieManager ret = (CookieManager) getProperty(COOKIE_MANAGER).getObjectValue();
-        return ret != null ? ret : super.getCookieManager();
-    }
-
-    // implemented for backwards compatibility
-    @Override
-    public HeaderManager getHeaderManager() {
-        HeaderManager ret = (HeaderManager) getProperty(HEADER_MANAGER).getObjectValue();
-        return ret != null ? ret : super.getHeaderManager();
-    }
-
-    // implemented for backwards compatibility
-    @Override
-    public CacheManager getCacheManager() {
-        CacheManager ret = (CacheManager) getProperty(CACHE_MANAGER).getObjectValue();
-        return ret != null ? ret : super.getCacheManager();
-    }
-
-    @Override
-    public SampleResult sample() {
-        if (!this.getResumeVideoStatus()) {
-            lastSegmentNumber = -1;
-        }
-
-        URI masterUri = URI.create(getMasterUrl());
-
-        Playlist masterPlaylist = downloadPlaylist("master playlist", masterUri);
-        if (masterPlaylist == null) {
-            return null;
-        }
-
-        URI mediaPlaylistUri = masterPlaylist
-                .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
-        Playlist mediaPlaylist;
-
-        if (!interrupted && !mediaPlaylistUri.equals(masterUri)) {
-            mediaPlaylist = downloadPlaylist("media playlist", mediaPlaylistUri);
-            if (mediaPlaylist == null) {
-                return null;
-            }
-        } else {
-            mediaPlaylist = masterPlaylist;
-        }
-
-        int playSeconds = isPlayVideoDuration() && !getPlaySeconds().isEmpty()
-                ? Integer.parseInt(getPlaySeconds()) : 0;
-
-        float consumedSeconds = 0;
-        boolean playListEnd;
-
-        try {
-            do {
-                Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
-
-                while (!interrupted && mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds,
-                        consumedSeconds)) {
-                    MediaSegment segment = mediaSegmentsIt.next();
-                    long segmentSequenceNumber = segment.getSequenceNumber();
-                    if (segmentSequenceNumber > lastSegmentNumber) {
-                        download("segment " + segmentSequenceNumber, segment.getUri());
-                        lastSegmentNumber = segmentSequenceNumber;
-                        consumedSeconds += segment.getDurationSeconds();
-                    }
-                }
-
-                playListEnd = mediaPlaylist.hasEnd() && !mediaSegmentsIt.hasNext();
-                if (!interrupted && !playedRequestedTime(playSeconds, consumedSeconds)
-                        && !playListEnd) {
-                    mediaPlaylist = getUpdatedPlaylist(mediaPlaylist);
-                }
-            } while (!interrupted && mediaPlaylist != null && !playedRequestedTime(playSeconds,
-                    consumedSeconds) && !playListEnd);
-        } catch (InterruptedException e) {
-            LOG.warn("Sampler has been interrupted", e);
-            Thread.currentThread().interrupt();
-        }
-
+    if (!interrupted && !mediaPlaylistUri.equals(masterUri)) {
+      mediaPlaylist = downloadPlaylist("media playlist", mediaPlaylistUri);
+      if (mediaPlaylist == null) {
         return null;
+      }
+    } else {
+      mediaPlaylist = masterPlaylist;
     }
 
-    private Playlist downloadPlaylist(String name, URI uri) {
-        Instant downloadTimestamp = timeMachine.now();
-        SampleResult playlistResult = download(name, uri);
-        if (!playlistResult.isSuccessful()) {
-            LOG.warn("Problem downloading {} {}", name, uri);
-            return null;
+    int playSeconds = isPlayVideoDuration() && !getPlaySeconds().isEmpty()
+        ? Integer.parseInt(getPlaySeconds()) : 0;
+
+    float consumedSeconds = 0;
+    boolean playListEnd;
+
+    try {
+      do {
+        Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
+
+        while (!interrupted && mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds,
+            consumedSeconds)) {
+          MediaSegment segment = mediaSegmentsIt.next();
+          long segmentSequenceNumber = segment.getSequenceNumber();
+          if (segmentSequenceNumber > lastSegmentNumber) {
+            download("segment " + segmentSequenceNumber, segment.getUri());
+            lastSegmentNumber = segmentSequenceNumber;
+            consumedSeconds += segment.getDurationSeconds();
+          }
         }
-        return Playlist
-                .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
-    }
 
-    private SampleResult download(String name, URI uri) {
-        SampleResult result = uriSampler.apply(uri);
-        result.setSampleLabel(getName() + " - " + name);
-        sampleResultNotifier.accept(result);
-        return result;
-    }
-
-    private HTTPSampleResult downloadUri(URI uri) {
-        try {
-            return sample(uri.toURL(), "GET", false, 0);
-        } catch (MalformedURLException e) {
-            throw new IllegalArgumentException(e);
+        playListEnd = mediaPlaylist.hasEnd() && !mediaSegmentsIt.hasNext();
+        if (!interrupted && !playedRequestedTime(playSeconds, consumedSeconds)
+            && !playListEnd) {
+          mediaPlaylist = getUpdatedPlaylist(mediaPlaylist);
         }
+      } while (!interrupted && mediaPlaylist != null && !playedRequestedTime(playSeconds,
+          consumedSeconds) && !playListEnd);
+    } catch (InterruptedException e) {
+      LOG.warn("Sampler has been interrupted", e);
+      Thread.currentThread().interrupt();
     }
 
-    private void notifySampleListeners(SampleResult sampleResult) {
-        JMeterContext threadContext = getThreadContext();
-        JMeterVariables threadContextVariables = threadContext.getVariables();
-        if (threadContextVariables != null) {
-            SamplePackage pack = (SamplePackage) threadContext.getVariables()
-                    .getObject(JMeterThread.PACKAGE_OBJECT);
-            SampleEvent event = new SampleEvent(sampleResult, getThreadName(),
-                    threadContext.getVariables(), false);
-            pack.getSampleListeners().forEach(l -> l.sampleOccurred(event));
-        }
-    }
+    return null;
+  }
 
-    private boolean playedRequestedTime(int playSeconds, float consumedSeconds) {
-        return playSeconds != 0 && playSeconds <= consumedSeconds;
+  private Playlist downloadPlaylist(String name, URI uri) {
+    Instant downloadTimestamp = timeMachine.now();
+    SampleResult playlistResult = download(name, uri);
+    if (!playlistResult.isSuccessful()) {
+      LOG.warn("Problem downloading {} {}", name, uri);
+      return null;
     }
+    return Playlist
+        .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
+  }
 
-    private Playlist getUpdatedPlaylist(Playlist playlist)
-            throws InterruptedException {
-        timeMachine.awaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1,
-                timeMachine.now()));
-        Playlist updatedMediaPlaylist = downloadPlaylist("media playlist", playlist.getUri());
-        while (updatedMediaPlaylist != null && updatedMediaPlaylist.equals(playlist)) {
-            timeMachine.awaitMillis(updatedMediaPlaylist
-                    .getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now()));
-            updatedMediaPlaylist = downloadPlaylist("media playlist", playlist.getUri());
-        }
-        return updatedMediaPlaylist;
+  private SampleResult download(String name, URI uri) {
+    SampleResult result = uriSampler.apply(uri);
+    result.setSampleLabel(getName() + " - " + name);
+    sampleResultNotifier.accept(result);
+    return result;
+  }
+
+  private HTTPSampleResult downloadUri(URI uri) {
+    try {
+      return sample(uri.toURL(), "GET", false, 0);
+    } catch (MalformedURLException e) {
+      throw new IllegalArgumentException(e);
     }
+  }
 
-    public boolean interrupt() {
-        interrupted = true;
-        timeMachine.interrupt();
-        super.interrupt();
-
-        return interrupted;
+  private void notifySampleListeners(SampleResult sampleResult) {
+    JMeterContext threadContext = getThreadContext();
+    JMeterVariables threadContextVariables = threadContext.getVariables();
+    if (threadContextVariables != null) {
+      SamplePackage pack = (SamplePackage) threadContext.getVariables()
+          .getObject(JMeterThread.PACKAGE_OBJECT);
+      SampleEvent event = new SampleEvent(sampleResult, getThreadName(),
+          threadContext.getVariables(), false);
+      pack.getSampleListeners().forEach(l -> l.sampleOccurred(event));
     }
+  }
+
+  private boolean playedRequestedTime(int playSeconds, float consumedSeconds) {
+    return playSeconds != 0 && playSeconds <= consumedSeconds;
+  }
+
+  private Playlist getUpdatedPlaylist(Playlist playlist)
+      throws InterruptedException {
+    timeMachine.awaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1,
+        timeMachine.now()));
+    Playlist updatedMediaPlaylist = downloadPlaylist("media playlist", playlist.getUri());
+    while (updatedMediaPlaylist != null && updatedMediaPlaylist.equals(playlist)) {
+      timeMachine.awaitMillis(updatedMediaPlaylist
+          .getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now()));
+      updatedMediaPlaylist = downloadPlaylist("media playlist", playlist.getUri());
+    }
+    return updatedMediaPlaylist;
+  }
+
+  public boolean interrupt() {
+    interrupted = true;
+    timeMachine.interrupt();
+    super.interrupt();
+
+    return interrupted;
+  }
 
 }

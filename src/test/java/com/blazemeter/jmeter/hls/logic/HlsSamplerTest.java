@@ -47,6 +47,7 @@ public class HlsSamplerTest {
     private static final long TARGET_TIME_MILLIS = 10000;
     private static final long TIME_THRESHOLD_MILLIS = 5000;
     private static final long TEST_TIMEOUT = 10000l;
+    //https://bitdash-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8
 
     private HlsSampler sampler;
     private SegmentResultFallbackUriSamplerMock uriSampler = new SegmentResultFallbackUriSamplerMock();
