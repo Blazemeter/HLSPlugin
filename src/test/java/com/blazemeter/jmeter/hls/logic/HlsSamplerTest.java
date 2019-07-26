@@ -47,7 +47,6 @@ public class HlsSamplerTest {
     private static final long TARGET_TIME_MILLIS = 10000;
     private static final long TIME_THRESHOLD_MILLIS = 5000;
     private static final long TEST_TIMEOUT = 10000l;
-    //https://bitdash-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8
 
     private HlsSampler sampler;
     private SegmentResultFallbackUriSamplerMock uriSampler = new SegmentResultFallbackUriSamplerMock();
@@ -574,10 +573,32 @@ public class HlsSamplerTest {
 
     @Test(timeout = TEST_TIMEOUT)
     public void shouldNotDownloadPlayListWhenInterruptDuringLastSegmentDownload() throws Exception {
+
+        DownloadBlockingUriSampler uriSampler = new DownloadBlockingUriSampler(this.uriSampler, 10);
+        buildSampler(uriSampler);
+
+        String mediaPlaylist1 = getPlaylist("liveMediaPlaylist-Part1.m3u8");
+        String mediaPlaylist2 = getPlaylist("liveMediaPlaylist-Part2.m3u8");
+        setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist1, mediaPlaylist2);
+        setPlaySeconds( (int) (TEST_TIMEOUT-1) );
+        sampler.sample();
+        verifyNotifiedSampleResults(Arrays.asList(
+            buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
+            buildSegmentSampleResult(0),
+            buildSegmentSampleResult(1),
+            buildSegmentSampleResult(2),
+            buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist2),
+            buildSegmentSampleResult(3)));
+
+        /*
         DownloadBlockingUriSampler uriSampler = new DownloadBlockingUriSampler(this.uriSampler, 3);
         buildSampler(uriSampler);
-        String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
-        setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+        String LIVESTREAM_MEDIA_PLAYLIST_NAME = "f08e80da-bf1d-4e3d-8899-f0f6155f6efa_video_180_250000.m3u8";
+        String LIVESTREAM_MASTER_URL = "https://bitdash-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8";
+        URI LIVESTREAM_MASTER_URI = URI.create(LIVESTREAM_MASTER_URL);
+
+        String mediaPlaylist = getPlaylist(LIVESTREAM_MEDIA_PLAYLIST_NAME);
+        setupUriSamplerPlaylist(LIVESTREAM_MASTER_URI, mediaPlaylist);
 
         runWithAsyncSample(() -> {
             for (int i=0; i < 3; i++) {
@@ -593,5 +614,6 @@ public class HlsSamplerTest {
                 buildSegmentSampleResult(0),
                 buildSegmentSampleResult(1),
                 buildSegmentSampleResult(2)));
+        */
     }
 }
