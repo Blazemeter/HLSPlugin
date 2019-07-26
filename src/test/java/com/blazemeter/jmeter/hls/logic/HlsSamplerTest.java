@@ -1,5 +1,6 @@
 package com.blazemeter.jmeter.hls.logic;
 
+import static groovy.util.GroovyTestCase.assertEquals;
 import static org.assertj.core.api.Java6Assertions.assertThat;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
@@ -149,7 +150,7 @@ public class HlsSamplerTest {
     setPlaySeconds(SEGMENT_DURATION_SECONDS);
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildSegmentSampleResult(0)));
   }
 
@@ -222,7 +223,7 @@ public class HlsSamplerTest {
     setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildSegmentSampleResult(0),
         buildSegmentSampleResult(1),
         buildSegmentSampleResult(2)));
@@ -236,7 +237,7 @@ public class HlsSamplerTest {
     setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist1, mediaPlaylist2);
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
         buildSegmentSampleResult(0),
         buildSegmentSampleResult(1),
         buildSegmentSampleResult(2),
@@ -254,9 +255,9 @@ public class HlsSamplerTest {
     sampler.sample();
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildSegmentSampleResult(0),
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildSegmentSampleResult(1)));
   }
 
@@ -269,9 +270,9 @@ public class HlsSamplerTest {
     sampler.sample();
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildSegmentSampleResult(0),
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildSegmentSampleResult(0)));
   }
 
@@ -283,7 +284,7 @@ public class HlsSamplerTest {
     setPlaySeconds(SEGMENT_DURATION_SECONDS * 2);
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildSegmentSampleResult(0),
         buildSegmentSampleResult(1)));
   }
@@ -297,7 +298,7 @@ public class HlsSamplerTest {
     setPlaySeconds(SEGMENT_DURATION_SECONDS * 4);
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
         buildSegmentSampleResult(0),
         buildSegmentSampleResult(1),
         buildSegmentSampleResult(2),
@@ -314,7 +315,7 @@ public class HlsSamplerTest {
     setPlaySeconds(SEGMENT_DURATION_SECONDS * 4);
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
         buildSegmentSampleResult(0),
         buildSegmentSampleResult(1),
         buildSegmentSampleResult(2),
@@ -327,7 +328,7 @@ public class HlsSamplerTest {
     setupUriSamplerErrorResult(MASTER_URI);
     sampler.sample();
     verifyNotifiedSampleResults(
-        Collections.singletonList(buildErrorSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI)));
+        Collections.singletonList(buildErrorSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI)));
   }
 
   private void setupUriSamplerErrorResult(URI uri) {
@@ -362,7 +363,7 @@ public class HlsSamplerTest {
             buildErrorSampleResult(SAMPLER_NAME, MASTER_URI));
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
         buildSegmentSampleResult(0),
         buildSegmentSampleResult(1),
         buildSegmentSampleResult(2),
@@ -377,7 +378,7 @@ public class HlsSamplerTest {
     setupUriSamplerErrorResult(failingSegmentUri);
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildSegmentSampleResult(0),
         buildErrorSampleResult(buildSegmentSampleName(1), failingSegmentUri),
         buildSegmentSampleResult(2)));
@@ -461,6 +462,26 @@ public class HlsSamplerTest {
     List<Instant> timestamps = timedUriSampler.getUriSamplesTimeStamps(MASTER_URI);
     assertThat(timestamps.get(1).until(timestamps.get(2), ChronoUnit.MILLIS))
         .isBetween(TARGET_TIME_MILLIS / 2, TARGET_TIME_MILLIS / 2 + TIME_THRESHOLD_MILLIS);
+  }
+
+  @Test
+  public void shouldNameMediaPlaylistTheFirstListDownloaded() throws Exception {
+    String mediaPlaylist = getPlaylist(VOD_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    setupUriSamplerErrorResult(MEDIA_PLAYLIST_URI);
+    sampler.sample();
+    SampleResult result = sampler.downloadList(MASTER_URI);
+    assertEquals(result.getSampleLabel(),"HLS - media playlist");
+  }
+
+  @Test
+  public void shouldNameMasterPlaylistTheFirstListDownloaded() throws Exception {
+    String masterPlaylist = getPlaylist(MASTER_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, masterPlaylist);
+    setupUriSamplerErrorResult(MEDIA_PLAYLIST_URI);
+    sampler.sample();
+    SampleResult result = sampler.downloadList(MASTER_URI);
+    assertEquals(result.getSampleLabel(),"HLS - master playlist");
   }
 
 }

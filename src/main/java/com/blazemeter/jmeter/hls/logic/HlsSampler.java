@@ -192,13 +192,26 @@ public class HlsSampler extends HTTPSampler {
 
   private Playlist downloadPlaylist(String name, URI uri) {
     Instant downloadTimestamp = timeMachine.now();
-    SampleResult playlistResult = download(name, uri);
+    SampleResult playlistResult = downloadList(uri);
     if (!playlistResult.isSuccessful()) {
       LOG.warn("Problem downloading {} {}", name, uri);
       return null;
     }
     return Playlist
         .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
+  }
+
+  public SampleResult downloadList(URI uri) {
+    SampleResult result = uriSampler.apply(uri);
+    String name;
+    if (result.getResponseDataAsString().contains("#EXT-X-STREAM-INF")) {
+      name = "master playlist";
+    } else {
+      name = "media playlist";
+    }
+    result.setSampleLabel(getName() + " - " + name);
+    sampleResultNotifier.accept(result);
+    return result;
   }
 
   private SampleResult download(String name, URI uri) {
