@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.Iterator;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
 import org.apache.jmeter.protocol.http.control.CacheManager;
 import org.apache.jmeter.protocol.http.control.CookieManager;
 import org.apache.jmeter.protocol.http.control.HeaderManager;
@@ -43,16 +44,19 @@ public class HlsSampler extends HTTPSampler {
   private final transient Consumer<SampleResult> sampleResultNotifier;
   private final transient TimeMachine timeMachine;
 
+  private volatile boolean interrupted;
+
   public HlsSampler() {
     setName("HLS Sampler");
     uriSampler = this::downloadUri;
     sampleResultNotifier = this::notifySampleListeners;
     timeMachine = TimeMachine.SYSTEM;
+    interrupted = false;
   }
 
   public HlsSampler(Function<URI, SampleResult> uriSampler,
-      Consumer<SampleResult> sampleResultNotifier,
-      TimeMachine timeMachine) {
+                    Consumer<SampleResult> sampleResultNotifier,
+                    TimeMachine timeMachine) {
     setName("HLS Sampler");
     this.uriSampler = uriSampler;
     this.sampleResultNotifier = sampleResultNotifier;
@@ -143,14 +147,17 @@ public class HlsSampler extends HTTPSampler {
     }
 
     URI masterUri = URI.create(getMasterUrl());
+
     Playlist masterPlaylist = downloadPlaylist("master playlist", masterUri);
     if (masterPlaylist == null) {
       return null;
     }
+
     URI mediaPlaylistUri = masterPlaylist
         .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
     Playlist mediaPlaylist;
-    if (!mediaPlaylistUri.equals(masterUri)) {
+
+    if (!interrupted && !mediaPlaylistUri.equals(masterUri)) {
       mediaPlaylist = downloadPlaylist("media playlist", mediaPlaylistUri);
       if (mediaPlaylist == null) {
         return null;
@@ -159,16 +166,18 @@ public class HlsSampler extends HTTPSampler {
       mediaPlaylist = masterPlaylist;
     }
 
-    int playSeconds =
-        isPlayVideoDuration() && !getPlaySeconds().isEmpty() ? Integer.parseInt(getPlaySeconds())
-            : 0;
+    int playSeconds = isPlayVideoDuration() && !getPlaySeconds().isEmpty()
+        ? Integer.parseInt(getPlaySeconds()) : 0;
+
     float consumedSeconds = 0;
     boolean playListEnd;
+
     try {
       do {
         Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
 
-        while (mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds, consumedSeconds)) {
+        while (!interrupted && mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds,
+            consumedSeconds)) {
           MediaSegment segment = mediaSegmentsIt.next();
           long segmentSequenceNumber = segment.getSequenceNumber();
           if (segmentSequenceNumber > lastSegmentNumber) {
@@ -177,16 +186,19 @@ public class HlsSampler extends HTTPSampler {
             consumedSeconds += segment.getDurationSeconds();
           }
         }
+
         playListEnd = mediaPlaylist.hasEnd() && !mediaSegmentsIt.hasNext();
-        if (!playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd) {
+        if (!interrupted && !playedRequestedTime(playSeconds, consumedSeconds)
+            && !playListEnd) {
           mediaPlaylist = getUpdatedPlaylist(mediaPlaylist);
         }
-      } while (mediaPlaylist != null && !playedRequestedTime(playSeconds, consumedSeconds)
-          && !playListEnd);
+      } while (!interrupted && mediaPlaylist != null && !playedRequestedTime(playSeconds,
+          consumedSeconds) && !playListEnd);
     } catch (InterruptedException e) {
       LOG.warn("Sampler has been interrupted", e);
       Thread.currentThread().interrupt();
     }
+
     return null;
   }
 
@@ -234,15 +246,23 @@ public class HlsSampler extends HTTPSampler {
 
   private Playlist getUpdatedPlaylist(Playlist playlist)
       throws InterruptedException {
-    timeMachine
-        .awaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1, timeMachine.now()));
+    timeMachine.awaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1,
+        timeMachine.now()));
     Playlist updatedMediaPlaylist = downloadPlaylist("media playlist", playlist.getUri());
-    while (updatedMediaPlaylist != null && updatedMediaPlaylist.equals(playlist)) {
-      timeMachine.awaitMillis(
-          updatedMediaPlaylist.getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now()));
+    while (!interrupted && updatedMediaPlaylist != null && updatedMediaPlaylist.equals(playlist)) {
+      timeMachine.awaitMillis(updatedMediaPlaylist
+          .getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now()));
       updatedMediaPlaylist = downloadPlaylist("media playlist", playlist.getUri());
     }
     return updatedMediaPlaylist;
+  }
+
+  public boolean interrupt() {
+    interrupted = true;
+    timeMachine.interrupt();
+    super.interrupt();
+
+    return interrupted;
   }
 
 }

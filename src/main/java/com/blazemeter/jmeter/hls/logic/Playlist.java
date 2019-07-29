@@ -49,7 +49,7 @@ public class Playlist {
   }
 
   public URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
-      BandwidthSelector bandwidthSelector) {
+                                   BandwidthSelector bandwidthSelector) {
     Long lastMatchedBandwidth = null;
     String lastMatchedResolution = null;
     String mediaPlaylistUri = null;

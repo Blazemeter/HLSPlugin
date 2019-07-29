@@ -1,13 +1,21 @@
 package com.blazemeter.jmeter.hls.logic;
 
 import java.time.Instant;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public interface TimeMachine {
 
   TimeMachine SYSTEM = new TimeMachine() {
+    CountDownLatch countDownLatch = new CountDownLatch(1);
+    @Override
+    public void interrupt() {
+      countDownLatch.countDown();
+    }
+
     @Override
     public void awaitMillis(long millis) throws InterruptedException {
-      Thread.sleep(millis);
+      countDownLatch.await(millis, TimeUnit.MILLISECONDS);
     }
 
     @Override
@@ -19,4 +27,6 @@ public interface TimeMachine {
   void awaitMillis(long millis) throws InterruptedException;
 
   Instant now();
+
+  void interrupt();
 }
