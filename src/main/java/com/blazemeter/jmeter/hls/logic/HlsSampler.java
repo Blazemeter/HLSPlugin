@@ -204,7 +204,6 @@ public class HlsSampler extends HTTPSampler {
 
   private Playlist downloadPlaylist(String name, URI uri) {
     Instant downloadTimestamp = timeMachine.now();
-    LOG.info("downloadPlaylist - 1 - "+interrupted);
     SampleResult playlistResult = download(name, uri);
     if (!playlistResult.isSuccessful()) {
       LOG.warn("Problem downloading {} {}", name, uri);
