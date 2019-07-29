@@ -204,6 +204,7 @@ public class HlsSampler extends HTTPSampler {
 
   private Playlist downloadPlaylist(String name, URI uri) {
     Instant downloadTimestamp = timeMachine.now();
+    LOG.info("downloadPlaylist - 1 - "+interrupted);
     SampleResult playlistResult = download(name, uri);
     if (!playlistResult.isSuccessful()) {
       LOG.warn("Problem downloading {} {}", name, uri);
@@ -249,7 +250,7 @@ public class HlsSampler extends HTTPSampler {
     timeMachine.awaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1,
         timeMachine.now()));
     Playlist updatedMediaPlaylist = downloadPlaylist("media playlist", playlist.getUri());
-    while (updatedMediaPlaylist != null && updatedMediaPlaylist.equals(playlist)) {
+    while (!interrupted && updatedMediaPlaylist != null && updatedMediaPlaylist.equals(playlist)) {
       timeMachine.awaitMillis(updatedMediaPlaylist
           .getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now()));
       updatedMediaPlaylist = downloadPlaylist("media playlist", playlist.getUri());
