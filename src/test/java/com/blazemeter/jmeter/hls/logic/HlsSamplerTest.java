@@ -328,7 +328,7 @@ public class HlsSamplerTest {
     setupUriSamplerErrorResult(MASTER_URI);
     sampler.sample();
     verifyNotifiedSampleResults(
-        Collections.singletonList(buildErrorSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI)));
+        Collections.singletonList(buildErrorSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI)));
   }
 
   private void setupUriSamplerErrorResult(URI uri) {
