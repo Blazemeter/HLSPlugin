@@ -97,6 +97,11 @@
             <version>2.9.4</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.comcast</groupId>
+            <artifactId>hlsparserj</artifactId>
+            <version>1.0.0</version>
+        </dependency>
     </dependencies>
 
     <build>
