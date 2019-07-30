@@ -328,7 +328,7 @@ public class HlsSamplerTest {
     setupUriSamplerErrorResult(MASTER_URI);
     sampler.sample();
     verifyNotifiedSampleResults(
-        Collections.singletonList(buildErrorSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI)));
+        Collections.singletonList(buildErrorSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI)));
   }
 
   private void setupUriSamplerErrorResult(URI uri) {
@@ -462,26 +462,6 @@ public class HlsSamplerTest {
     List<Instant> timestamps = timedUriSampler.getUriSamplesTimeStamps(MASTER_URI);
     assertThat(timestamps.get(1).until(timestamps.get(2), ChronoUnit.MILLIS))
         .isBetween(TARGET_TIME_MILLIS / 2, TARGET_TIME_MILLIS / 2 + TIME_THRESHOLD_MILLIS);
-  }
-
-  @Test
-  public void shouldNameMediaPlaylistTheFirstListDownloaded() throws Exception {
-    String mediaPlaylist = getPlaylist(VOD_MEDIA_PLAYLIST_NAME);
-    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
-    setupUriSamplerErrorResult(MEDIA_PLAYLIST_URI);
-    sampler.sample();
-    SampleResult result = sampler.downloadList(MASTER_URI);
-    assertEquals(result.getSampleLabel(),"HLS - media playlist");
-  }
-
-  @Test
-  public void shouldNameMasterPlaylistTheFirstListDownloaded() throws Exception {
-    String masterPlaylist = getPlaylist(MASTER_PLAYLIST_NAME);
-    setupUriSamplerPlaylist(MASTER_URI, masterPlaylist);
-    setupUriSamplerErrorResult(MEDIA_PLAYLIST_URI);
-    sampler.sample();
-    SampleResult result = sampler.downloadList(MASTER_URI);
-    assertEquals(result.getSampleLabel(),"HLS - master playlist");
   }
 
 }

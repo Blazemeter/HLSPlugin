@@ -172,7 +172,9 @@ public class HlsSampler extends HTTPSampler {
           MediaSegment segment = mediaSegmentsIt.next();
           long segmentSequenceNumber = segment.getSequenceNumber();
           if (segmentSequenceNumber > lastSegmentNumber) {
-            download("segment " + segmentSequenceNumber, segment.getUri());
+            SampleResult result = uriSampler.apply(segment.getUri());
+            result.setSampleLabel(getName() + " - " + "segment " + segmentSequenceNumber);
+            sampleResultNotifier.accept(result);
             lastSegmentNumber = segmentSequenceNumber;
             consumedSeconds += segment.getDurationSeconds();
           }
@@ -192,33 +194,21 @@ public class HlsSampler extends HTTPSampler {
 
   private Playlist downloadPlaylist(String name, URI uri) {
     Instant downloadTimestamp = timeMachine.now();
-    SampleResult playlistResult = downloadList(uri);
+    SampleResult playlistResult = uriSampler.apply(uri);
     if (!playlistResult.isSuccessful()) {
-      LOG.warn("Problem downloading {} {}", name, uri);
+      notifySampleResult(name, playlistResult);
+      LOG.warn("Problem downloading master playlist {}", uri);
       return null;
     }
-    return Playlist
+    Playlist playlist = Playlist
         .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
+    notifySampleResult(playlist.getType().toString(), playlistResult);
+    return playlist;
   }
 
-  public SampleResult downloadList(URI uri) {
-    SampleResult result = uriSampler.apply(uri);
-    String name;
-    if (result.getResponseDataAsString().contains("#EXT-X-STREAM-INF")) {
-      name = "master playlist";
-    } else {
-      name = "media playlist";
-    }
+  private void notifySampleResult(String name, SampleResult result) {
     result.setSampleLabel(getName() + " - " + name);
     sampleResultNotifier.accept(result);
-    return result;
-  }
-
-  private SampleResult download(String name, URI uri) {
-    SampleResult result = uriSampler.apply(uri);
-    result.setSampleLabel(getName() + " - " + name);
-    sampleResultNotifier.accept(result);
-    return result;
   }
 
   private HTTPSampleResult downloadUri(URI uri) {
