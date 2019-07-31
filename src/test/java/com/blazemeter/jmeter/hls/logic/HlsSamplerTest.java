@@ -1,6 +1,5 @@
 package com.blazemeter.jmeter.hls.logic;
 
-import static groovy.util.GroovyTestCase.assertEquals;
 import static org.assertj.core.api.Java6Assertions.assertThat;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
@@ -328,7 +327,7 @@ public class HlsSamplerTest {
     setupUriSamplerErrorResult(MASTER_URI);
     sampler.sample();
     verifyNotifiedSampleResults(
-        Collections.singletonList(buildErrorSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI)));
+        Collections.singletonList(buildErrorSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI)));
   }
 
   private void setupUriSamplerErrorResult(URI uri) {
