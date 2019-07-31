@@ -18,6 +18,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -51,6 +56,7 @@ public class HlsSamplerTest {
   private static final String MASTER_PLAYLIST_NAME = "masterPlaylist.m3u8";
   private static final long TARGET_TIME_MILLIS = 10000;
   private static final long TIME_THRESHOLD_MILLIS = 5000;
+  private static final long TEST_TIMEOUT = 100000;
 
   private HlsSampler sampler;
   private SegmentResultFallbackUriSamplerMock uriSampler = new SegmentResultFallbackUriSamplerMock();
@@ -72,14 +78,21 @@ public class HlsSamplerTest {
     public synchronized Instant now() {
       return now;
     }
+
+    @Override
+    public void interrupt() {
+    }
   };
 
   @Before
   public void setUp() {
+    buildSampler(uriSampler);
+  }
+
+  private void buildSampler(Function<URI, SampleResult> uriSampler) {
     sampler = new HlsSampler(uriSampler, sampleResultNotifier, timeMachine);
     sampler.setName(SAMPLER_NAME);
     sampler.setMasterUrl(MASTER_URI.toString());
-    buildSampler(uriSampler);
   }
 
   private class SegmentResultFallbackUriSamplerMock implements Function<URI, SampleResult> {
@@ -102,7 +115,6 @@ public class HlsSamplerTest {
               uriStr.length() - segmentExtension.length())) - 1 : 0;
       return buildSegmentSampleResult(sequenceNumber);
     }
-
   }
 
   private SampleResult buildSegmentSampleResult(int sequenceNumber) {
@@ -180,7 +192,11 @@ public class HlsSamplerTest {
   private void verifyNotifiedSampleResults(List<SampleResult> results) {
     verify(sampleResultNotifier, atLeastOnce()).accept(sampleResultCaptor.capture());
     //we convert to json to easily compare and trace issues
-    assertThat(toJson(sampleResultCaptor.getAllValues())).isEqualTo(toJson(results));
+
+    List<String> result = toJson(sampleResultCaptor.getAllValues());
+    List<String> expected = toJson(results);
+
+    assertThat(result).isEqualTo(expected);
   }
 
   private List<String> toJson(List<SampleResult> results) {
@@ -383,12 +399,6 @@ public class HlsSamplerTest {
         buildSegmentSampleResult(2)));
   }
 
-  private void buildSampler(Function<URI, SampleResult> uriSampler) {
-    sampler = new HlsSampler(uriSampler, sampleResultNotifier, timeMachine);
-    sampler.setName(SAMPLER_NAME);
-    sampler.setMasterUrl(MASTER_URI.toString());
-  }
-
   @Test
   public void shouldWaitTargetTimeForPlaylistReloadWhenSegmentsDownloadFasterThanTargetTime()
       throws Exception {
@@ -430,7 +440,6 @@ public class HlsSamplerTest {
     private List<Instant> getUriSamplesTimeStamps(URI uri) {
       return samplesTimestamps.get(uri);
     }
-
   }
 
   @Test
@@ -461,6 +470,162 @@ public class HlsSamplerTest {
     List<Instant> timestamps = timedUriSampler.getUriSamplesTimeStamps(MASTER_URI);
     assertThat(timestamps.get(1).until(timestamps.get(2), ChronoUnit.MILLIS))
         .isBetween(TARGET_TIME_MILLIS / 2, TARGET_TIME_MILLIS / 2 + TIME_THRESHOLD_MILLIS);
+  }
+
+
+  @Test(timeout = TEST_TIMEOUT)
+  public void shouldOnlyDownloadMediaPlaylistWhenInterruptMediaPlaylistDownload() throws Exception {
+    DownloadBlockingUriSampler uriSampler = new DownloadBlockingUriSampler(this.uriSampler, 1);
+    buildSampler(uriSampler);
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    runWithAsyncSample(() -> {
+      uriSampler.interruptSamplerWhileDownloading(sampler);
+      return null;
+    });
+    verifyNotifiedSampleResults(Collections.singletonList(
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist)));
+  }
+
+  private void runWithAsyncSample(Callable<Void> run) throws Exception {
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    try {
+      Future<Object> sampleResult = executor.submit(() -> sampler.sample());
+      run.call();
+      sampleResult.get();
+    } finally {
+      executor.shutdown();
+    }
+  }
+
+  private class DownloadBlockingUriSampler implements Function<URI, SampleResult> {
+
+    private final Function<URI, SampleResult> uriSampler;
+    private final int blockingDownloadsCount;
+    private final Semaphore startDownloadLock;
+    private final Semaphore endDownloadLock;
+    private int currentDownload;
+
+    private DownloadBlockingUriSampler(Function<URI, SampleResult> uriSampler,
+        int blockingDownloadsCount) {
+      this.uriSampler = uriSampler;
+      this.blockingDownloadsCount = blockingDownloadsCount;
+      this.startDownloadLock = new Semaphore(0);
+      this.endDownloadLock = new Semaphore(0);
+    }
+
+    @Override
+    public SampleResult apply(URI uri) {
+      startDownloadLock.release();
+      if (currentDownload < blockingDownloadsCount) {
+        currentDownload++;
+        try {
+          endDownloadLock.acquire();
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
+      }
+      return uriSampler.apply(uri);
+    }
+
+    private void syncDownload() throws InterruptedException {
+      awaitStartDownload();
+      endDownload();
+    }
+
+    private void awaitStartDownload() throws InterruptedException {
+      startDownloadLock.acquire();
+    }
+
+    private void endDownload() {
+      endDownloadLock.release();
+    }
+
+    private void interruptSamplerWhileDownloading(HlsSampler sampler) throws InterruptedException {
+      awaitStartDownload();
+      sampler.interrupt();
+      endDownload();
+    }
+  }
+
+  @Test(timeout = TEST_TIMEOUT)
+  public void shouldDownloadPlaylistAndFirstSegmentWhenInterruptSegmentDownload() throws Exception {
+    DownloadBlockingUriSampler uriSampler = new DownloadBlockingUriSampler(this.uriSampler, 2);
+    buildSampler(uriSampler);
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+
+    runWithAsyncSample(() -> {
+      uriSampler.syncDownload();
+      uriSampler.interruptSamplerWhileDownloading(sampler);
+      return null;
+    });
+
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildSegmentSampleResult(0)));
+  }
+
+  @Test(timeout = TEST_TIMEOUT)
+  public void shouldDownloadOnlyMasterListWhenInterruptDuringMasterListDownload() throws Exception {
+    DownloadBlockingUriSampler uriSampler = new DownloadBlockingUriSampler(this.uriSampler, 1);
+    buildSampler(uriSampler);
+    String masterPlaylist = getPlaylist(MASTER_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, masterPlaylist);
+
+    runWithAsyncSample(() -> {
+      uriSampler.interruptSamplerWhileDownloading(sampler);
+      return null;
+    });
+
+    verifyNotifiedSampleResults(Collections.singletonList(
+        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, masterPlaylist)));
+  }
+
+  @Test(timeout = TEST_TIMEOUT)
+  public void shouldNotReloadPlayListWhenInterruptDuringLastSegmentDownload() throws Exception {
+    DownloadBlockingUriSampler uriSampler = new DownloadBlockingUriSampler(this.uriSampler, 4);
+    buildSampler(uriSampler);
+    String mediaPlaylistPart1 = getPlaylist(EVENT_MEDIA_PLAYLIST_PART_1_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylistPart1);
+
+    runWithAsyncSample(() -> {
+      for (int i = 0; i < 3; i++) {
+        uriSampler.syncDownload();
+      }
+      uriSampler.interruptSamplerWhileDownloading(sampler);
+      return null;
+    });
+
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylistPart1),
+        buildSegmentSampleResult(0),
+        buildSegmentSampleResult(1),
+        buildSegmentSampleResult(2)));
+  }
+
+  @Test(timeout = TEST_TIMEOUT)
+  public void shouldStopReloadingPlaylistWhenInterruptPlaylistReloadGettingSamePlaylist()
+      throws Exception {
+    DownloadBlockingUriSampler uriSampler = new DownloadBlockingUriSampler(this.uriSampler, 5);
+    buildSampler(uriSampler);
+    String mediaPlaylistPart1 = getPlaylist(EVENT_MEDIA_PLAYLIST_PART_1_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylistPart1, mediaPlaylistPart1);
+
+    runWithAsyncSample(() -> {
+      for (int i = 0; i < 4; i++) {
+        uriSampler.syncDownload();
+      }
+      uriSampler.interruptSamplerWhileDownloading(sampler);
+      return null;
+    });
+
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylistPart1),
+        buildSegmentSampleResult(0),
+        buildSegmentSampleResult(1),
+        buildSegmentSampleResult(2),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylistPart1)));
   }
 
 }
