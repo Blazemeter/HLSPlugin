@@ -149,4 +149,7 @@ public class Playlist {
     return Objects.hash(uri, body);
   }
 
+  public boolean isMasterPlaylist() {
+    return body.contains("#EXT-X-STREAM-INF");
+  }
 }

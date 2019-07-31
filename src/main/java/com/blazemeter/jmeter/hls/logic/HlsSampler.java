@@ -6,7 +6,6 @@ import java.time.Instant;
 import java.util.Iterator;
 import java.util.function.Consumer;
 import java.util.function.Function;
-
 import org.apache.jmeter.protocol.http.control.CacheManager;
 import org.apache.jmeter.protocol.http.control.CookieManager;
 import org.apache.jmeter.protocol.http.control.HeaderManager;
@@ -37,6 +36,8 @@ public class HlsSampler extends HTTPSampler {
   private static final String HEADER_MANAGER = "HLSRequest.header_manager";
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
   private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
+  private static final String MEDIA_PLAYLIST_NAME = "media playlist";
+  private static final String MASTER_PLAYLIST_NAME = "master playlist";
 
   private transient long lastSegmentNumber = -1;
 
@@ -147,8 +148,7 @@ public class HlsSampler extends HTTPSampler {
     }
 
     URI masterUri = URI.create(getMasterUrl());
-
-    Playlist masterPlaylist = downloadPlaylist("master playlist", masterUri);
+    Playlist masterPlaylist = downloadPlaylist(null, masterUri);
     if (masterPlaylist == null) {
       return null;
     }
@@ -156,9 +156,8 @@ public class HlsSampler extends HTTPSampler {
     URI mediaPlaylistUri = masterPlaylist
         .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
     Playlist mediaPlaylist;
-
     if (!interrupted && !mediaPlaylistUri.equals(masterUri)) {
-      mediaPlaylist = downloadPlaylist("media playlist", mediaPlaylistUri);
+      mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
       if (mediaPlaylist == null) {
         return null;
       }
@@ -168,7 +167,6 @@ public class HlsSampler extends HTTPSampler {
 
     int playSeconds = isPlayVideoDuration() && !getPlaySeconds().isEmpty()
         ? Integer.parseInt(getPlaySeconds()) : 0;
-
     float consumedSeconds = 0;
     boolean playListEnd;
 
@@ -181,7 +179,8 @@ public class HlsSampler extends HTTPSampler {
           MediaSegment segment = mediaSegmentsIt.next();
           long segmentSequenceNumber = segment.getSequenceNumber();
           if (segmentSequenceNumber > lastSegmentNumber) {
-            download("segment " + segmentSequenceNumber, segment.getUri());
+            SampleResult result = uriSampler.apply(segment.getUri());
+            notifySampleResult("segment " + segmentSequenceNumber, result);
             lastSegmentNumber = segmentSequenceNumber;
             consumedSeconds += segment.getDurationSeconds();
           }
@@ -202,22 +201,29 @@ public class HlsSampler extends HTTPSampler {
     return null;
   }
 
-  private Playlist downloadPlaylist(String name, URI uri) {
+  private Playlist downloadPlaylist(String playlistName, URI uri) {
     Instant downloadTimestamp = timeMachine.now();
-    SampleResult playlistResult = download(name, uri);
+    SampleResult playlistResult = uriSampler.apply(uri);
     if (!playlistResult.isSuccessful()) {
-      LOG.warn("Problem downloading {} {}", name, uri);
+      if (playlistName == null) {
+        playlistName = MASTER_PLAYLIST_NAME;
+      }
+      notifySampleResult(playlistName, playlistResult);
+      LOG.warn("Problem downloading {} {}", playlistName, uri);
       return null;
     }
-    return Playlist
+    Playlist playlist = Playlist
         .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
+    if (playlistName == null) {
+      playlistName = playlist.isMasterPlaylist() ? MASTER_PLAYLIST_NAME : MEDIA_PLAYLIST_NAME;
+    }
+    notifySampleResult(playlistName, playlistResult);
+    return playlist;
   }
 
-  private SampleResult download(String name, URI uri) {
-    SampleResult result = uriSampler.apply(uri);
+  private void notifySampleResult(String name, SampleResult result) {
     result.setSampleLabel(getName() + " - " + name);
     sampleResultNotifier.accept(result);
-    return result;
   }
 
   private HTTPSampleResult downloadUri(URI uri) {
@@ -248,11 +254,11 @@ public class HlsSampler extends HTTPSampler {
       throws InterruptedException {
     timeMachine.awaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1,
         timeMachine.now()));
-    Playlist updatedMediaPlaylist = downloadPlaylist("media playlist", playlist.getUri());
+    Playlist updatedMediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, playlist.getUri());
     while (!interrupted && updatedMediaPlaylist != null && updatedMediaPlaylist.equals(playlist)) {
       timeMachine.awaitMillis(updatedMediaPlaylist
           .getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now()));
-      updatedMediaPlaylist = downloadPlaylist("media playlist", playlist.getUri());
+      updatedMediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, playlist.getUri());
     }
     return updatedMediaPlaylist;
   }
