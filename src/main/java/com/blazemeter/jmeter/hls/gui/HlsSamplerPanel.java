@@ -6,6 +6,7 @@ import java.awt.event.ItemEvent;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
 import javax.swing.GroupLayout;
+import javax.swing.GroupLayout.Alignment;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
@@ -129,6 +130,7 @@ public class HlsSamplerPanel extends JPanel {
         new JRadioButton("Custom resolution: "));
     customResolutionField = namedComponent("customResolutionField",
         new JTextField());
+    JLabel customResolutionExample = new JLabel("(e.g.: 640x480)");
 
     ButtonGroup resolutionRadiosGroup = new ButtonGroup();
     resolutionRadiosGroup.add(customResolutionOption);
@@ -162,7 +164,8 @@ public class HlsSamplerPanel extends JPanel {
         .addGroup(layout.createSequentialGroup()
             .addComponent(customResolutionOption)
             .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
-            .addComponent(customResolutionField))
+            .addComponent(customResolutionField)
+            .addComponent(customResolutionExample))
         .addComponent(minResolutionOption)
         .addComponent(maxResolutionOption)
         .addComponent(resumeDownloadOption));
@@ -174,7 +177,8 @@ public class HlsSamplerPanel extends JPanel {
         .addPreferredGap(LayoutStyle.ComponentPlacement.UNRELATED)
         .addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
             .addComponent(customResolutionOption)
-            .addComponent(customResolutionField))
+            .addComponent(customResolutionField)
+            .addComponent(customResolutionExample))
         .addComponent(minResolutionOption)
         .addComponent(maxResolutionOption)
         .addPreferredGap(LayoutStyle.ComponentPlacement.UNRELATED)
@@ -194,7 +198,7 @@ public class HlsSamplerPanel extends JPanel {
         new JRadioButton("Custom bandwidth: "));
     customBandwidthField = namedComponent("customBandwidthField",
         new JTextField());
-    JLabel bitsPerSecond = new JLabel("bits / s");
+    JLabel bitsPerSecond = new JLabel("bits/s");
 
     ButtonGroup bandwidthRadiosGroup = new ButtonGroup();
     bandwidthRadiosGroup.add(customBandwidthOption);
@@ -221,13 +225,12 @@ public class HlsSamplerPanel extends JPanel {
             .addComponent(customBandwidthOption)
             .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
             .addComponent(customBandwidthField)
-            .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
             .addComponent(bitsPerSecond))
         .addComponent(minBandwidthOption)
         .addComponent(maxBandwidthOption));
     layout.setVerticalGroup(layout.createSequentialGroup()
         .addPreferredGap(LayoutStyle.ComponentPlacement.UNRELATED)
-        .addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+        .addGroup(layout.createParallelGroup(Alignment.BASELINE)
             .addComponent(customBandwidthOption)
             .addComponent(customBandwidthField)
             .addComponent(bitsPerSecond))
