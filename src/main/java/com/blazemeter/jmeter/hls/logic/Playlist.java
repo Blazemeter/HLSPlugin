@@ -1,6 +1,10 @@
 package com.blazemeter.jmeter.hls.logic;
 
+import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -9,8 +13,15 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import com.comcast.viper.hlsparserj.IPlaylist;
+import com.comcast.viper.hlsparserj.MasterPlaylist;
+import com.comcast.viper.hlsparserj.PlaylistFactory;
+import com.comcast.viper.hlsparserj.tags.master.StreamInf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static com.comcast.viper.hlsparserj.PlaylistVersion.TWELVE;
 
 public class Playlist {
 
@@ -92,6 +103,7 @@ public class Playlist {
           uri.getScheme() + "://" + uri.getRawAuthority() + basePath + ret.toString());
     }
   }
+
 
   public List<MediaSegment> getMediaSegments() {
     int sequenceNumber = getPlaylistMediaSequence(body);
