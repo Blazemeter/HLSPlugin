@@ -1,37 +1,24 @@
 package com.blazemeter.jmeter.hls.logic;
 
-import com.comcast.viper.hlsparserj.*;
-import com.comcast.viper.hlsparserj.tags.master.StreamInf;
-
-import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
-
-import java.net.URISyntaxException;
-
 import java.time.Instant;
-
 import java.util.Iterator;
 import java.util.function.Consumer;
 import java.util.function.Function;
-
 import org.apache.jmeter.protocol.http.control.CacheManager;
 import org.apache.jmeter.protocol.http.control.CookieManager;
 import org.apache.jmeter.protocol.http.control.HeaderManager;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampler;
-
 import org.apache.jmeter.samplers.SampleEvent;
 import org.apache.jmeter.samplers.SampleResult;
 import org.apache.jmeter.threads.JMeterContext;
 import org.apache.jmeter.threads.JMeterThread;
 import org.apache.jmeter.threads.JMeterVariables;
 import org.apache.jmeter.threads.SamplePackage;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static com.comcast.viper.hlsparserj.PlaylistVersion.*;
 
 public class HlsSampler extends HTTPSampler {
 
@@ -49,22 +36,17 @@ public class HlsSampler extends HTTPSampler {
   private static final String HEADER_MANAGER = "HLSRequest.header_manager";
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
   private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
+  private static final String MEDIA_PLAYLIST_NAME = "media playlist";
+  private static final String MASTER_PLAYLIST_NAME = "master playlist";
+
+  private transient long lastSegmentNumber = -1;
+
   private final transient Function<URI, SampleResult> uriSampler;
   private final transient Consumer<SampleResult> sampleResultNotifier;
   private final transient TimeMachine timeMachine;
-  private transient long lastSegmentNumber = -1;
+
   private volatile boolean interrupted;
 
-  private static final String MASTER_PLAYLIST_TEXT = "master playlist";
-  private static final String MEDIA_PLAYLIST_TEXT = "media playlist";
-  private static final String SEGMENT_TEXT = "segment ";
-
-  private int referenceBandwidth;
-  private String referenceResolution;
-
-  /**
-   * Create a new HlsSampler setting everything by default.
-   */
   public HlsSampler() {
     setName("HLS Sampler");
     uriSampler = this::downloadUri;
@@ -73,9 +55,6 @@ public class HlsSampler extends HTTPSampler {
     interrupted = false;
   }
 
-  /**
-   * Create a new HlsSampler setting providing values.
-   */
   public HlsSampler(Function<URI, SampleResult> uriSampler,
                     Consumer<SampleResult> sampleResultNotifier,
                     TimeMachine timeMachine) {
@@ -164,33 +143,30 @@ public class HlsSampler extends HTTPSampler {
 
   @Override
   public SampleResult sample() {
-
     if (!this.getResumeVideoStatus()) {
       lastSegmentNumber = -1;
     }
 
     URI masterUri = URI.create(getMasterUrl());
-    URI selectedPlayListUri = getMediaPlaylist(masterUri);
+    Playlist masterPlaylist = downloadPlaylist(null, masterUri);
+    if (masterPlaylist == null) {
+      return null;
+    }
 
+    URI mediaPlaylistUri = masterPlaylist
+        .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
     Playlist mediaPlaylist;
-
-    if (!interrupted && !selectedPlayListUri.equals(masterUri)) {
-      mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_TEXT, selectedPlayListUri);
+    if (!interrupted && !mediaPlaylistUri.equals(masterUri)) {
+      mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
       if (mediaPlaylist == null) {
         return null;
       }
     } else {
-      Playlist masterPlaylist = downloadPlaylist(MASTER_PLAYLIST_TEXT, masterUri);
-      if (masterPlaylist == null) {
-        return null;
-      }
-
       mediaPlaylist = masterPlaylist;
     }
 
     int playSeconds = isPlayVideoDuration() && !getPlaySeconds().isEmpty()
         ? Integer.parseInt(getPlaySeconds()) : 0;
-
     float consumedSeconds = 0;
     boolean playListEnd;
 
@@ -203,7 +179,8 @@ public class HlsSampler extends HTTPSampler {
           MediaSegment segment = mediaSegmentsIt.next();
           long segmentSequenceNumber = segment.getSequenceNumber();
           if (segmentSequenceNumber > lastSegmentNumber) {
-            download( SEGMENT_TEXT + segmentSequenceNumber, segment.getUri());
+            SampleResult result = uriSampler.apply(segment.getUri());
+            notifySampleResult("segment " + segmentSequenceNumber, result);
             lastSegmentNumber = segmentSequenceNumber;
             consumedSeconds += segment.getDurationSeconds();
           }
@@ -224,119 +201,28 @@ public class HlsSampler extends HTTPSampler {
     return null;
   }
 
-  private URI getMediaPlaylist(URI masterURI) {
-
-    URI selectedURI = null;
-
-    try {
-
-      int CONNECTION_TIMEOUT = 10000;
-      int REQUEST_TIMEOUT = 10000;
-      int SOCKET_TIMEOUT = 10000;
-
-      IPlaylist genericPlaylist = PlaylistFactory.parsePlaylist(TWELVE, masterURI.toURL(), CONNECTION_TIMEOUT, REQUEST_TIMEOUT, SOCKET_TIMEOUT);
-
-      if (!genericPlaylist.isMasterPlaylist()) {
-        LOG.warn("The URL {} doesn't count as a valid Master Playlist", masterURI.toString());
-        notifyInvalidPlaylist(masterURI);
-        return null;
-
-      } else {
-        download(MASTER_PLAYLIST_TEXT, masterURI);
-        MasterPlaylist masterPlaylist = (MasterPlaylist) genericPlaylist;
-
-        ResolutionSelector resolutionSelector = getResolutionSelector();
-        BandwidthSelector bandwidthSelector = getBandwidthSelector();
-
-        referenceBandwidth = (bandwidthSelector.getName().equals("minBandwidth") ? Integer.MAX_VALUE : Integer.MIN_VALUE );
-
-        boolean validBandwidth;
-        boolean validResolution;
-
-        for (StreamInf stream : masterPlaylist.getVariantStreams()) {
-
-          validBandwidth = validateBandwidth(bandwidthSelector, stream.getBandwidth());
-
-          if (!validBandwidth) {
-            continue;
-          } else {
-            validResolution = validateResolution(resolutionSelector, stream.getResolution());
-          }
-
-          if (validBandwidth && validResolution) {
-            selectedURI = new URI(stream.getURI());
-          }
-        }
-      }
-    } catch (IOException e) {
-      notifyInvalidPlaylist(masterURI);
-      LOG.error(e.getMessage());
-    } catch (URISyntaxException e) {
-      LOG.error(e.getMessage());
-    }
-
-    return buildAbsoluteUri(masterURI, selectedURI.getPath());
-  }
-
-  private boolean validateResolution(ResolutionSelector resolutionSelector, String resolution) {
-    if (resolution.equals(resolutionSelector.getCustomResolution())) {
-      return true;
-    }
-
-    return true;
-  }
-
-  private boolean validateBandwidth(BandwidthSelector bandwidthSelector, int bandwidth) {
-
-    String bandwidthType = bandwidthSelector.getName();
-
-    if (bandwidthType.equals("minBandwidth") && bandwidth < referenceBandwidth) {
-      referenceBandwidth = bandwidth;
-      return true;
-    } else if (bandwidthType.equals("maxBandwidth") && bandwidth > referenceBandwidth) {
-      referenceBandwidth = bandwidth;
-      return true;
-    } else return bandwidthSelector.getCustomBandwidth() != null && bandwidthSelector.getCustomBandwidth() == bandwidth;
-
-  }
-
-  private URI buildAbsoluteUri(URI uri, String str) {
-    URI ret = URI.create(str);
-    if (ret.getScheme() != null) {
-      return ret;
-    } else if (ret.getPath().startsWith("/")) {
-      return URI.create(uri.getScheme() + "://" + uri.getRawAuthority() + ret.toString());
-    } else {
-      String basePath = uri.getPath();
-      basePath = basePath.substring(0, basePath.lastIndexOf('/') + 1);
-      return URI.create(
-          uri.getScheme() + "://" + uri.getRawAuthority() + basePath + ret.toString());
-    }
-  }
-
-  private Playlist downloadPlaylist(String name, URI uri) {
+  private Playlist downloadPlaylist(String playlistName, URI uri) {
     Instant downloadTimestamp = timeMachine.now();
-    SampleResult playlistResult = download(name, uri);
+    SampleResult playlistResult = uriSampler.apply(uri);
     if (!playlistResult.isSuccessful()) {
-      LOG.warn("Problem downloading {} {}", name, uri);
+      if (playlistName == null) {
+        playlistName = MASTER_PLAYLIST_NAME;
+      }
+      notifySampleResult(playlistName, playlistResult);
+      LOG.warn("Problem downloading {} {}", playlistName, uri);
       return null;
     }
-    return Playlist
+    Playlist playlist = Playlist
         .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
+    if (playlistName == null) {
+      playlistName = playlist.isMasterPlaylist() ? MASTER_PLAYLIST_NAME : MEDIA_PLAYLIST_NAME;
+    }
+    notifySampleResult(playlistName, playlistResult);
+    return playlist;
   }
 
-  private SampleResult download(String name, URI uri) {
-    SampleResult result = uriSampler.apply(uri);
+  private void notifySampleResult(String name, SampleResult result) {
     result.setSampleLabel(getName() + " - " + name);
-    sampleResultNotifier.accept(result);
-    return result;
-  }
-
-  private void notifyInvalidPlaylist(URI uri) {
-    SampleResult result = uriSampler.apply(uri);
-    result.setSampleLabel(getName() + " - " + MASTER_PLAYLIST_TEXT);
-    result.setSuccessful(false);
-    result.setResponseData("Invalid Master playlist");
     sampleResultNotifier.accept(result);
   }
 
@@ -368,11 +254,11 @@ public class HlsSampler extends HTTPSampler {
       throws InterruptedException {
     timeMachine.awaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1,
         timeMachine.now()));
-    Playlist updatedMediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_TEXT, playlist.getUri());
+    Playlist updatedMediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, playlist.getUri());
     while (!interrupted && updatedMediaPlaylist != null && updatedMediaPlaylist.equals(playlist)) {
       timeMachine.awaitMillis(updatedMediaPlaylist
           .getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now()));
-      updatedMediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_TEXT, playlist.getUri());
+      updatedMediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, playlist.getUri());
     }
     return updatedMediaPlaylist;
   }
