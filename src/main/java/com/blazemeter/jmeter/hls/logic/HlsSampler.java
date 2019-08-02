@@ -55,10 +55,6 @@ public class HlsSampler extends HTTPSampler {
   private transient long lastSegmentNumber = -1;
   private volatile boolean interrupted;
 
-  private static final int CONNECTION_TIMEOUT = 10000;
-  private static final int REQUEST_TIMEOUT = 10000;
-  private static final int SOCKET_TIMEOUT = 10000;
-
   private static final String MASTER_PLAYLIST_TEXT = "master playlist";
   private static final String MEDIA_PLAYLIST_TEXT = "media playlist";
   private static final String SEGMENT_TEXT = "segment ";
@@ -228,23 +224,24 @@ public class HlsSampler extends HTTPSampler {
     return null;
   }
 
-  /**
-   * Get Media PL using a third party library
-   * */
   private URI getMediaPlaylist(URI masterURI) {
 
     URI selectedURI = null;
 
     try {
+
+      int CONNECTION_TIMEOUT = 10000;
+      int REQUEST_TIMEOUT = 10000;
+      int SOCKET_TIMEOUT = 10000;
+
       IPlaylist genericPlaylist = PlaylistFactory.parsePlaylist(TWELVE, masterURI.toURL(), CONNECTION_TIMEOUT, REQUEST_TIMEOUT, SOCKET_TIMEOUT);
 
       if (!genericPlaylist.isMasterPlaylist()) {
-        LOG.warn("This is not a valid Master PL");
+        LOG.warn("The URL {} doesn't count as a valid Master Playlist", masterURI.toString());
         notifyInvalidPlaylist(masterURI);
         return null;
 
       } else {
-        LOG.info("This is a valid Master PL");
         download(MASTER_PLAYLIST_TEXT, masterURI);
         MasterPlaylist masterPlaylist = (MasterPlaylist) genericPlaylist;
 
@@ -273,9 +270,9 @@ public class HlsSampler extends HTTPSampler {
       }
     } catch (IOException e) {
       notifyInvalidPlaylist(masterURI);
-      e.printStackTrace();
+      LOG.error(e.getMessage());
     } catch (URISyntaxException e) {
-      e.printStackTrace();
+      LOG.error(e.getMessage());
     }
 
     return buildAbsoluteUri(masterURI, selectedURI.getPath());
@@ -299,16 +296,10 @@ public class HlsSampler extends HTTPSampler {
     } else if (bandwidthType.equals("maxBandwidth") && bandwidth > referenceBandwidth) {
       referenceBandwidth = bandwidth;
       return true;
-    } else if (bandwidthSelector.getCustomBandwidth()!= null && bandwidthSelector.getCustomBandwidth() == bandwidth) {
-      return true;
-    }
+    } else return bandwidthSelector.getCustomBandwidth() != null && bandwidthSelector.getCustomBandwidth() == bandwidth;
 
-    return false;
   }
 
-  /*
-   * This should go to playlist
-   * */
   private URI buildAbsoluteUri(URI uri, String str) {
     URI ret = URI.create(str);
     if (ret.getScheme() != null) {
