@@ -169,15 +169,6 @@ public class HlsSampler extends HTTPSampler {
   @Override
   public SampleResult sample() {
 
-    ResolutionSelector resolutionSelector = getResolutionSelector();
-    BandwidthSelector bandwidthSelector = getBandwidthSelector();
-
-    LOG.info("Resolution " + resolutionSelector.getCustomResolution());
-    LOG.info("Resolution " + resolutionSelector.getName());
-
-    LOG.info("Bandwidth "+bandwidthSelector.getCustomBandwidth());
-    LOG.info("Bandwidth "+bandwidthSelector.getName());
-
     if (!this.getResumeVideoStatus()) {
       lastSegmentNumber = -1;
     }
