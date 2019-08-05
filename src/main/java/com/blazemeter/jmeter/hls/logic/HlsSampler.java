@@ -148,17 +148,25 @@ public class HlsSampler extends HTTPSampler {
     }
 
     URI masterUri = URI.create(getMasterUrl());
-    Playlist masterPlaylist = downloadPlaylist(null, masterUri);
+    Playlist masterPlaylist = downloadPlaylistUsingHlsParserj(MASTER_PLAYLIST_NAME, masterUri);
     if (masterPlaylist == null) {
+      notifyInvalidPlaylist(MASTER_PLAYLIST_NAME, masterUri);
       return null;
     }
 
     URI mediaPlaylistUri = masterPlaylist
         .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
+
+    if (mediaPlaylistUri == null) {
+      notifyInvalidPlaylist(MEDIA_PLAYLIST_NAME, masterUri);
+      return null;
+    }
+
     Playlist mediaPlaylist;
     if (!interrupted && !mediaPlaylistUri.equals(masterUri)) {
-      mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
+      mediaPlaylist = downloadPlaylistUsingHlsParserj(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
       if (mediaPlaylist == null) {
+        notifyInvalidPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
         return null;
       }
     } else {
@@ -190,6 +198,9 @@ public class HlsSampler extends HTTPSampler {
         if (!interrupted && !playedRequestedTime(playSeconds, consumedSeconds)
             && !playListEnd) {
           mediaPlaylist = getUpdatedPlaylist(mediaPlaylist);
+          if (mediaPlaylist == null) {
+            notifyInvalidPlaylist(getName(), mediaPlaylistUri);
+          }
         }
       } while (!interrupted && mediaPlaylist != null && !playedRequestedTime(playSeconds,
           consumedSeconds) && !playListEnd);
@@ -221,8 +232,34 @@ public class HlsSampler extends HTTPSampler {
     return playlist;
   }
 
+  private Playlist downloadPlaylistUsingHlsParserj(String playlistName, URI uri) {
+    Instant downloadTimestamp = timeMachine.now();
+    SampleResult playlistResult = uriSampler.apply(uri);
+    if (!playlistResult.isSuccessful()) {
+      notifySampleResult(playlistName, playlistResult);
+      LOG.warn("Problem downloading {} {}", playlistName, uri);
+      return null;
+    }
+
+    Playlist playlist = Playlist
+        .fromUriAndBodyHlsParserj(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
+    if (playlist != null) {
+      notifySampleResult(playlistName, playlistResult);
+    }
+
+    return playlist;
+  }
+
   private void notifySampleResult(String name, SampleResult result) {
     result.setSampleLabel(getName() + " - " + name);
+    sampleResultNotifier.accept(result);
+  }
+
+  private void notifyInvalidPlaylist(String name, URI uri) {
+    SampleResult result = uriSampler.apply(uri);
+    result.setSampleLabel(getName() + " - " + name);
+    result.setSuccessful(false);
+    result.setResponseData("Invalid Master playlist");
     sampleResultNotifier.accept(result);
   }
 
@@ -254,7 +291,8 @@ public class HlsSampler extends HTTPSampler {
       throws InterruptedException {
     timeMachine.awaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1,
         timeMachine.now()));
-    Playlist updatedMediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, playlist.getUri());
+    Playlist updatedMediaPlaylist = downloadPlaylistUsingHlsParserj(MEDIA_PLAYLIST_NAME,
+        playlist.getUri());
     while (!interrupted && updatedMediaPlaylist != null && updatedMediaPlaylist.equals(playlist)) {
       timeMachine.awaitMillis(updatedMediaPlaylist
           .getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now()));
@@ -270,5 +308,4 @@ public class HlsSampler extends HTTPSampler {
 
     return interrupted;
   }
-
 }

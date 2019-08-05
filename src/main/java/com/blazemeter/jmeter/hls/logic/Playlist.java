@@ -1,27 +1,29 @@
 package com.blazemeter.jmeter.hls.logic;
 
+import static com.comcast.viper.hlsparserj.PlaylistVersion.TWELVE;
+
+import com.comcast.viper.hlsparserj.IPlaylist;
+import com.comcast.viper.hlsparserj.MasterPlaylist;
+import com.comcast.viper.hlsparserj.MediaPlaylist;
+import com.comcast.viper.hlsparserj.PlaylistFactory;
+import com.comcast.viper.hlsparserj.tags.master.StreamInf;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.net.MalformedURLException;
+import java.io.InputStream;
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
+import java.nio.charset.Charset;
+
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import com.comcast.viper.hlsparserj.IPlaylist;
-import com.comcast.viper.hlsparserj.MasterPlaylist;
-import com.comcast.viper.hlsparserj.PlaylistFactory;
-import com.comcast.viper.hlsparserj.tags.master.StreamInf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static com.comcast.viper.hlsparserj.PlaylistVersion.TWELVE;
 
 public class Playlist {
 
@@ -49,44 +51,70 @@ public class Playlist {
     this.downloadTimestamp = downloadTimestamp;
   }
 
-  public static Playlist fromUriAndBody(URI uri, String body, Instant timestamp) {
+  static Playlist fromUriAndBody(URI uri, String body, Instant timestamp) {
     Matcher m = Pattern.compile("#EXT-X-TARGETDURATION:(\\d+)").matcher(body);
     long targetDuration = m.find() ? Long.parseLong(m.group(1)) : 0;
     return new Playlist(uri, body, targetDuration, timestamp);
   }
 
-  public URI getUri() {
+  static Playlist fromUriAndBodyHlsParserj(URI uri, String body, Instant timestamp) {
+    IPlaylist playlist;
+
+    try {
+      InputStream inputStream = new ByteArrayInputStream(body.getBytes(Charset.forName("UTF-8")));
+      playlist = PlaylistFactory.parsePlaylist(TWELVE, inputStream);
+
+    } catch (IOException e) {
+      return null;
+    }
+
+    if (playlist.isMasterPlaylist()) {
+      return new Playlist(uri, body, 0, timestamp);
+    } else {
+      MediaPlaylist media = (MediaPlaylist) playlist;
+      return new Playlist(uri, body, media.getTargetDuration().getDuration(), timestamp);
+    }
+  }
+
+  URI getUri() {
     return uri;
   }
 
-  public URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
-                                   BandwidthSelector bandwidthSelector) {
+  URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
+                            BandwidthSelector bandwidthSelector) {
     Long lastMatchedBandwidth = null;
     String lastMatchedResolution = null;
     String mediaPlaylistUri = null;
-    Matcher streamMatcher = STREAM_PATTERN.matcher(body);
-    while (streamMatcher.find()) {
-      String stream = streamMatcher.group(1);
-      Matcher bandwidthMatcher = BANDWIDTH_PATTERN.matcher(stream);
 
-      if (!bandwidthMatcher.find()) {
-        continue;
-      }
+    IPlaylist genericPlaylist = PlaylistFactory.parsePlaylist(TWELVE, body);
 
-      long streamBandwidth = Long.parseLong(bandwidthMatcher.group(1));
-      Matcher resolutionMatcher = RESOLUTION_PATTERN.matcher(stream);
-      String streamResolution = resolutionMatcher.find() ? resolutionMatcher.group(1) : null;
-      String matchedUri = streamMatcher.group(2);
+    if (!genericPlaylist.isMasterPlaylist()) {
+      return null;
+    }
+
+    MasterPlaylist playlist = (MasterPlaylist) genericPlaylist;
+    for (StreamInf variant : playlist.getVariantStreams()) {
+
+      long streamBandwidth = variant.getBandwidth();
+      String streamResolution = variant.getResolution();
+
       if (bandwidthSelector.matches(streamBandwidth, lastMatchedBandwidth)) {
+
         lastMatchedBandwidth = streamBandwidth;
         LOG.info("resolution match: {}, {}, {}, {}", streamResolution, lastMatchedResolution,
             resolutionSelector.getName(), resolutionSelector.getCustomResolution());
+
         if (resolutionSelector.matches(streamResolution, lastMatchedResolution)) {
           lastMatchedResolution = streamResolution;
-          mediaPlaylistUri = matchedUri;
+          mediaPlaylistUri = variant.getURI();
         }
       }
     }
+
+    if (mediaPlaylistUri == null || lastMatchedBandwidth == null || lastMatchedResolution == null) {
+      return null;
+    }
+
     return mediaPlaylistUri != null ? buildAbsoluteUri(mediaPlaylistUri) : uri;
   }
 
@@ -104,8 +132,7 @@ public class Playlist {
     }
   }
 
-
-  public List<MediaSegment> getMediaSegments() {
+  List<MediaSegment> getMediaSegments() {
     int sequenceNumber = getPlaylistMediaSequence(body);
     final List<MediaSegment> segments = new ArrayList<>();
     Matcher m = MEDIA_SEGMENT_PATTERN.matcher(body);
@@ -122,7 +149,7 @@ public class Playlist {
     return matcher.find() ? Integer.parseInt(matcher.group(1)) : 0;
   }
 
-  public boolean hasEnd() {
+  boolean hasEnd() {
     return "VOD".equals(getPlaylistType(body)) || hasEndMarker(body);
   }
 
@@ -135,8 +162,8 @@ public class Playlist {
     return playlist.contains("\n#EXT-X-ENDLIST");
   }
 
-  public long getReloadTimeMillisForDurationMultiplier(double targetDurationMultiplier,
-      Instant now) {
+  long getReloadTimeMillisForDurationMultiplier(double targetDurationMultiplier,
+                                                Instant now) {
     long timeDiffMillis = downloadTimestamp.until(now, ChronoUnit.MILLIS);
     long reloadPeriodMillis = TimeUnit.SECONDS.toMillis(Math
         .round(this.targetDuration * targetDurationMultiplier));
@@ -152,8 +179,8 @@ public class Playlist {
       return false;
     }
     Playlist playlist = (Playlist) o;
-    return Objects.equals(uri, playlist.uri) &&
-        Objects.equals(body, playlist.body);
+    return Objects.equals(uri, playlist.uri)
+        && Objects.equals(body, playlist.body);
   }
 
   @Override
@@ -161,4 +188,7 @@ public class Playlist {
     return Objects.hash(uri, body);
   }
 
+  boolean isMasterPlaylist() {
+    return body.contains("#EXT-X-STREAM-INF");
+  }
 }
