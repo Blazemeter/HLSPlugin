@@ -185,9 +185,6 @@ public class HlsSampler extends HTTPSampler {
         if (!interrupted && !playedRequestedTime(playSeconds, consumedSeconds)
             && !playListEnd) {
           mediaPlaylist = getUpdatedPlaylist(mediaPlaylist);
-          if (mediaPlaylist == null) {
-            notifyInvalidPlaylist(getName(), mediaPlaylistUri);
-          }
         }
       } while (!interrupted && mediaPlaylist != null && !playedRequestedTime(playSeconds,
           consumedSeconds) && !playListEnd);
@@ -212,8 +209,15 @@ public class HlsSampler extends HTTPSampler {
       return null;
     }
 
-    Playlist playlist = Playlist
-        .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
+    Playlist playlist;
+    try {
+      playlist = Playlist
+          .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
+    } catch (PlaylistParsingException e) {
+      notifySampleResult(playlistName, playlistResult);
+      LOG.warn("Problem parsing {} {}", playlistName, uri);
+      return null;
+    }
     if (playlistName == null) {
       playlistName = playlist.isMasterPlaylist() ? MASTER_PLAYLIST_NAME : MEDIA_PLAYLIST_NAME;
     }
