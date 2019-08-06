@@ -12,7 +12,6 @@ import com.comcast.viper.hlsparserj.tags.media.ExtInf;
 import com.comcast.viper.hlsparserj.tags.media.MediaSequence;
 
 import java.net.URI;
-
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
@@ -36,12 +35,13 @@ public class Playlist {
     this.downloadTimestamp = downloadTimestamp;
   }
 
-  public static Playlist fromUriAndBody(URI uri, String body, Instant timestamp) {
+  public static Playlist fromUriAndBody(URI uri, String body, Instant timestamp)
+      throws PlaylistParsingException {
 
     try {
       playlist = PlaylistFactory.parsePlaylist(TWELVE, body);
     } catch (Exception e) {
-      return null;
+      throw new PlaylistParsingException(uri);
     }
     return new Playlist(uri, timestamp);
   }
