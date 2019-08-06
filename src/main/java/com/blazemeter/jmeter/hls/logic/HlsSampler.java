@@ -148,27 +148,14 @@ public class HlsSampler extends HTTPSampler {
     }
 
     URI masterUri = URI.create(getMasterUrl());
-    Playlist masterPlaylist = downloadPlaylistUsingHlsParserj(MASTER_PLAYLIST_NAME, masterUri);
-    if (masterPlaylist == null) {
-      notifyInvalidPlaylist(MASTER_PLAYLIST_NAME, masterUri);
-      return null;
-    }
+    Playlist masterPlaylist = downloadPlaylist(null, masterUri);
 
     URI mediaPlaylistUri = masterPlaylist
         .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
 
-    if (mediaPlaylistUri == null) {
-      notifyInvalidPlaylist(MEDIA_PLAYLIST_NAME, masterUri);
-      return null;
-    }
-
     Playlist mediaPlaylist;
     if (!interrupted && !mediaPlaylistUri.equals(masterUri)) {
-      mediaPlaylist = downloadPlaylistUsingHlsParserj(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
-      if (mediaPlaylist == null) {
-        notifyInvalidPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
-        return null;
-      }
+      mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
     } else {
       mediaPlaylist = masterPlaylist;
     }
@@ -219,33 +206,19 @@ public class HlsSampler extends HTTPSampler {
       if (playlistName == null) {
         playlistName = MASTER_PLAYLIST_NAME;
       }
+
       notifySampleResult(playlistName, playlistResult);
       LOG.warn("Problem downloading {} {}", playlistName, uri);
       return null;
     }
+
     Playlist playlist = Playlist
         .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
     if (playlistName == null) {
       playlistName = playlist.isMasterPlaylist() ? MASTER_PLAYLIST_NAME : MEDIA_PLAYLIST_NAME;
     }
+
     notifySampleResult(playlistName, playlistResult);
-    return playlist;
-  }
-
-  private Playlist downloadPlaylistUsingHlsParserj(String playlistName, URI uri) {
-    Instant downloadTimestamp = timeMachine.now();
-    SampleResult playlistResult = uriSampler.apply(uri);
-    if (!playlistResult.isSuccessful()) {
-      notifySampleResult(playlistName, playlistResult);
-      LOG.warn("Problem downloading {} {}", playlistName, uri);
-      return null;
-    }
-
-    Playlist playlist = Playlist
-        .fromUriAndBodyHlsParserj(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
-    if (playlist != null) {
-      notifySampleResult(playlistName, playlistResult);
-    }
 
     return playlist;
   }
@@ -291,7 +264,7 @@ public class HlsSampler extends HTTPSampler {
       throws InterruptedException {
     timeMachine.awaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1,
         timeMachine.now()));
-    Playlist updatedMediaPlaylist = downloadPlaylistUsingHlsParserj(MEDIA_PLAYLIST_NAME,
+    Playlist updatedMediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME,
         playlist.getUri());
     while (!interrupted && updatedMediaPlaylist != null && updatedMediaPlaylist.equals(playlist)) {
       timeMachine.awaitMillis(updatedMediaPlaylist
