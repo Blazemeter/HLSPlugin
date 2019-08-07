@@ -6,19 +6,19 @@ import com.comcast.viper.hlsparserj.IPlaylist;
 import com.comcast.viper.hlsparserj.MasterPlaylist;
 import com.comcast.viper.hlsparserj.MediaPlaylist;
 import com.comcast.viper.hlsparserj.PlaylistFactory;
-import com.comcast.viper.hlsparserj.tags.UnparsedTag;
 import com.comcast.viper.hlsparserj.tags.master.StreamInf;
-import com.comcast.viper.hlsparserj.tags.media.ExtInf;
 import com.comcast.viper.hlsparserj.tags.media.MediaSequence;
 
+import com.comcast.viper.hlsparserj.tags.media.PlaylistType;
 import java.net.URI;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,11 +28,13 @@ public class Playlist {
   private static IPlaylist playlist;
 
   private final URI uri;
+  private final String body; //This field is only used for comparing objects
   private final Instant downloadTimestamp;
 
-  private Playlist(URI uri, Instant downloadTimestamp) {
+  private Playlist(URI uri, String body, Instant downloadTimestamp) {
     this.uri = uri;
     this.downloadTimestamp = downloadTimestamp;
+    this.body = body;
   }
 
   public static Playlist fromUriAndBody(URI uri, String body, Instant timestamp)
@@ -41,24 +43,20 @@ public class Playlist {
     try {
       playlist = PlaylistFactory.parsePlaylist(TWELVE, body);
     } catch (Exception e) {
-      throw new PlaylistParsingException(uri);
+      throw new PlaylistParsingException(e, uri.toString());
     }
-    return new Playlist(uri, timestamp);
+    return new Playlist(uri, body, timestamp);
   }
 
-  URI getUri() {
+  public URI getUri() {
     return uri;
   }
 
-  URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
+  public URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
                             BandwidthSelector bandwidthSelector) {
     Long lastMatchedBandwidth = null;
     String lastMatchedResolution = null;
     String mediaPlaylistUri = null;
-
-    if (!playlist.isMasterPlaylist()) {
-      return null;
-    }
 
     MasterPlaylist masterplaylist = (MasterPlaylist) playlist;
     for (StreamInf variant : masterplaylist.getVariantStreams()) {
@@ -97,17 +95,12 @@ public class Playlist {
   }
 
   public List<MediaSegment> getMediaSegments() {
-    int sequenceNumber = getPlaylistMediaSequence();
+    AtomicInteger sequenceNumber = new AtomicInteger(getPlaylistMediaSequence());
     MediaPlaylist mediaPlaylist = (MediaPlaylist) playlist;
-    List<ExtInf> list = mediaPlaylist.getSegments();
-    final List<MediaSegment> segments = new ArrayList<>();
 
-    for (ExtInf segment : list) {
-      segments.add(new MediaSegment(sequenceNumber++, buildAbsoluteUri(segment.getURI()),
-          segment.getDuration()));
-    }
-
-    return segments;
+    return mediaPlaylist.getSegments().stream()
+        .map(s -> new MediaSegment(sequenceNumber.getAndIncrement(), buildAbsoluteUri(s.getURI()), s.getDuration()))
+        .collect(Collectors.toList());
   }
 
   private int getPlaylistMediaSequence() {
@@ -122,21 +115,18 @@ public class Playlist {
   private String getPlaylistType() {
     //By definition, the type doesn't appear in the master playlist
     if (!playlist.isMasterPlaylist()) {
-      return ((MediaPlaylist) playlist).getPlaylistType().getType();
+      PlaylistType playlistType = ((MediaPlaylist) playlist).getPlaylistType();
+      if (playlistType != null) {
+        return playlistType.getType();
+      }
     }
 
     return null;
   }
 
   private boolean hasEndMarker() {
-    List<UnparsedTag> tags = playlist.getTags();
-    for  (UnparsedTag tag : tags) {
-      if (tag.getTagName().contains("EXT-X-ENDLIST")) {
-        return true;
-      }
-    }
-
-    return false;
+    return playlist.getTags().stream()
+        .anyMatch(t -> t.getTagName().contains("EXT-X-ENDLIST"));
   }
 
   public long getReloadTimeMillisForDurationMultiplier(double targetDurationMultiplier,
@@ -159,12 +149,13 @@ public class Playlist {
     }
     Playlist playlist = (Playlist) o;
     return Objects.equals(uri, playlist.uri) &&
+        Objects.equals(body, playlist.body) &&
         Objects.equals(downloadTimestamp, playlist.downloadTimestamp);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(uri, downloadTimestamp);
+    return Objects.hash(uri, body, downloadTimestamp);
   }
 
   public boolean isMasterPlaylist() {

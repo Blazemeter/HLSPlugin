@@ -149,13 +149,23 @@ public class HlsSampler extends HTTPSampler {
 
     URI masterUri = URI.create(getMasterUrl());
     Playlist masterPlaylist = downloadPlaylist(null, masterUri);
-
-    URI mediaPlaylistUri = masterPlaylist
-        .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
-
     Playlist mediaPlaylist;
-    if (!interrupted && !mediaPlaylistUri.equals(masterUri)) {
+
+    if (!interrupted && masterPlaylist != null && masterPlaylist.isMasterPlaylist()) {
+
+      URI mediaPlaylistUri = masterPlaylist
+          .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
       mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
+
+      if (mediaPlaylist == null) {
+        SampleResult res = new SampleResult();
+        res.setSampleLabel(getName() + " - " + MEDIA_PLAYLIST_NAME);
+        res.setResponseCode("Non HTTP response code: NoMatchingMediaPlaylist");
+        res.setResponseMessage("Non HTTP response message: No matching media "
+            + "playlist for provided resolution and bandwidth");
+        res.setSuccessful(false);
+        return res;
+      }
     } else {
       mediaPlaylist = masterPlaylist;
     }
@@ -209,34 +219,23 @@ public class HlsSampler extends HTTPSampler {
       return null;
     }
 
-    Playlist playlist;
     try {
-      playlist = Playlist
+      Playlist playlist = Playlist
           .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
+      if (playlistName == null) {
+        playlistName = playlist.isMasterPlaylist() ? MASTER_PLAYLIST_NAME : MEDIA_PLAYLIST_NAME;
+      }
+      return playlist;
     } catch (PlaylistParsingException e) {
-      notifySampleResult(playlistName, playlistResult);
-      LOG.warn("Problem parsing {} {}", playlistName, uri);
+      LOG.warn("Problem parsing {} {}", playlistName, uri, e);
       return null;
+    } finally {
+      notifySampleResult(playlistName, playlistResult);
     }
-    if (playlistName == null) {
-      playlistName = playlist.isMasterPlaylist() ? MASTER_PLAYLIST_NAME : MEDIA_PLAYLIST_NAME;
-    }
-
-    notifySampleResult(playlistName, playlistResult);
-
-    return playlist;
   }
 
   private void notifySampleResult(String name, SampleResult result) {
     result.setSampleLabel(getName() + " - " + name);
-    sampleResultNotifier.accept(result);
-  }
-
-  private void notifyInvalidPlaylist(String name, URI uri) {
-    SampleResult result = uriSampler.apply(uri);
-    result.setSampleLabel(getName() + " - " + name);
-    result.setSuccessful(false);
-    result.setResponseData("Invalid Master playlist");
     sampleResultNotifier.accept(result);
   }
 
