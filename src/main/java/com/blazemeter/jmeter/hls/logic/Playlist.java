@@ -95,19 +95,17 @@ public class Playlist {
   }
 
   public List<MediaSegment> getMediaSegments() {
-    AtomicInteger sequenceNumber = new AtomicInteger(getPlaylistMediaSequence());
     MediaPlaylist mediaPlaylist = (MediaPlaylist) playlist;
+    MediaSequence mediaSequence = mediaPlaylist.getMediaSequence();
+    int sequence = (mediaSequence != null ? mediaSequence.getSequenceNumber() : 0);
+
+    AtomicInteger sequenceNumber = new AtomicInteger(sequence);
 
     return mediaPlaylist.getSegments().stream()
         .map(s -> new MediaSegment(sequenceNumber.getAndIncrement(),
             buildAbsoluteUri(s.getURI()), s.getDuration()))
         .collect(Collectors.toList());
 
-  }
-
-  private int getPlaylistMediaSequence() {
-    MediaSequence mediaSequence = ((MediaPlaylist) playlist).getMediaSequence();
-    return mediaSequence.getSequenceNumber();
   }
 
   public boolean hasEnd() {
