@@ -99,8 +99,10 @@ public class Playlist {
     MediaPlaylist mediaPlaylist = (MediaPlaylist) playlist;
 
     return mediaPlaylist.getSegments().stream()
-        .map(s -> new MediaSegment(sequenceNumber.getAndIncrement(), buildAbsoluteUri(s.getURI()), s.getDuration()))
+        .map(s -> new MediaSegment(sequenceNumber.getAndIncrement(),
+            buildAbsoluteUri(s.getURI()), s.getDuration()))
         .collect(Collectors.toList());
+
   }
 
   private int getPlaylistMediaSequence() {
