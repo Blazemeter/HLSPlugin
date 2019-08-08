@@ -76,7 +76,7 @@ public class Playlist {
       }
     }
 
-    return mediaPlaylistUri != null ? buildAbsoluteUri(mediaPlaylistUri) : uri;
+    return mediaPlaylistUri != null ? buildAbsoluteUri(mediaPlaylistUri) : null;
   }
 
   private URI buildAbsoluteUri(String str) {
