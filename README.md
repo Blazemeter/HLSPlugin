@@ -4,6 +4,7 @@ The HLS protocol provides a reliable, cost-effective means of delivering continu
 
 For more information related to HLS, please refer to the  [wikipedia page](https://en.wikipedia.org/wiki/HTTP_Live_Streaming) or to the [RFC](https://tools.ietf.org/html/rfc8216).
 
+Currently the project uses the [HLSParserJ](https://github.com/Comcast/hlsparserj) library to parse the playlists.
 #### In a HTTP Live Streaming process:
 
 - The audio/video to be streamed is reproduced by a media encoder at different quality levels, bitrates and resolutions. Each version is called a variant.
@@ -42,11 +43,6 @@ Set the link to the master playlist file
 
 - URL
 
-Set the video type corresponding to the playlist
-
-- VOD
-- Live Stream
-- Event Stream
 
 ![](docs/HLSVideo.png)
 
@@ -82,9 +78,16 @@ After selecting the desired bandwidth you can select a resolution to simulate yo
 
 ![](docs/HLSResolution.png)
 
+
+#### Resume video downloads
+
+When iterations are used, the sampler will (by default) start downloading video segments from the beginning of the video for each iteration. It is possible to make the sampler continue in each iteration downloading video segments from the last iteration by checking the "Resume video downloads between iterations" checkbox.
+
+![](docs/HLSResumeVideo.png)
+
 ## Results
 
-You can set listeners to evaluate the results of your tests. The View Results Tree Listener displays the HLS Hierarchy, so you can inspect how the requests and responses worked.
+You can set listeners to evaluate the results of your tests. The View Results Tree Listener displays the resultant samples for the HLS samplers so, you can inspect how the requests and responses worked. It will display each one of the samples with the name of the type it downloaded (Master Playlist, Media Playlist or segment followed by sequential number) to identify them.
 
 ![](docs/HLSResults.png)
 
@@ -95,3 +98,4 @@ Assertions are supported for the master playlist and variant (child) playlist. E
 When you press "Shutdown" button, you may have to wait a relative long time before the test plan actually stops. This may happen since the behavior of such button is to wait for current samples to end (check [JMeter User guide for more details](https://jmeter.apache.org/usermanual/build-test-plan.html#stop)), and HLS sampler may take a relative long time to finish sampling a URL depending on the specified play time and the type of used playlist. For instance, if you set a livestream URL and specify to play the whole video, then it will never end, and doing a shutdown will not stop it.
 
 On the contrary, when "Stop" is pressed, current sample is interrupted (and a failure sample result is be generated) and test plan stops immediately.
+
