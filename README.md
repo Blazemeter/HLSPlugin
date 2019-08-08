@@ -43,12 +43,6 @@ Set the link to the master playlist file
 
 - URL
 
-Set the video type corresponding to the playlist
-
-- VOD
-- Live Stream
-- Event Stream
-
 ![](docs/HLSVideo.png)
 
 #### Play options
