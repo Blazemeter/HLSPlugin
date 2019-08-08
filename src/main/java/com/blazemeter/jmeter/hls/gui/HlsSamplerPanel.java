@@ -154,6 +154,7 @@ public class HlsSamplerPanel extends JPanel {
 
     GroupLayout layout = new GroupLayout(panel);
     layout.setAutoCreateContainerGaps(true);
+    layout.setAutoCreateGaps(true);
     panel.setLayout(layout);
     layout.setHorizontalGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
         .addComponent(playWholeVideoOption)
