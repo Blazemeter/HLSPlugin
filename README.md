@@ -43,6 +43,7 @@ Set the link to the master playlist file
 
 - URL
 
+
 ![](docs/HLSVideo.png)
 
 #### Play options
@@ -80,13 +81,13 @@ After selecting the desired bandwidth you can select a resolution to simulate yo
 
 #### Resume video downloads
 
-After selecting all the desired configurations, the "Resume video downloads between iterations" checkbox will allow that, between each iteration of the sampler's download, the resumed download will start right after the last downloaded segment.
+When iterations are used, the sampler will (by default) start downloading video segments from the beginning of the video for each iteration. It is possible to make the sampler continue in each iteration downloading video segments from the last iteration by checking the "Resume video downloads between iterations" checkbox.
 
 ![](docs/HLSResumeVideo.png)
 
 ## Results
 
-You can set listeners to evaluate the results of your tests. The View Results Tree Listener displays the resultant samplers for the HLS request so, you can inspect how the requests and responses worked. It will display each one of the samplers with the name of the type it downloaded (Master Playlist, Media Playlist or segment followed by sequential number) to identify them.
+You can set listeners to evaluate the results of your tests. The View Results Tree Listener displays the resultant samples for the HLS samples so, you can inspect how the requests and responses worked. It will display each one of the samplers with the name of the type it downloaded (Master Playlist, Media Playlist or segment followed by sequential number) to identify them.
 
 ![](docs/HLSResults.png)
 
