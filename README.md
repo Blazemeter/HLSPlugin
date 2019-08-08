@@ -83,9 +83,16 @@ After selecting the desired bandwidth you can select a resolution to simulate yo
 
 ![](docs/HLSResolution.png)
 
+
+#### Resume video downloads
+
+After selecting all the desired configurations, the "Resume video downloads between iterations" checkbox will allow that, between each iteration of the sampler's download, the resumed download will start right after the last downloaded segment.
+
+![](docs/HLSResumeVideo.png)
+
 ## Results
 
-You can set listeners to evaluate the results of your tests. The View Results Tree Listener displays the HLS Hierarchy, so you can inspect how the requests and responses worked.
+You can set listeners to evaluate the results of your tests. The View Results Tree Listener displays the resultant samplers for the HLS request so, you can inspect how the requests and responses worked. It will display each one of the samplers with the name of the type it downloaded (Master Playlist, Media Playlist or segment followed by sequential number) to identify them.
 
 ![](docs/HLSResults.png)
 
