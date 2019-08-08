@@ -161,13 +161,7 @@ public class HlsSampler extends HTTPSampler {
           .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
 
       if (mediaPlaylistUri == null) {
-        SampleResult res = new SampleResult();
-        res.setSampleLabel(getName() + " - " + MEDIA_PLAYLIST_NAME);
-        res.setResponseCode("Non HTTP response code: NoMatchingMediaPlaylist");
-        res.setResponseMessage("Non HTTP response message: No matching media "
-            + "playlist for provided resolution and bandwidth");
-        res.setSuccessful(false);
-        return res;
+        return buildNotMatchingMediaPlaylistResult();
       }
 
       mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
@@ -213,6 +207,16 @@ public class HlsSampler extends HTTPSampler {
     }
 
     return null;
+  }
+
+  private SampleResult buildNotMatchingMediaPlaylistResult() {
+    SampleResult res = new SampleResult();
+    res.setSampleLabel(getName() + " - " + MEDIA_PLAYLIST_NAME);
+    res.setResponseCode("Non HTTP response code: NoMatchingMediaPlaylist");
+    res.setResponseMessage("Non HTTP response message: No matching media "
+        + "playlist for provided resolution and bandwidth");
+    res.setSuccessful(false);
+    return res;
   }
 
   private Playlist downloadPlaylist(String playlistName, URI uri) {
