@@ -87,7 +87,7 @@ When iterations are used, the sampler will (by default) start downloading video 
 
 ## Results
 
-You can set listeners to evaluate the results of your tests. The View Results Tree Listener displays the resultant samples for the HLS samplers so, you can inspect how the requests and responses worked. It will display each one of the samplers with the name of the type it downloaded (Master Playlist, Media Playlist or segment followed by sequential number) to identify them.
+You can set listeners to evaluate the results of your tests. The View Results Tree Listener displays the resultant samples for the HLS samplers so, you can inspect how the requests and responses worked. It will display each one of the samples with the name of the type it downloaded (Master Playlist, Media Playlist or segment followed by sequential number) to identify them.
 
 ![](docs/HLSResults.png)
 
