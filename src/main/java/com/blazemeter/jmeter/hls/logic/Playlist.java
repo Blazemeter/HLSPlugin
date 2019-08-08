@@ -148,13 +148,12 @@ public class Playlist {
     }
     Playlist playlist = (Playlist) o;
     return Objects.equals(uri, playlist.uri) &&
-        Objects.equals(body, playlist.body) &&
-        Objects.equals(downloadTimestamp, playlist.downloadTimestamp);
+        Objects.equals(body, playlist.body);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(uri, body, downloadTimestamp);
+    return Objects.hash(uri, body);
   }
 
   public boolean isMasterPlaylist() {
