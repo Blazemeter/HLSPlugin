@@ -25,27 +25,26 @@ import org.slf4j.LoggerFactory;
 public class Playlist {
 
   private static final Logger LOG = LoggerFactory.getLogger(Playlist.class);
-  private static IPlaylist playlist;
+  private IPlaylist playlist;
 
   private final URI uri;
   private final String body; //This field is only used for comparing objects
   private final Instant downloadTimestamp;
 
-  private Playlist(URI uri, String body, Instant downloadTimestamp) {
+  private Playlist(URI uri, String body, Instant downloadTimestamp, IPlaylist playlist) {
     this.uri = uri;
     this.downloadTimestamp = downloadTimestamp;
     this.body = body;
+    this.playlist = playlist;
   }
 
   public static Playlist fromUriAndBody(URI uri, String body, Instant timestamp)
       throws PlaylistParsingException {
-
     try {
-      playlist = PlaylistFactory.parsePlaylist(TWELVE, body);
+      return new Playlist(uri, body, timestamp, PlaylistFactory.parsePlaylist(TWELVE, body));
     } catch (Exception e) {
       throw new PlaylistParsingException(e, uri.toString());
     }
-    return new Playlist(uri, body, timestamp);
   }
 
   public URI getUri() {

@@ -159,9 +159,8 @@ public class HlsSampler extends HTTPSampler {
 
       URI mediaPlaylistUri = masterPlaylist
           .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
-      mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
 
-      if (mediaPlaylist == null) {
+      if (mediaPlaylistUri == null) {
         SampleResult res = new SampleResult();
         res.setSampleLabel(getName() + " - " + MEDIA_PLAYLIST_NAME);
         res.setResponseCode("Non HTTP response code: NoMatchingMediaPlaylist");
@@ -170,6 +169,12 @@ public class HlsSampler extends HTTPSampler {
         res.setSuccessful(false);
         return res;
       }
+
+      mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
+      if (mediaPlaylist == null) {
+        return null;
+      }
+
     } else {
       mediaPlaylist = masterPlaylist;
     }
@@ -177,10 +182,11 @@ public class HlsSampler extends HTTPSampler {
     int playSeconds = isPlayVideoDuration() && !getPlaySeconds().isEmpty()
         ? Integer.parseInt(getPlaySeconds()) : 0;
     float consumedSeconds = 0;
-    boolean playListEnd;
+    boolean playListEnd = false;
 
     try {
-      do {
+      while (!interrupted && mediaPlaylist != null && !playedRequestedTime(playSeconds,
+          consumedSeconds) && !playListEnd) {
         Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
 
         while (!interrupted && mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds,
@@ -200,8 +206,7 @@ public class HlsSampler extends HTTPSampler {
             && !playListEnd) {
           mediaPlaylist = getUpdatedPlaylist(mediaPlaylist);
         }
-      } while (!interrupted && mediaPlaylist != null && !playedRequestedTime(playSeconds,
-          consumedSeconds) && !playListEnd);
+      }
     } catch (InterruptedException e) {
       LOG.warn("Sampler has been interrupted", e);
       Thread.currentThread().interrupt();
