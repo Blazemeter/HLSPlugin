@@ -153,14 +153,22 @@ public class HlsSampler extends HTTPSampler {
       return null;
     }
 
-    URI mediaPlaylistUri = masterPlaylist
-        .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
     Playlist mediaPlaylist;
-    if (!interrupted && !mediaPlaylistUri.equals(masterUri)) {
+
+    if (!interrupted && masterPlaylist.isMasterPlaylist()) {
+
+      URI mediaPlaylistUri = masterPlaylist
+          .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
+
+      if (mediaPlaylistUri == null) {
+        return buildNotMatchingMediaPlaylistResult();
+      }
+
       mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
       if (mediaPlaylist == null) {
         return null;
       }
+
     } else {
       mediaPlaylist = masterPlaylist;
     }
@@ -168,10 +176,11 @@ public class HlsSampler extends HTTPSampler {
     int playSeconds = isPlayVideoDuration() && !getPlaySeconds().isEmpty()
         ? Integer.parseInt(getPlaySeconds()) : 0;
     float consumedSeconds = 0;
-    boolean playListEnd;
+    boolean playListEnd = false;
 
     try {
-      do {
+      while (!interrupted && mediaPlaylist != null && !playedRequestedTime(playSeconds,
+          consumedSeconds) && !playListEnd) {
         Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
 
         while (!interrupted && mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds,
@@ -191,14 +200,23 @@ public class HlsSampler extends HTTPSampler {
             && !playListEnd) {
           mediaPlaylist = getUpdatedPlaylist(mediaPlaylist);
         }
-      } while (!interrupted && mediaPlaylist != null && !playedRequestedTime(playSeconds,
-          consumedSeconds) && !playListEnd);
+      }
     } catch (InterruptedException e) {
       LOG.warn("Sampler has been interrupted", e);
       Thread.currentThread().interrupt();
     }
 
     return null;
+  }
+
+  private SampleResult buildNotMatchingMediaPlaylistResult() {
+    SampleResult res = new SampleResult();
+    res.setSampleLabel(getName() + " - " + MEDIA_PLAYLIST_NAME);
+    res.setResponseCode("Non HTTP response code: NoMatchingMediaPlaylist");
+    res.setResponseMessage("Non HTTP response message: No matching media "
+        + "playlist for provided resolution and bandwidth");
+    res.setSuccessful(false);
+    return res;
   }
 
   private Playlist downloadPlaylist(String playlistName, URI uri) {
@@ -208,17 +226,25 @@ public class HlsSampler extends HTTPSampler {
       if (playlistName == null) {
         playlistName = MASTER_PLAYLIST_NAME;
       }
+
       notifySampleResult(playlistName, playlistResult);
       LOG.warn("Problem downloading {} {}", playlistName, uri);
       return null;
     }
-    Playlist playlist = Playlist
-        .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
-    if (playlistName == null) {
-      playlistName = playlist.isMasterPlaylist() ? MASTER_PLAYLIST_NAME : MEDIA_PLAYLIST_NAME;
+
+    try {
+      Playlist playlist = Playlist
+          .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
+      if (playlistName == null) {
+        playlistName = playlist.isMasterPlaylist() ? MASTER_PLAYLIST_NAME : MEDIA_PLAYLIST_NAME;
+      }
+      return playlist;
+    } catch (PlaylistParsingException e) {
+      LOG.warn("Problem parsing {} {}", playlistName, uri, e);
+      return null;
+    } finally {
+      notifySampleResult(playlistName, playlistResult);
     }
-    notifySampleResult(playlistName, playlistResult);
-    return playlist;
   }
 
   private void notifySampleResult(String name, SampleResult result) {
@@ -254,7 +280,8 @@ public class HlsSampler extends HTTPSampler {
       throws InterruptedException {
     timeMachine.awaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1,
         timeMachine.now()));
-    Playlist updatedMediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, playlist.getUri());
+    Playlist updatedMediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME,
+        playlist.getUri());
     while (!interrupted && updatedMediaPlaylist != null && updatedMediaPlaylist.equals(playlist)) {
       timeMachine.awaitMillis(updatedMediaPlaylist
           .getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now()));
@@ -270,5 +297,4 @@ public class HlsSampler extends HTTPSampler {
 
     return interrupted;
   }
-
 }

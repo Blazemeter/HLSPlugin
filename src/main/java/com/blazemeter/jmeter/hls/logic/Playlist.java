@@ -1,47 +1,50 @@
 package com.blazemeter.jmeter.hls.logic;
 
+import static com.comcast.viper.hlsparserj.PlaylistVersion.TWELVE;
+
+import com.comcast.viper.hlsparserj.IPlaylist;
+import com.comcast.viper.hlsparserj.MasterPlaylist;
+import com.comcast.viper.hlsparserj.MediaPlaylist;
+import com.comcast.viper.hlsparserj.PlaylistFactory;
+import com.comcast.viper.hlsparserj.tags.master.StreamInf;
+import com.comcast.viper.hlsparserj.tags.media.MediaSequence;
+
+import com.comcast.viper.hlsparserj.tags.media.PlaylistType;
 import java.net.URI;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class Playlist {
 
   private static final Logger LOG = LoggerFactory.getLogger(Playlist.class);
-  private static final Pattern STREAM_PATTERN = Pattern
-      .compile("(#EXT-X-STREAM-INF.*)\\r?\\n(.*)");
-  private static final Pattern BANDWIDTH_PATTERN = Pattern.compile("[:|,]BANDWIDTH=(\\d+)");
-  private static final Pattern RESOLUTION_PATTERN = Pattern.compile("[:|,]RESOLUTION=(\\d+x\\d+)");
-  private static final Pattern PLAYLIST_TYPE_PATTERN = Pattern
-      .compile("#EXT-X-PLAYLIST-TYPE:(\\w+)");
-  private static final Pattern MEDIA_SEGMENT_PATTERN = Pattern
-      .compile("#EXTINF:(\\d+\\.?\\d*).*\\r?\\n((?:#.*:.*\\r?\\n)*)(.*)");
-  private static final Pattern MEDIA_SEQUENCE_PATTERN = Pattern
-      .compile("#EXT-X-MEDIA-SEQUENCE:(\\d+)");
+  private IPlaylist playlist;
 
   private final URI uri;
-  private final String body;
-  private final long targetDuration;
+  private final String body; //This field is only used for comparing objects
   private final Instant downloadTimestamp;
 
-  private Playlist(URI uri, String body, long targetDuration, Instant downloadTimestamp) {
+  private Playlist(URI uri, String body, Instant downloadTimestamp, IPlaylist playlist) {
     this.uri = uri;
-    this.body = body;
-    this.targetDuration = targetDuration;
     this.downloadTimestamp = downloadTimestamp;
+    this.body = body;
+    this.playlist = playlist;
   }
 
-  public static Playlist fromUriAndBody(URI uri, String body, Instant timestamp) {
-    Matcher m = Pattern.compile("#EXT-X-TARGETDURATION:(\\d+)").matcher(body);
-    long targetDuration = m.find() ? Long.parseLong(m.group(1)) : 0;
-    return new Playlist(uri, body, targetDuration, timestamp);
+  public static Playlist fromUriAndBody(URI uri, String body, Instant timestamp)
+      throws PlaylistParsingException {
+    try {
+      return new Playlist(uri, body, timestamp, PlaylistFactory.parsePlaylist(TWELVE, body));
+    } catch (Exception e) {
+      throw new PlaylistParsingException(e, uri.toString());
+    }
   }
 
   public URI getUri() {
@@ -49,33 +52,30 @@ public class Playlist {
   }
 
   public URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
-                                   BandwidthSelector bandwidthSelector) {
+                            BandwidthSelector bandwidthSelector) {
     Long lastMatchedBandwidth = null;
     String lastMatchedResolution = null;
     String mediaPlaylistUri = null;
-    Matcher streamMatcher = STREAM_PATTERN.matcher(body);
-    while (streamMatcher.find()) {
-      String stream = streamMatcher.group(1);
-      Matcher bandwidthMatcher = BANDWIDTH_PATTERN.matcher(stream);
 
-      if (!bandwidthMatcher.find()) {
-        continue;
-      }
+    MasterPlaylist masterplaylist = (MasterPlaylist) playlist;
+    for (StreamInf variant : masterplaylist.getVariantStreams()) {
 
-      long streamBandwidth = Long.parseLong(bandwidthMatcher.group(1));
-      Matcher resolutionMatcher = RESOLUTION_PATTERN.matcher(stream);
-      String streamResolution = resolutionMatcher.find() ? resolutionMatcher.group(1) : null;
-      String matchedUri = streamMatcher.group(2);
+      long streamBandwidth = variant.getBandwidth();
+      String streamResolution = variant.getResolution();
+
       if (bandwidthSelector.matches(streamBandwidth, lastMatchedBandwidth)) {
+
         lastMatchedBandwidth = streamBandwidth;
         LOG.info("resolution match: {}, {}, {}, {}", streamResolution, lastMatchedResolution,
             resolutionSelector.getName(), resolutionSelector.getCustomResolution());
+
         if (resolutionSelector.matches(streamResolution, lastMatchedResolution)) {
           lastMatchedResolution = streamResolution;
-          mediaPlaylistUri = matchedUri;
+          mediaPlaylistUri = variant.getURI();
         }
       }
     }
+
     return mediaPlaylistUri != null ? buildAbsoluteUri(mediaPlaylistUri) : uri;
   }
 
@@ -94,40 +94,47 @@ public class Playlist {
   }
 
   public List<MediaSegment> getMediaSegments() {
-    int sequenceNumber = getPlaylistMediaSequence(body);
-    final List<MediaSegment> segments = new ArrayList<>();
-    Matcher m = MEDIA_SEGMENT_PATTERN.matcher(body);
-    while (m.find()) {
-      URI segmentUri = buildAbsoluteUri(m.group(3));
-      float durationSecs = Float.parseFloat(m.group(1));
-      segments.add(new MediaSegment(sequenceNumber++, segmentUri, durationSecs));
-    }
-    return segments;
-  }
+    MediaPlaylist mediaPlaylist = (MediaPlaylist) playlist;
+    MediaSequence mediaSequence = mediaPlaylist.getMediaSequence();
+    int sequence = (mediaSequence != null ? mediaSequence.getSequenceNumber() : 0);
 
-  private int getPlaylistMediaSequence(String tags) {
-    Matcher matcher = MEDIA_SEQUENCE_PATTERN.matcher(tags);
-    return matcher.find() ? Integer.parseInt(matcher.group(1)) : 0;
+    AtomicInteger sequenceNumber = new AtomicInteger(sequence);
+
+    return mediaPlaylist.getSegments().stream()
+        .map(s -> new MediaSegment(sequenceNumber.getAndIncrement(),
+            buildAbsoluteUri(s.getURI()), s.getDuration()))
+        .collect(Collectors.toList());
+
   }
 
   public boolean hasEnd() {
-    return "VOD".equals(getPlaylistType(body)) || hasEndMarker(body);
+    return "VOD".equals(getPlaylistType()) || hasEndMarker();
   }
 
-  private String getPlaylistType(String playlist) {
-    Matcher m = PLAYLIST_TYPE_PATTERN.matcher(playlist);
-    return m.find() ? m.group(1).toUpperCase() : null;
+  private String getPlaylistType() {
+    //By definition, the type doesn't appear in the master playlist
+    if (!playlist.isMasterPlaylist()) {
+      PlaylistType playlistType = ((MediaPlaylist) playlist).getPlaylistType();
+      if (playlistType != null) {
+        return playlistType.getType();
+      }
+    }
+
+    return null;
   }
 
-  private boolean hasEndMarker(String playlist) {
-    return playlist.contains("\n#EXT-X-ENDLIST");
+  private boolean hasEndMarker() {
+    return playlist.getTags().stream()
+        .anyMatch(t -> t.getTagName().contains("EXT-X-ENDLIST"));
   }
 
   public long getReloadTimeMillisForDurationMultiplier(double targetDurationMultiplier,
-      Instant now) {
+                                                Instant now) {
+    MediaPlaylist media = (MediaPlaylist) playlist;
+    long targetDuration = media.getTargetDuration().getDuration();
     long timeDiffMillis = downloadTimestamp.until(now, ChronoUnit.MILLIS);
     long reloadPeriodMillis = TimeUnit.SECONDS.toMillis(Math
-        .round(this.targetDuration * targetDurationMultiplier));
+        .round(targetDuration * targetDurationMultiplier));
     return Math.max(0, reloadPeriodMillis - timeDiffMillis);
   }
 
@@ -150,6 +157,6 @@ public class Playlist {
   }
 
   public boolean isMasterPlaylist() {
-    return body.contains("#EXT-X-STREAM-INF");
+    return playlist.isMasterPlaylist();
   }
 }

@@ -97,6 +97,11 @@
             <version>2.9.4</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.comcast</groupId>
+            <artifactId>hlsparserj</artifactId>
+            <version>1.0.0</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -189,8 +194,22 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
-                <version>3.0.2</version>
+                <version>3.1.1</version>
                 <executions>
+                    <execution>
+                        <id>copy-jmeter-dependencies</id>
+                        <phase>install</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <includeArtifactIds>
+                                hlsparserj
+                            </includeArtifactIds>
+                            <outputDirectory>${project.build.directory}/jmeter-test/lib</outputDirectory>
+                            <stripVersion>true</stripVersion>
+                        </configuration>
+                    </execution>
                     <execution>
                         <id>copy-plugin-to-jmeter-dependencies</id>
                         <phase>install</phase>
