@@ -2,6 +2,7 @@ package com.blazemeter.jmeter.hls.logic;
 
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.function.Consumer;
@@ -39,29 +40,32 @@ public class HlsSampler extends HTTPSampler {
   private static final String MEDIA_PLAYLIST_NAME = "media playlist";
   private static final String MASTER_PLAYLIST_NAME = "master playlist";
 
-  private transient long lastSegmentNumber = -1;
-
   private final transient Function<URI, SampleResult> uriSampler;
   private final transient Consumer<SampleResult> sampleResultNotifier;
   private final transient TimeMachine timeMachine;
 
-  private volatile boolean interrupted;
+  private transient long lastSegmentNumber = -1;
+  private transient volatile boolean interrupted = false;
 
   public HlsSampler() {
-    setName("HLS Sampler");
+    initHttpSampler();
     uriSampler = this::downloadUri;
     sampleResultNotifier = this::notifySampleListeners;
     timeMachine = TimeMachine.SYSTEM;
-    interrupted = false;
   }
 
   public HlsSampler(Function<URI, SampleResult> uriSampler,
-                    Consumer<SampleResult> sampleResultNotifier,
-                    TimeMachine timeMachine) {
-    setName("HLS Sampler");
+      Consumer<SampleResult> sampleResultNotifier,
+      TimeMachine timeMachine) {
+    initHttpSampler();
     this.uriSampler = uriSampler;
     this.sampleResultNotifier = sampleResultNotifier;
     this.timeMachine = timeMachine;
+  }
+
+  private void initHttpSampler() {
+    setName("HLS Sampler");
+    setAutoRedirects(true);
   }
 
   public String getMasterUrl() {
@@ -173,8 +177,14 @@ public class HlsSampler extends HTTPSampler {
       mediaPlaylist = masterPlaylist;
     }
 
-    int playSeconds = isPlayVideoDuration() && !getPlaySeconds().isEmpty()
-        ? Integer.parseInt(getPlaySeconds()) : 0;
+    int playSeconds = 0;
+    if (isPlayVideoDuration() && !getPlaySeconds().isEmpty()) {
+      playSeconds = Integer.parseInt(getPlaySeconds());
+      if (playSeconds <= 0) {
+        LOG.warn("Provided play seconds ({}) is less than or equal to zero. The sampler will "
+                + "reproduce the whole video", playSeconds);
+      }
+    }
     float consumedSeconds = 0;
     boolean playListEnd = false;
 
@@ -232,6 +242,13 @@ public class HlsSampler extends HTTPSampler {
       return null;
     }
 
+    // we update uri in case the request was redirected
+    try {
+      uri = playlistResult.getURL().toURI();
+    } catch (URISyntaxException e) {
+      LOG.warn("Problem updating uri from downloaded playlist {}. Continue with original uri {}",
+          playlistResult.getURL(), uri, e);
+    }
     try {
       Playlist playlist = Playlist
           .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
@@ -273,7 +290,7 @@ public class HlsSampler extends HTTPSampler {
   }
 
   private boolean playedRequestedTime(int playSeconds, float consumedSeconds) {
-    return playSeconds != 0 && playSeconds <= consumedSeconds;
+    return playSeconds > 0 && playSeconds <= consumedSeconds;
   }
 
   private Playlist getUpdatedPlaylist(Playlist playlist)
