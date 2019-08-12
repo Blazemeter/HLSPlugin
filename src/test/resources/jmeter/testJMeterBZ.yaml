@@ -2,7 +2,7 @@ provisioning: cloud
 
 modules:
   jmeter:
-    version: "4.0"
+    version: "5.1.1"
     detect-plugins: false
     properties:
       log_level: DEBUG
