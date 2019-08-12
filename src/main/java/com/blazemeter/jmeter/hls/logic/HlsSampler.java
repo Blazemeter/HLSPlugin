@@ -199,7 +199,7 @@ public class HlsSampler extends HTTPSampler {
           long segmentSequenceNumber = segment.getSequenceNumber();
           if (segmentSequenceNumber > lastSegmentNumber) {
             SampleResult result = uriSampler.apply(segment.getUri());
-            notifySampleResult("segment " + segmentSequenceNumber, result);
+            notifySampleResult("video segment", result);
             lastSegmentNumber = segmentSequenceNumber;
             consumedSeconds += segment.getDurationSeconds();
           }
