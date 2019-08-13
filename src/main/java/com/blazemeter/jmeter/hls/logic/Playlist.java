@@ -55,20 +55,23 @@ public class Playlist {
     return uri;
   }
 
-  public URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
-      BandwidthSelector bandwidthSelector) {
+  public MediaStreamInf solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
+      BandwidthSelector bandwidthSelector, String audioLanguageSelector,
+      String subtitleLanguageSelector) {
 
-    //TODO: This should come from parameters and toLowerCase should be applied
-    String audioLanguageSelector = "en";
-    String subtitleLanguaSelector = "en";
+    LOG.info("Audio language {} Subtitle {}", audioLanguageSelector, subtitleLanguageSelector);
 
     Long lastMatchedBandwidth = null;
     String lastMatchedResolution = null;
     String mediaPlaylistUri = null;
-    UnparsedTag lastAudioMatchedTag = null;
-    UnparsedTag lastSubtitleMatchedTag = null;
+    String lastAudioMatchedURI = null;
+    String lastSubtitleMatchedURI = null;
+
+    String defaultAudioURI = null;
+    String defaultSubtitleURI = null;
 
     MasterPlaylist masterplaylist = (MasterPlaylist) playlist;
+
     for (UnparsedTag tag : masterplaylist.getTags()) {
 
       Map<String, String> attributes = tag.getAttributes();
@@ -78,29 +81,46 @@ public class Playlist {
 
       String type = attributes.get("TYPE");
 
-      //The tags EXT-X-STREAM-INF doesn't have attributes type/language/name, so we skip them
+      //The EXT-X-STREAM-INF tags doesn't have attributes type/language/name, so we skip them
       if (type != null) {
         String language = attributes.get("LANGUAGE").toLowerCase();
         String name = attributes.get("NAME");
+
         //TODO: Delete this Log before merging
         LOG.info("Type {} | {}", type, language);
-        if ("AUDIO".equals(type)
-            && (audioLanguageSelector.equals(language) || audioLanguageSelector.equals(name))) {
-          lastAudioMatchedTag = tag;
-        } else if ("SUBTITLES".equals(type)
-            && (subtitleLanguaSelector.equals(language) || subtitleLanguaSelector.equals(name))) {
-          lastSubtitleMatchedTag = tag;
+        if ("AUDIO".equals(type)) {
+          if (attributes.get("DEFAULT").equals("YES") && defaultAudioURI == null) {
+            defaultAudioURI = tag.getURI();
+          }
+
+          if (audioLanguageSelector.equals(language) || audioLanguageSelector.equals(name)) {
+            lastAudioMatchedURI = tag.getURI();
+          }
+        } else if ("SUBTITLES".equals(type)) {
+          if (attributes.get("DEFAULT").equals("YES") && defaultSubtitleURI == null) {
+            defaultSubtitleURI = tag.getURI();
+          }
+
+          if (subtitleLanguageSelector.equals(language) || subtitleLanguageSelector.equals(name)) {
+            lastSubtitleMatchedURI = tag.getURI();
+          }
         }
       }
     }
 
-    //TODO: Delete this validation or do something with it (eg: sending an error sample)
-    if (lastAudioMatchedTag == null) {
-      LOG.warn("There was no audio found for the subtitle audio {}. Using default", audioLanguageSelector);
+    //TODO: Delete ths 'Default URI' log before merging. Just for debugging.
+    if (lastAudioMatchedURI == null) {
+      LOG.warn("There was no audio found for the subtitle audio {}. Using default.",
+          audioLanguageSelector);
+      LOG.info("Default URI {}", defaultAudioURI);
+      lastAudioMatchedURI = defaultAudioURI;
     }
 
-    if (lastSubtitleMatchedTag == null) {
-      LOG.warn("There was no subtitle found for the selected subtitle {}. Using default", subtitleLanguaSelector);
+    if (lastSubtitleMatchedURI == null) {
+      LOG.warn("There was no subtitle found for the selected subtitle {}. Using default",
+          subtitleLanguageSelector);
+      LOG.info("Default URI {}", defaultSubtitleURI);
+      lastSubtitleMatchedURI = defaultSubtitleURI;
     }
 
     for (StreamInf variant : masterplaylist.getVariantStreams()) {
@@ -108,11 +128,9 @@ public class Playlist {
       String streamResolution = variant.getResolution();
 
       if (bandwidthSelector.matches(streamBandwidth, lastMatchedBandwidth)) {
-
         lastMatchedBandwidth = streamBandwidth;
         LOG.info("resolution match: {}, {}, {}, {}", streamResolution, lastMatchedResolution,
             resolutionSelector.getName(), resolutionSelector.getCustomResolution());
-        LOG.info("subtitle {} audio {} ", variant.getSubtitle(), variant.getAudio());
         if (resolutionSelector.matches(streamResolution, lastMatchedResolution)) {
           lastMatchedResolution = streamResolution;
           mediaPlaylistUri = variant.getURI();
@@ -120,7 +138,12 @@ public class Playlist {
       }
     }
 
-    return mediaPlaylistUri != null ? buildAbsoluteUri(mediaPlaylistUri) : null;
+    if (mediaPlaylistUri == null) {
+      return null;
+    }
+
+    return new MediaStreamInf(buildAbsoluteUri(mediaPlaylistUri),
+        buildAbsoluteUri(lastAudioMatchedURI), buildAbsoluteUri(lastSubtitleMatchedURI));
   }
 
   private URI buildAbsoluteUri(String str) {

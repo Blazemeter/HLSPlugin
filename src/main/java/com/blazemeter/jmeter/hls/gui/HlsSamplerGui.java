@@ -52,6 +52,8 @@ public class HlsSamplerGui extends AbstractSamplerGui {
     hlsSamplerPanel.setResumeStatus(sampler.getResumeVideoStatus());
     hlsSamplerPanel.setResolutionSelector(sampler.getResolutionSelector());
     hlsSamplerPanel.setBandwidthSelector(sampler.getBandwidthSelector());
+    hlsSamplerPanel.setAudioLanguage(sampler.getAudioLanguage());
+    hlsSamplerPanel.setSubtitleLanguage(sampler.getSubtitleLanguage());
   }
 
   @Override
@@ -65,6 +67,8 @@ public class HlsSamplerGui extends AbstractSamplerGui {
       sampler.setResumeVideoStatus(hlsSamplerPanel.getResumeVideoStatus());
       sampler.setResolutionSelector(hlsSamplerPanel.getResolutionSelector());
       sampler.setBandwidthSelector(hlsSamplerPanel.getBandwidthSelector());
+      sampler.setAudioLanguage(hlsSamplerPanel.getAudioLanguage());
+      sampler.setSubtitleLanguage(hlsSamplerPanel.getSubtitleLanguage());
     }
   }
 

@@ -33,12 +33,16 @@ public class HlsSampler extends HTTPSampler {
   private static final String RESOLUTION_TYPE_PROPERTY_NAME = "HLS.RESOLUTION_TYPE";
   private static final String BANDWIDTH_TYPE_PROPERTY_NAME = "HLS.BANDWIDTH_TYPE";
   private static final String RESUME_DOWNLOAD_PROPERTY_NAME = "HLS.RESUME_DOWNLOAD";
+  private static final String AUDIO_LANGUAGE_PROPERTY_NAME = "HLS.AUDIO_LANGUAGE";
+  private static final String SUBTITLE_LANGUAGE_PROPERTY_NAME = "HLS.SUBTITLE_LANGUAGE";
 
   private static final String HEADER_MANAGER = "HLSRequest.header_manager";
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
   private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
   private static final String MEDIA_PLAYLIST_NAME = "media playlist";
   private static final String MASTER_PLAYLIST_NAME = "master playlist";
+  private static final String AUDIO_PLAYLIST_NAME = "audio playlist";
+  private static final String SUBTITLE_PLAYLIST_NAME = "subtitle playlist";
 
   private final transient Function<URI, SampleResult> uriSampler;
   private final transient Consumer<SampleResult> sampleResultNotifier;
@@ -124,6 +128,22 @@ public class HlsSampler extends HTTPSampler {
     setProperty(CUSTOM_BANDWIDTH_PROPERTY_NAME, bandwidth != null ? bandwidth.toString() : null);
   }
 
+  public String getAudioLanguage() {
+    return this.getPropertyAsString(AUDIO_LANGUAGE_PROPERTY_NAME);
+  }
+
+  public void setAudioLanguage(String language) {
+    this.setProperty(AUDIO_LANGUAGE_PROPERTY_NAME, language);
+  }
+
+  public String getSubtitleLanguage() {
+    return this.getPropertyAsString(SUBTITLE_LANGUAGE_PROPERTY_NAME);
+  }
+
+  public void setSubtitleLanguage(String language) {
+    this.setProperty(SUBTITLE_LANGUAGE_PROPERTY_NAME, language);
+  }
+
   // implemented for backwards compatibility
   @Override
   public CookieManager getCookieManager() {
@@ -158,11 +178,16 @@ public class HlsSampler extends HTTPSampler {
     }
 
     Playlist mediaPlaylist;
+    Playlist audioPlaylist = null;
+    Playlist subtitlePlaylist = null;
 
     if (!interrupted && masterPlaylist.isMasterPlaylist()) {
 
-      URI mediaPlaylistUri = masterPlaylist
-          .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
+      MediaStreamInf mediaStreamInf = masterPlaylist
+          .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector(),
+              getAudioLanguage(), getSubtitleLanguage());
+
+      URI mediaPlaylistUri = mediaStreamInf.getMediaPlaylistUri();
 
       if (mediaPlaylistUri == null) {
         return buildNotMatchingMediaPlaylistResult();
@@ -171,6 +196,16 @@ public class HlsSampler extends HTTPSampler {
       mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
       if (mediaPlaylist == null) {
         return null;
+      }
+
+      if (mediaStreamInf.getAudioUri() != null) {
+        audioPlaylist = downloadPlaylist(AUDIO_PLAYLIST_NAME, mediaStreamInf.getAudioUri());
+      } else {
+        audioPlaylist = null;
+      }
+
+      if (mediaStreamInf.getSubtitleUri() != null) {
+        subtitlePlaylist = downloadPlaylist(SUBTITLE_PLAYLIST_NAME, mediaStreamInf.getAudioUri());
       }
 
     } else {
@@ -192,7 +227,12 @@ public class HlsSampler extends HTTPSampler {
       boolean playedRequestedTime = !playedRequestedTime(playSeconds, consumedSeconds);
       while (!interrupted && mediaPlaylist != null && playedRequestedTime && !playListEnd) {
         Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
-        int size = mediaPlaylist.getMediaSegments().size();
+
+        float audioConsumedSeconds = consumedSeconds;
+        float subtitleConsumedSeconds = consumedSeconds;
+        long lastAudioSegmentNumber = lastSegmentNumber;
+        long lastSubtitleSegmentNumber = lastSegmentNumber;
+
         while (!interrupted && mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds,
             consumedSeconds)) {
           MediaSegment segment = mediaSegmentsIt.next();
@@ -203,6 +243,17 @@ public class HlsSampler extends HTTPSampler {
             lastSegmentNumber = segmentSequenceNumber;
             consumedSeconds += segment.getDurationSeconds();
           }
+        }
+
+        //TODO: This should be done in parallel
+        if (audioPlaylist != null) {
+          downloadSegments(audioPlaylist, playSeconds, audioConsumedSeconds,
+              lastAudioSegmentNumber, "audio segment");
+        }
+
+        if (subtitlePlaylist != null) {
+          downloadSegments(subtitlePlaylist, playSeconds, subtitleConsumedSeconds,
+              lastSubtitleSegmentNumber, "subtitle segment");
         }
 
         playListEnd = mediaPlaylist.hasEnd() && !mediaSegmentsIt.hasNext();
@@ -217,6 +268,22 @@ public class HlsSampler extends HTTPSampler {
     }
 
     return null;
+  }
+
+  private void downloadSegments(Playlist playlist, int playSeconds, float consumedSeconds,
+      long lastAudioSegmentNumber, String segmentName) {
+    Iterator<MediaSegment> audioSegments = playlist.getMediaSegments().iterator();
+    while (!interrupted && audioSegments.hasNext() && !playedRequestedTime(playSeconds,
+        consumedSeconds)) {
+      MediaSegment audioSegment = audioSegments.next();
+      long audoSegmentSequenceNumber = audioSegment.getSequenceNumber();
+      if (audoSegmentSequenceNumber > lastAudioSegmentNumber) {
+        SampleResult result = uriSampler.apply(audioSegment.getUri());
+        lastAudioSegmentNumber = audoSegmentSequenceNumber;
+        notifySampleResult(segmentName, result);
+        consumedSeconds += audioSegment.getDurationSeconds();
+      }
+    }
   }
 
   private SampleResult buildNotMatchingMediaPlaylistResult() {
