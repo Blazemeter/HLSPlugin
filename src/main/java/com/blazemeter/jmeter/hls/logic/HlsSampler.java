@@ -224,8 +224,8 @@ public class HlsSampler extends HTTPSampler {
     boolean playListEnd = false;
 
     try {
-      boolean playedRequestedTime = !playedRequestedTime(playSeconds, consumedSeconds);
-      while (!interrupted && mediaPlaylist != null && playedRequestedTime && !playListEnd) {
+      while (!interrupted && mediaPlaylist != null
+          && !playedRequestedTime(playSeconds, consumedSeconds) && !playListEnd) {
 
         float audioConsumedSeconds = consumedSeconds;
         float subtitleConsumedSeconds = consumedSeconds;
