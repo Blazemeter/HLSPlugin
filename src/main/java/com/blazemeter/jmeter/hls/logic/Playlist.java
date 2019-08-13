@@ -41,7 +41,8 @@ public class Playlist {
   public static Playlist fromUriAndBody(URI uri, String body, Instant timestamp)
       throws PlaylistParsingException {
     try {
-      return new Playlist(uri, body, timestamp, PlaylistFactory.parsePlaylist(TWELVE, body));
+      return new Playlist(uri, body, timestamp,
+          PlaylistFactory.parsePlaylist(TWELVE, body.replace("\r", "")));
     } catch (Exception e) {
       throw new PlaylistParsingException(e, uri.toString());
     }
@@ -52,7 +53,7 @@ public class Playlist {
   }
 
   public URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
-                            BandwidthSelector bandwidthSelector) {
+      BandwidthSelector bandwidthSelector) {
     Long lastMatchedBandwidth = null;
     String lastMatchedResolution = null;
     String mediaPlaylistUri = null;
@@ -129,7 +130,7 @@ public class Playlist {
   }
 
   public long getReloadTimeMillisForDurationMultiplier(double targetDurationMultiplier,
-                                                Instant now) {
+      Instant now) {
     MediaPlaylist media = (MediaPlaylist) playlist;
     long targetDuration = media.getTargetDuration().getDuration();
     long timeDiffMillis = downloadTimestamp.until(now, ChronoUnit.MILLIS);
