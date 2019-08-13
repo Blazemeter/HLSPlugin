@@ -44,7 +44,8 @@ public class Playlist {
   public static Playlist fromUriAndBody(URI uri, String body, Instant timestamp)
       throws PlaylistParsingException {
     try {
-      return new Playlist(uri, body, timestamp, PlaylistFactory.parsePlaylist(TWELVE, body));
+      return new Playlist(uri, body, timestamp,
+          PlaylistFactory.parsePlaylist(TWELVE, body.replace("\r", "")));
     } catch (Exception e) {
       throw new PlaylistParsingException(e, uri.toString());
     }
@@ -55,7 +56,8 @@ public class Playlist {
   }
 
   public URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
-                            BandwidthSelector bandwidthSelector) {
+      BandwidthSelector bandwidthSelector) {
+
     //TODO: This should come from parameters and toLowerCase should be applied
     String audioLanguageSelector = "en";
     String subtitleLanguaSelector = "en";
@@ -94,11 +96,11 @@ public class Playlist {
 
     //TODO: Delete this validation or do something with it (eg: sending an error sample)
     if (lastAudioMatchedTag == null) {
-      LOG.warn("There was no audio found for the subtitle audio: {}", audioLanguageSelector);
+      LOG.warn("There was no audio found for the subtitle audio {}. Using default", audioLanguageSelector);
     }
 
     if (lastSubtitleMatchedTag == null) {
-      LOG.warn("There was no subtitle found for the selected subtitle: {}", subtitleLanguaSelector);
+      LOG.warn("There was no subtitle found for the selected subtitle {}. Using default", subtitleLanguaSelector);
     }
 
     for (StreamInf variant : masterplaylist.getVariantStreams()) {
@@ -171,7 +173,7 @@ public class Playlist {
   }
 
   public long getReloadTimeMillisForDurationMultiplier(double targetDurationMultiplier,
-                                                Instant now) {
+      Instant now) {
     MediaPlaylist media = (MediaPlaylist) playlist;
     TargetDuration mediaTargetDuration = media.getTargetDuration();
     long targetDuration = (mediaTargetDuration != null
