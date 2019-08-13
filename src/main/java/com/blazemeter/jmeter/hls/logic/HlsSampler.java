@@ -226,13 +226,14 @@ public class HlsSampler extends HTTPSampler {
     try {
       boolean playedRequestedTime = !playedRequestedTime(playSeconds, consumedSeconds);
       while (!interrupted && mediaPlaylist != null && playedRequestedTime && !playListEnd) {
-        Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
 
         float audioConsumedSeconds = consumedSeconds;
         float subtitleConsumedSeconds = consumedSeconds;
+
         long lastAudioSegmentNumber = lastSegmentNumber;
         long lastSubtitleSegmentNumber = lastSegmentNumber;
 
+        Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
         while (!interrupted && mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds,
             consumedSeconds)) {
           MediaSegment segment = mediaSegmentsIt.next();
@@ -245,7 +246,7 @@ public class HlsSampler extends HTTPSampler {
           }
         }
 
-        //TODO: This should be done in parallel
+        //TODO: This could/should be done in parallel
         if (audioPlaylist != null) {
           downloadSegments(audioPlaylist, playSeconds, audioConsumedSeconds,
               lastAudioSegmentNumber, "audio segment");
@@ -271,15 +272,15 @@ public class HlsSampler extends HTTPSampler {
   }
 
   private void downloadSegments(Playlist playlist, int playSeconds, float consumedSeconds,
-      long lastAudioSegmentNumber, String segmentName) {
+      long lastSegmentNumber, String segmentName) {
     Iterator<MediaSegment> audioSegments = playlist.getMediaSegments().iterator();
     while (!interrupted && audioSegments.hasNext() && !playedRequestedTime(playSeconds,
         consumedSeconds)) {
       MediaSegment audioSegment = audioSegments.next();
       long audoSegmentSequenceNumber = audioSegment.getSequenceNumber();
-      if (audoSegmentSequenceNumber > lastAudioSegmentNumber) {
+      if (audoSegmentSequenceNumber > lastSegmentNumber) {
         SampleResult result = uriSampler.apply(audioSegment.getUri());
-        lastAudioSegmentNumber = audoSegmentSequenceNumber;
+        lastSegmentNumber = audoSegmentSequenceNumber;
         notifySampleResult(segmentName, result);
         consumedSeconds += audioSegment.getDurationSeconds();
       }
