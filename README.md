@@ -21,7 +21,7 @@ This plugin solves the HLS complexity internally. It gets the master playlist fi
 
 Here is what the HLS Sampler looks like:
 
-![](docs/HLSPluginView.png)
+![](docs/sampler.png)
 
 ### To create your test
 
@@ -29,7 +29,7 @@ Here is what the HLS Sampler looks like:
 - Create a Thread Group.
 - Add the HLS Sampler Add -> Sampler -> bzm - HLS Sampler
 
-![](docs/HLSAddSampler.png)
+![](docs/add-sampler.png)
 
 After that you can add assertions, listeners, etc.
 
@@ -44,7 +44,7 @@ Set the link to the master playlist file
 - URL
 
 
-![](docs/HLSVideo.png)
+![](docs/video-url.png)
 
 #### Play options
 
@@ -53,7 +53,7 @@ Set the playback time of the test:
 - Whole video
 - Video duration (seconds)
 
-![](docs/HLSTime.png)
+![](docs/duration.png)
 
 #### Network options
 
@@ -62,34 +62,34 @@ Select the protocol of the playlist you want to test. You can identify it in the
 - http
 - https
 
+#### Resolution
+
+Select a resolution to simulate your specific device.
+
+![](docs/resolution.png)
+
 #### Bandwidth
 
-Select the bandwidth you want to simulate in your test. If there is only one playlist for the selected bandwidth, the plugin will select the playlist based only on this criterion.
+After selecting the desired resolution you can select the bandwidth you want to simulate in your test. If there is only one playlist for the selected bandwidth, the plugin will select the playlist based only on this criterion.
 
 - Custom Bandwidth (bits/s)
 - Min bandwidth available
 - Max bandwidth available
 
-![](docs/HLSNetwork.png)
-
-#### Resolution
-
-After selecting the desired bandwidth you can select a resolution to simulate your specific device.
-
-![](docs/HLSResolution.png)
+![](docs/bandwidth.png)
 
 
 #### Resume video downloads
 
 When iterations are used, the sampler will (by default) start downloading video segments from the beginning of the video for each iteration. It is possible to make the sampler continue in each iteration downloading video segments from the last iteration by checking the "Resume video downloads between iterations" checkbox.
 
-![](docs/HLSResumeVideo.png)
+![](docs/resume-video.png)
 
 ## Results
 
-You can set listeners to evaluate the results of your tests. The View Results Tree Listener displays the resultant samples for the HLS samplers so, you can inspect how the requests and responses worked. It will display each one of the samples with the name of the type it downloaded (Master Playlist, Media Playlist or segment followed by sequential number) to identify them.
+You can set listeners to evaluate the results of your tests. The View Results Tree Listener displays the resultant samples for the HLS samplers so, you can inspect how the requests and responses worked. It will display each one of the samples with the name of the type it downloaded (master playlist, media playlist or video segment) to identify them.
 
-![](docs/HLSResults.png)
+![](docs/sample-results.png)
 
 Assertions are supported for the master playlist and variant (child) playlist. Examples: Response Assertion and Duration Assertion. Select `Main sample only` in assertion to test the master playlist response and `Sub-samples only` to test the variant (child) playlist response.
 
