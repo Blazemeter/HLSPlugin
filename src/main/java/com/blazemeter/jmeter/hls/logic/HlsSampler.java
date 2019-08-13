@@ -189,10 +189,10 @@ public class HlsSampler extends HTTPSampler {
     boolean playListEnd = false;
 
     try {
-      while (!interrupted && mediaPlaylist != null && !playedRequestedTime(playSeconds,
-          consumedSeconds) && !playListEnd) {
+      boolean playedRequestedTime = !playedRequestedTime(playSeconds, consumedSeconds);
+      while (!interrupted && mediaPlaylist != null && playedRequestedTime && !playListEnd) {
         Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
-
+        int size = mediaPlaylist.getMediaSegments().size();
         while (!interrupted && mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds,
             consumedSeconds)) {
           MediaSegment segment = mediaSegmentsIt.next();
@@ -299,9 +299,13 @@ public class HlsSampler extends HTTPSampler {
         timeMachine.now()));
     Playlist updatedMediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME,
         playlist.getUri());
-    while (!interrupted && updatedMediaPlaylist != null && updatedMediaPlaylist.equals(playlist)) {
-      timeMachine.awaitMillis(updatedMediaPlaylist
-          .getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now()));
+
+    boolean updatedPlayListBool = updatedMediaPlaylist.equals(playlist);
+    while (!interrupted && updatedMediaPlaylist != null && updatedPlayListBool) {
+      long millis = updatedMediaPlaylist
+          .getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now());
+
+      timeMachine.awaitMillis(millis);
       updatedMediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, playlist.getUri());
     }
     return updatedMediaPlaylist;

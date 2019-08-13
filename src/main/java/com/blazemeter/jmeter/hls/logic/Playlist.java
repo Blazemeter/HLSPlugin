@@ -6,15 +6,18 @@ import com.comcast.viper.hlsparserj.IPlaylist;
 import com.comcast.viper.hlsparserj.MasterPlaylist;
 import com.comcast.viper.hlsparserj.MediaPlaylist;
 import com.comcast.viper.hlsparserj.PlaylistFactory;
+import com.comcast.viper.hlsparserj.tags.UnparsedTag;
 import com.comcast.viper.hlsparserj.tags.master.StreamInf;
 import com.comcast.viper.hlsparserj.tags.media.MediaSequence;
 
 import com.comcast.viper.hlsparserj.tags.media.PlaylistType;
+import com.comcast.viper.hlsparserj.tags.media.TargetDuration;
 import java.net.URI;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -53,13 +56,52 @@ public class Playlist {
 
   public URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
                             BandwidthSelector bandwidthSelector) {
+    //TODO: This should come from parameters and toLowerCase should be applied
+    String audioLanguageSelector = "en";
+    String subtitleLanguaSelector = "en";
+
     Long lastMatchedBandwidth = null;
     String lastMatchedResolution = null;
     String mediaPlaylistUri = null;
+    UnparsedTag lastAudioMatchedTag = null;
+    UnparsedTag lastSubtitleMatchedTag = null;
 
     MasterPlaylist masterplaylist = (MasterPlaylist) playlist;
-    for (StreamInf variant : masterplaylist.getVariantStreams()) {
+    for (UnparsedTag tag : masterplaylist.getTags()) {
 
+      Map<String, String> attributes = tag.getAttributes();
+      if (attributes.size() < 1) {
+        continue;
+      }
+
+      String type = attributes.get("TYPE");
+
+      //The tags EXT-X-STREAM-INF doesn't have attributes type/language/name, so we skip them
+      if (type != null) {
+        String language = attributes.get("LANGUAGE").toLowerCase();
+        String name = attributes.get("NAME");
+        //TODO: Delete this Log before merging
+        LOG.info("Type {} | {}", type, language);
+        if ("AUDIO".equals(type)
+            && (audioLanguageSelector.equals(language) || audioLanguageSelector.equals(name))) {
+          lastAudioMatchedTag = tag;
+        } else if ("SUBTITLES".equals(type)
+            && (subtitleLanguaSelector.equals(language) || subtitleLanguaSelector.equals(name))) {
+          lastSubtitleMatchedTag = tag;
+        }
+      }
+    }
+
+    //TODO: Delete this validation or do something with it (eg: sending an error sample)
+    if (lastAudioMatchedTag == null) {
+      LOG.warn("There was no audio found for the subtitle audio: {}", audioLanguageSelector);
+    }
+
+    if (lastSubtitleMatchedTag == null) {
+      LOG.warn("There was no subtitle found for the selected subtitle: {}", subtitleLanguaSelector);
+    }
+
+    for (StreamInf variant : masterplaylist.getVariantStreams()) {
       long streamBandwidth = variant.getBandwidth();
       String streamResolution = variant.getResolution();
 
@@ -68,7 +110,7 @@ public class Playlist {
         lastMatchedBandwidth = streamBandwidth;
         LOG.info("resolution match: {}, {}, {}, {}", streamResolution, lastMatchedResolution,
             resolutionSelector.getName(), resolutionSelector.getCustomResolution());
-
+        LOG.info("subtitle {} audio {} ", variant.getSubtitle(), variant.getAudio());
         if (resolutionSelector.matches(streamResolution, lastMatchedResolution)) {
           lastMatchedResolution = streamResolution;
           mediaPlaylistUri = variant.getURI();
@@ -131,7 +173,9 @@ public class Playlist {
   public long getReloadTimeMillisForDurationMultiplier(double targetDurationMultiplier,
                                                 Instant now) {
     MediaPlaylist media = (MediaPlaylist) playlist;
-    long targetDuration = media.getTargetDuration().getDuration();
+    TargetDuration mediaTargetDuration = media.getTargetDuration();
+    long targetDuration = (mediaTargetDuration != null
+        ? media.getTargetDuration().getDuration() : 0);
     long timeDiffMillis = downloadTimestamp.until(now, ChronoUnit.MILLIS);
     long reloadPeriodMillis = TimeUnit.SECONDS.toMillis(Math
         .round(targetDuration * targetDurationMultiplier));

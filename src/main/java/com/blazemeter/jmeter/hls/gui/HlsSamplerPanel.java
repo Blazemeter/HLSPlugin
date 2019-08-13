@@ -34,6 +34,9 @@ public class HlsSamplerPanel extends JPanel {
   private JRadioButton maxBandwidthOption;
   private JRadioButton minBandwidthOption;
 
+  private JTextField subtitleField;
+  private JTextField audioField;
+
   public HlsSamplerPanel() {
     initComponents();
   }
