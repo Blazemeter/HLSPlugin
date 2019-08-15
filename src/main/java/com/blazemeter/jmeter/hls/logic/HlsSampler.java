@@ -3,15 +3,19 @@ package com.blazemeter.jmeter.hls.logic;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.apache.jmeter.engine.event.LoopIterationEvent;
 import org.apache.jmeter.protocol.http.control.CacheManager;
 import org.apache.jmeter.protocol.http.control.CookieManager;
 import org.apache.jmeter.protocol.http.control.HeaderManager;
+import org.apache.jmeter.protocol.http.sampler.HTTPHC4Impl;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
-import org.apache.jmeter.protocol.http.sampler.HTTPSampler;
+import org.apache.jmeter.protocol.http.sampler.HTTPSamplerBase;
+import org.apache.jmeter.samplers.Interruptible;
 import org.apache.jmeter.samplers.SampleEvent;
 import org.apache.jmeter.samplers.SampleResult;
 import org.apache.jmeter.threads.JMeterContext;
@@ -21,7 +25,7 @@ import org.apache.jmeter.threads.SamplePackage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class HlsSampler extends HTTPSampler {
+public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   private static final Logger LOG = LoggerFactory.getLogger(HlsSampler.class);
 
@@ -44,8 +48,38 @@ public class HlsSampler extends HTTPSampler {
   private final transient Consumer<SampleResult> sampleResultNotifier;
   private final transient TimeMachine timeMachine;
 
+  private transient HlsHttpClient httpClient;
+  private transient volatile boolean notifyFirstSampleAfterLoopRestart;
   private transient long lastSegmentNumber = -1;
   private transient volatile boolean interrupted = false;
+
+  /*
+  we use this class to be able to access some methods on super class and because we can't extend
+  HTTPProxySampler class
+   */
+  private static class HlsHttpClient extends HTTPHC4Impl {
+
+    private HlsHttpClient(HTTPSamplerBase testElement) {
+      super(testElement);
+    }
+
+    @Override
+    protected HTTPSampleResult sample(java.net.URL url, String method, boolean areFollowingRedirect,
+        int frameDepth) {
+      return super.sample(url, method, areFollowingRedirect, frameDepth);
+    }
+
+    @Override
+    protected void notifyFirstSampleAfterLoopRestart() {
+      super.notifyFirstSampleAfterLoopRestart();
+    }
+
+    @Override
+    protected void threadFinished() {
+      super.threadFinished();
+    }
+
+  }
 
   public HlsSampler() {
     initHttpSampler();
@@ -65,7 +99,29 @@ public class HlsSampler extends HTTPSampler {
 
   private void initHttpSampler() {
     setName("HLS Sampler");
-    setAutoRedirects(true);
+    setFollowRedirects(true);
+    setUseKeepAlive(true);
+    httpClient = new HlsHttpClient(this);
+  }
+
+  private HTTPSampleResult downloadUri(URI uri) {
+    try {
+      return sample(uri.toURL(), "GET", false, 0);
+    } catch (MalformedURLException e) {
+      throw new IllegalArgumentException(e);
+    }
+  }
+
+  private void notifySampleListeners(SampleResult sampleResult) {
+    JMeterContext threadContext = getThreadContext();
+    JMeterVariables threadContextVariables = threadContext.getVariables();
+    if (threadContextVariables != null) {
+      SamplePackage pack = (SamplePackage) threadContext.getVariables()
+          .getObject(JMeterThread.PACKAGE_OBJECT);
+      SampleEvent event = new SampleEvent(sampleResult, getThreadName(),
+          threadContext.getVariables(), false);
+      pack.getSampleListeners().forEach(l -> l.sampleOccurred(event));
+    }
   }
 
   public String getMasterUrl() {
@@ -151,6 +207,11 @@ public class HlsSampler extends HTTPSampler {
       lastSegmentNumber = -1;
     }
 
+    if (notifyFirstSampleAfterLoopRestart) {
+      httpClient.notifyFirstSampleAfterLoopRestart();
+      notifyFirstSampleAfterLoopRestart = false;
+    }
+
     URI masterUri = URI.create(getMasterUrl());
     Playlist masterPlaylist = downloadPlaylist(null, masterUri);
     if (masterPlaylist == null) {
@@ -182,7 +243,7 @@ public class HlsSampler extends HTTPSampler {
       playSeconds = Integer.parseInt(getPlaySeconds());
       if (playSeconds <= 0) {
         LOG.warn("Provided play seconds ({}) is less than or equal to zero. The sampler will "
-                + "reproduce the whole video", playSeconds);
+            + "reproduce the whole video", playSeconds);
       }
     }
     float consumedSeconds = 0;
@@ -217,6 +278,12 @@ public class HlsSampler extends HTTPSampler {
     }
 
     return null;
+  }
+
+  @Override
+  protected HTTPSampleResult sample(URL url, String method, boolean areFollowingRedirect,
+      int frameDepth) {
+    return httpClient.sample(url, method, areFollowingRedirect, frameDepth);
   }
 
   private SampleResult buildNotMatchingMediaPlaylistResult() {
@@ -269,26 +336,6 @@ public class HlsSampler extends HTTPSampler {
     sampleResultNotifier.accept(result);
   }
 
-  private HTTPSampleResult downloadUri(URI uri) {
-    try {
-      return sample(uri.toURL(), "GET", false, 0);
-    } catch (MalformedURLException e) {
-      throw new IllegalArgumentException(e);
-    }
-  }
-
-  private void notifySampleListeners(SampleResult sampleResult) {
-    JMeterContext threadContext = getThreadContext();
-    JMeterVariables threadContextVariables = threadContext.getVariables();
-    if (threadContextVariables != null) {
-      SamplePackage pack = (SamplePackage) threadContext.getVariables()
-          .getObject(JMeterThread.PACKAGE_OBJECT);
-      SampleEvent event = new SampleEvent(sampleResult, getThreadName(),
-          threadContext.getVariables(), false);
-      pack.getSampleListeners().forEach(l -> l.sampleOccurred(event));
-    }
-  }
-
   private boolean playedRequestedTime(int playSeconds, float consumedSeconds) {
     return playSeconds > 0 && playSeconds <= consumedSeconds;
   }
@@ -307,11 +354,22 @@ public class HlsSampler extends HTTPSampler {
     return updatedMediaPlaylist;
   }
 
+  @Override
   public boolean interrupt() {
     interrupted = true;
     timeMachine.interrupt();
-    super.interrupt();
-
+    httpClient.interrupt();
     return interrupted;
   }
+
+  @Override
+  public void threadFinished() {
+    httpClient.threadFinished();
+  }
+
+  @Override
+  public void testIterationStart(LoopIterationEvent event) {
+    notifyFirstSampleAfterLoopRestart = true;
+  }
+
 }
