@@ -44,7 +44,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private static final String MEDIA_PLAYLIST_NAME = "media playlist";
   private static final String MASTER_PLAYLIST_NAME = "master playlist";
 
-  private final transient Function<URI, SampleResult> uriSampler;
+  private final transient Function<URI, HTTPSampleResult> uriSampler;
   private final transient Consumer<SampleResult> sampleResultNotifier;
   private final transient TimeMachine timeMachine;
 
@@ -88,7 +88,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     timeMachine = TimeMachine.SYSTEM;
   }
 
-  public HlsSampler(Function<URI, SampleResult> uriSampler,
+  public HlsSampler(Function<URI, HTTPSampleResult> uriSampler,
       Consumer<SampleResult> sampleResultNotifier,
       TimeMachine timeMachine) {
     initHttpSampler();
@@ -298,12 +298,8 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   private Playlist downloadPlaylist(String playlistName, URI uri) {
     Instant downloadTimestamp = timeMachine.now();
-    SampleResult playlistResult = uriSampler.apply(uri);
+    HTTPSampleResult playlistResult = uriSampler.apply(uri);
     if (!playlistResult.isSuccessful()) {
-      if (playlistName == null) {
-        playlistName = MASTER_PLAYLIST_NAME;
-      }
-
       notifySampleResult(playlistName, playlistResult);
       LOG.warn("Problem downloading {} {}", playlistName, uri);
       return null;
@@ -322,17 +318,17 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       if (playlistName == null) {
         playlistName = playlist.isMasterPlaylist() ? MASTER_PLAYLIST_NAME : MEDIA_PLAYLIST_NAME;
       }
+      notifySampleResult(playlistName, playlistResult);
       return playlist;
     } catch (PlaylistParsingException e) {
+      notifySampleResult(playlistName, errorResult(e, playlistResult));
       LOG.warn("Problem parsing {} {}", playlistName, uri, e);
       return null;
-    } finally {
-      notifySampleResult(playlistName, playlistResult);
     }
   }
 
   private void notifySampleResult(String name, SampleResult result) {
-    result.setSampleLabel(getName() + " - " + name);
+    result.setSampleLabel(getName() + " - " + (name != null ? name : MASTER_PLAYLIST_NAME));
     sampleResultNotifier.accept(result);
   }
 

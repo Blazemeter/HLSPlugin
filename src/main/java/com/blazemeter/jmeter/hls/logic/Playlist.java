@@ -8,12 +8,10 @@ import com.comcast.viper.hlsparserj.MediaPlaylist;
 import com.comcast.viper.hlsparserj.PlaylistFactory;
 import com.comcast.viper.hlsparserj.tags.master.StreamInf;
 import com.comcast.viper.hlsparserj.tags.media.MediaSequence;
-
 import com.comcast.viper.hlsparserj.tags.media.PlaylistType;
 import java.net.URI;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -41,10 +39,13 @@ public class Playlist {
   public static Playlist fromUriAndBody(URI uri, String body, Instant timestamp)
       throws PlaylistParsingException {
     try {
-      return new Playlist(uri, body, timestamp,
-          PlaylistFactory.parsePlaylist(TWELVE, body.replace("\r", "")));
+      IPlaylist parsed = PlaylistFactory.parsePlaylist(TWELVE, body.replace("\r", ""));
+      if (parsed.getTags().isEmpty()) {
+        throw new PlaylistParsingException(uri);
+      }
+      return new Playlist(uri, body, timestamp, parsed);
     } catch (Exception e) {
-      throw new PlaylistParsingException(e, uri.toString());
+      throw new PlaylistParsingException(e, uri);
     }
   }
 
