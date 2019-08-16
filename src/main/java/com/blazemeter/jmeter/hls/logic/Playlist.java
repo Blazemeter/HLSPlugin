@@ -55,7 +55,7 @@ public class Playlist {
     return uri;
   }
 
-  public MediaStreamInf solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
+  public MediaStream solveMediaStream(ResolutionSelector resolutionSelector,
       BandwidthSelector bandwidthSelector, String audioLanguageSelector,
       String subtitleLanguageSelector) {
 
@@ -64,13 +64,39 @@ public class Playlist {
     Long lastMatchedBandwidth = null;
     String lastMatchedResolution = null;
     String mediaPlaylistUri = null;
+
+    boolean hasSubtitle = false;
+    boolean hasAudio = false;
+
+    MasterPlaylist masterplaylist = (MasterPlaylist) playlist;
+
+    for (StreamInf variant : masterplaylist.getVariantStreams()) {
+      long streamBandwidth = variant.getBandwidth();
+      String streamResolution = variant.getResolution();
+      //TODO: Delete this before merging
+      LOG.info("> Audio {} Subtitlo {}", variant.getAudio(), variant.getSubtitle());
+      if (bandwidthSelector.matches(streamBandwidth, lastMatchedBandwidth)) {
+        lastMatchedBandwidth = streamBandwidth;
+        LOG.info("resolution match: {}, {}, {}, {}", streamResolution, lastMatchedResolution,
+            resolutionSelector.getName(), resolutionSelector.getCustomResolution());
+        if (resolutionSelector.matches(streamResolution, lastMatchedResolution)) {
+          lastMatchedResolution = streamResolution;
+          mediaPlaylistUri = variant.getURI();
+          hasSubtitle = (variant.getSubtitle() != null);
+          hasAudio = (variant.getAudio() != null);
+        }
+      }
+    }
+
+    if (mediaPlaylistUri == null) {
+      return null;
+    }
+
     String lastAudioMatchedURI = null;
     String lastSubtitleMatchedURI = null;
 
     String defaultAudioURI = null;
     String defaultSubtitleURI = null;
-
-    MasterPlaylist masterplaylist = (MasterPlaylist) playlist;
 
     for (UnparsedTag tag : masterplaylist.getTags()) {
 
@@ -88,7 +114,7 @@ public class Playlist {
 
         //TODO: Delete this Log before merging
         LOG.info("Type {} | {}", type, language);
-        if ("AUDIO".equals(type)) {
+        if (hasAudio && "AUDIO".equals(type)) {
           if (attributes.get("DEFAULT").equals("YES") && defaultAudioURI == null) {
             defaultAudioURI = tag.getURI();
           }
@@ -96,7 +122,7 @@ public class Playlist {
           if (audioLanguageSelector.equals(language) || audioLanguageSelector.equals(name)) {
             lastAudioMatchedURI = tag.getURI();
           }
-        } else if ("SUBTITLES".equals(type)) {
+        } else if (hasSubtitle && "SUBTITLES".equals(type)) {
           if (attributes.get("DEFAULT").equals("YES") && defaultSubtitleURI == null) {
             defaultSubtitleURI = tag.getURI();
           }
@@ -110,39 +136,20 @@ public class Playlist {
 
     //TODO: Delete ths 'Default URI' log before merging. Just for debugging.
     if (lastAudioMatchedURI == null) {
-      LOG.warn("There was no audio found for the subtitle audio {}. Using default.",
+      LOG.warn("There was no audio found for the subtitle audio {}. Using default if any.",
           audioLanguageSelector);
       LOG.info("Default URI {}", defaultAudioURI);
       lastAudioMatchedURI = defaultAudioURI;
     }
 
     if (lastSubtitleMatchedURI == null) {
-      LOG.warn("There was no subtitle found for the selected subtitle {}. Using default",
+      LOG.warn("There was no subtitle found for the selected subtitle {}. Using default if any.",
           subtitleLanguageSelector);
       LOG.info("Default URI {}", defaultSubtitleURI);
       lastSubtitleMatchedURI = defaultSubtitleURI;
     }
 
-    for (StreamInf variant : masterplaylist.getVariantStreams()) {
-      long streamBandwidth = variant.getBandwidth();
-      String streamResolution = variant.getResolution();
-
-      if (bandwidthSelector.matches(streamBandwidth, lastMatchedBandwidth)) {
-        lastMatchedBandwidth = streamBandwidth;
-        LOG.info("resolution match: {}, {}, {}, {}", streamResolution, lastMatchedResolution,
-            resolutionSelector.getName(), resolutionSelector.getCustomResolution());
-        if (resolutionSelector.matches(streamResolution, lastMatchedResolution)) {
-          lastMatchedResolution = streamResolution;
-          mediaPlaylistUri = variant.getURI();
-        }
-      }
-    }
-
-    if (mediaPlaylistUri == null) {
-      return null;
-    }
-
-    return new MediaStreamInf(buildAbsoluteUri(mediaPlaylistUri),
+    return new MediaStream(buildAbsoluteUri(mediaPlaylistUri),
         buildAbsoluteUri(lastAudioMatchedURI), buildAbsoluteUri(lastSubtitleMatchedURI));
   }
 
