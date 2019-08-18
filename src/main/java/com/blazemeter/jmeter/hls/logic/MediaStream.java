@@ -6,12 +6,12 @@ public class MediaStream {
 
   private final URI mediaPlaylistUri;
   private final URI audioUri;
-  private final URI subtitleUri;
+  private final URI subtitlesUri;
 
   public MediaStream(URI mediaPlaylistUri, URI audioUri, URI subtitleUri) {
     this.mediaPlaylistUri = mediaPlaylistUri;
     this.audioUri = audioUri;
-    this.subtitleUri = subtitleUri;
+    this.subtitlesUri = subtitleUri;
   }
 
   public URI getMediaPlaylistUri() {
@@ -22,7 +22,7 @@ public class MediaStream {
     return audioUri;
   }
 
-  public URI getSubtitleUri() {
-    return subtitleUri;
+  public URI getSubtitlesUri() {
+    return subtitlesUri;
   }
 }

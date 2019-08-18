@@ -57,7 +57,7 @@ public class HlsSamplerTest {
   private static final String MASTER_PLAYLIST_NAME = "masterPlaylist.m3u8";
   private static final long TARGET_TIME_MILLIS = 10000;
   private static final long TIME_THRESHOLD_MILLIS = 5000;
-  private static final long TEST_TIMEOUT = 100000;
+  private static final long TEST_TIMEOUT = 10000;
 
   private HlsSampler sampler;
   private SegmentResultFallbackUriSamplerMock uriSampler = new SegmentResultFallbackUriSamplerMock();
@@ -624,5 +624,4 @@ public class HlsSamplerTest {
         buildSegmentSampleResult(2),
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylistPart1)));
   }
-
 }

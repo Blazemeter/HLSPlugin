@@ -6,7 +6,7 @@ import com.comcast.viper.hlsparserj.IPlaylist;
 import com.comcast.viper.hlsparserj.MasterPlaylist;
 import com.comcast.viper.hlsparserj.MediaPlaylist;
 import com.comcast.viper.hlsparserj.PlaylistFactory;
-import com.comcast.viper.hlsparserj.tags.UnparsedTag;
+import com.comcast.viper.hlsparserj.tags.master.Media;
 import com.comcast.viper.hlsparserj.tags.master.StreamInf;
 import com.comcast.viper.hlsparserj.tags.media.MediaSequence;
 
@@ -17,7 +17,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 import java.util.List;
-import java.util.Map;
+
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -55,102 +55,105 @@ public class Playlist {
     return uri;
   }
 
-  public MediaStream solveMediaStream(ResolutionSelector resolutionSelector,
-      BandwidthSelector bandwidthSelector, String audioLanguageSelector,
-      String subtitleLanguageSelector) {
-
-    LOG.info("Audio language {} Subtitle {}", audioLanguageSelector, subtitleLanguageSelector);
+  private StreamInf solveStream(ResolutionSelector resolutionSelector,
+      BandwidthSelector bandwidthSelector) {
 
     Long lastMatchedBandwidth = null;
     String lastMatchedResolution = null;
-    String mediaPlaylistUri = null;
 
-    boolean hasSubtitle = false;
-    boolean hasAudio = false;
+    StreamInf lastMatchStreamInf = null;
 
     MasterPlaylist masterplaylist = (MasterPlaylist) playlist;
 
     for (StreamInf variant : masterplaylist.getVariantStreams()) {
       long streamBandwidth = variant.getBandwidth();
       String streamResolution = variant.getResolution();
-      //TODO: Delete this before merging
-      LOG.info("> Audio {} Subtitlo {}", variant.getAudio(), variant.getSubtitle());
       if (bandwidthSelector.matches(streamBandwidth, lastMatchedBandwidth)) {
         lastMatchedBandwidth = streamBandwidth;
         LOG.info("resolution match: {}, {}, {}, {}", streamResolution, lastMatchedResolution,
             resolutionSelector.getName(), resolutionSelector.getCustomResolution());
         if (resolutionSelector.matches(streamResolution, lastMatchedResolution)) {
           lastMatchedResolution = streamResolution;
-          mediaPlaylistUri = variant.getURI();
-          hasSubtitle = (variant.getSubtitle() != null);
-          hasAudio = (variant.getAudio() != null);
+          LOG.info("Matched Stream: Audio {} | Subtitle {}", variant.getAudio(),
+              variant.getSubtitle());
+          lastMatchStreamInf = variant;
         }
       }
     }
 
-    if (mediaPlaylistUri == null) {
+    return lastMatchStreamInf;
+  }
+
+  public MediaStream solveMediaStream(ResolutionSelector resolutionSelector,
+      BandwidthSelector bandwidthSelector, String audioLanguageSelector,
+      String subtitleLanguageSelector) {
+
+    StreamInf mediaStream = solveStream(resolutionSelector, bandwidthSelector);
+
+    if (mediaStream == null) {
       return null;
     }
 
-    String lastAudioMatchedURI = null;
-    String lastSubtitleMatchedURI = null;
+    URI audioPlayListUri = getRenditionUri("AUDIO", mediaStream.getAudio(),
+        audioLanguageSelector);
 
-    String defaultAudioURI = null;
-    String defaultSubtitleURI = null;
+    /*
+    The lists of renditions could have either SUBTITLE or SUBTITLES tags but, the library
+    is expecting it to be "SUBTITLE". If we do mediaStream.getSubtitle(), could return
+    null. Because of that, we check with mediaStream.getTag().getAttributes() instead.
+    */
+    String type = "SUBTITLES";
+    String subtitlesGroupId = mediaStream.getTag().getAttributes().get(type);
+    if (subtitlesGroupId == null) {
+      type = "SUBTITLE";
+      subtitlesGroupId = mediaStream.getTag().getAttributes().get(type);
+    }
 
-    for (UnparsedTag tag : masterplaylist.getTags()) {
+    URI subtitlePlayListUri = getRenditionUri(type, subtitlesGroupId,
+        subtitleLanguageSelector);
 
-      Map<String, String> attributes = tag.getAttributes();
-      if (attributes.size() < 1) {
-        continue;
-      }
+    return new MediaStream(buildAbsoluteUri(mediaStream.getURI()),
+        (audioPlayListUri != null ? buildAbsoluteUri(audioPlayListUri.toString()): null),
+        (subtitlePlayListUri != null ? buildAbsoluteUri(subtitlePlayListUri.toString()): null));
+  }
 
-      String type = attributes.get("TYPE");
+  private URI getRenditionUri(String type, String groupId, String selector) {
 
-      //The EXT-X-STREAM-INF tags doesn't have attributes type/language/name, so we skip them
-      if (type != null) {
-        String language = attributes.get("LANGUAGE").toLowerCase();
-        String name = attributes.get("NAME");
+    MasterPlaylist masterPlaylist = (MasterPlaylist) this.playlist;
 
-        //TODO: Delete this Log before merging
-        LOG.info("Type {} | {}", type, language);
-        if (hasAudio && "AUDIO".equals(type)) {
-          if (attributes.get("DEFAULT").equals("YES") && defaultAudioURI == null) {
-            defaultAudioURI = tag.getURI();
-          }
+    Media lastDefaultRendition = null;
+    Media matchedRendition = null;
 
-          if (audioLanguageSelector.equals(language) || audioLanguageSelector.equals(name)) {
-            lastAudioMatchedURI = tag.getURI();
-          }
-        } else if (hasSubtitle && "SUBTITLES".equals(type)) {
-          if (attributes.get("DEFAULT").equals("YES") && defaultSubtitleURI == null) {
-            defaultSubtitleURI = tag.getURI();
-          }
+    for (Media rendition : masterPlaylist.getAlternateRenditions()) {
+      String renditionType = rendition.getType();
+      String renditionGroupId = rendition.getGroupId();
 
-          if (subtitleLanguageSelector.equals(language) || subtitleLanguageSelector.equals(name)) {
-            lastSubtitleMatchedURI = tag.getURI();
-          }
+      if (renditionType.equals(type) && renditionGroupId.equals(groupId)) {
+
+        if (rendition.getDefault()) {
+          lastDefaultRendition = rendition;
+        }
+
+        if (rendition.getName().toLowerCase().trim().equals(selector.toLowerCase())
+            || rendition.getLanguage().toLowerCase().trim().equals(selector.toLowerCase())) {
+          matchedRendition = rendition;
         }
       }
     }
 
-    //TODO: Delete ths 'Default URI' log before merging. Just for debugging.
-    if (lastAudioMatchedURI == null) {
-      LOG.warn("There was no audio found for the subtitle audio {}. Using default if any.",
-          audioLanguageSelector);
-      LOG.info("Default URI {}", defaultAudioURI);
-      lastAudioMatchedURI = defaultAudioURI;
+    if (matchedRendition == null) {
+      LOG.warn("No {} was found for the selected param provided '{}', using default if exists.",
+          type.toLowerCase(), selector.toLowerCase());
+
+      if (lastDefaultRendition != null) {
+        return URI.create(lastDefaultRendition.getURI());
+      } else {
+        return null;
+      }
+
     }
 
-    if (lastSubtitleMatchedURI == null) {
-      LOG.warn("There was no subtitle found for the selected subtitle {}. Using default if any.",
-          subtitleLanguageSelector);
-      LOG.info("Default URI {}", defaultSubtitleURI);
-      lastSubtitleMatchedURI = defaultSubtitleURI;
-    }
-
-    return new MediaStream(buildAbsoluteUri(mediaPlaylistUri),
-        buildAbsoluteUri(lastAudioMatchedURI), buildAbsoluteUri(lastSubtitleMatchedURI));
+    return URI.create(matchedRendition.getURI());
   }
 
   private URI buildAbsoluteUri(String str) {
