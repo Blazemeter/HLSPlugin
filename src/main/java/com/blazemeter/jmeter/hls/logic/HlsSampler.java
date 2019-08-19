@@ -3,15 +3,19 @@ package com.blazemeter.jmeter.hls.logic;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.apache.jmeter.engine.event.LoopIterationEvent;
 import org.apache.jmeter.protocol.http.control.CacheManager;
 import org.apache.jmeter.protocol.http.control.CookieManager;
 import org.apache.jmeter.protocol.http.control.HeaderManager;
+import org.apache.jmeter.protocol.http.sampler.HTTPHC4Impl;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
-import org.apache.jmeter.protocol.http.sampler.HTTPSampler;
+import org.apache.jmeter.protocol.http.sampler.HTTPSamplerBase;
+import org.apache.jmeter.samplers.Interruptible;
 import org.apache.jmeter.samplers.SampleEvent;
 import org.apache.jmeter.samplers.SampleResult;
 import org.apache.jmeter.threads.JMeterContext;
@@ -21,7 +25,7 @@ import org.apache.jmeter.threads.SamplePackage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class HlsSampler extends HTTPSampler {
+public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   private static final Logger LOG = LoggerFactory.getLogger(HlsSampler.class);
 
@@ -33,23 +37,49 @@ public class HlsSampler extends HTTPSampler {
   private static final String RESOLUTION_TYPE_PROPERTY_NAME = "HLS.RESOLUTION_TYPE";
   private static final String BANDWIDTH_TYPE_PROPERTY_NAME = "HLS.BANDWIDTH_TYPE";
   private static final String RESUME_DOWNLOAD_PROPERTY_NAME = "HLS.RESUME_DOWNLOAD";
-  private static final String AUDIO_LANGUAGE_PROPERTY_NAME = "HLS.AUDIO_LANGUAGE";
-  private static final String SUBTITLE_LANGUAGE_PROPERTY_NAME = "HLS.SUBTITLE_LANGUAGE";
 
   private static final String HEADER_MANAGER = "HLSRequest.header_manager";
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
   private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
   private static final String MEDIA_PLAYLIST_NAME = "media playlist";
   private static final String MASTER_PLAYLIST_NAME = "master playlist";
-  private static final String AUDIO_PLAYLIST_NAME = "audio playlist";
-  private static final String SUBTITLE_PLAYLIST_NAME = "subtitle playlist";
 
-  private final transient Function<URI, SampleResult> uriSampler;
+  private final transient Function<URI, HTTPSampleResult> uriSampler;
   private final transient Consumer<SampleResult> sampleResultNotifier;
   private final transient TimeMachine timeMachine;
 
+  private transient HlsHttpClient httpClient;
+  private transient volatile boolean notifyFirstSampleAfterLoopRestart;
   private transient long lastSegmentNumber = -1;
   private transient volatile boolean interrupted = false;
+
+  /*
+  we use this class to be able to access some methods on super class and because we can't extend
+  HTTPProxySampler class
+   */
+  private static class HlsHttpClient extends HTTPHC4Impl {
+
+    private HlsHttpClient(HTTPSamplerBase testElement) {
+      super(testElement);
+    }
+
+    @Override
+    protected HTTPSampleResult sample(java.net.URL url, String method, boolean areFollowingRedirect,
+        int frameDepth) {
+      return super.sample(url, method, areFollowingRedirect, frameDepth);
+    }
+
+    @Override
+    protected void notifyFirstSampleAfterLoopRestart() {
+      super.notifyFirstSampleAfterLoopRestart();
+    }
+
+    @Override
+    protected void threadFinished() {
+      super.threadFinished();
+    }
+
+  }
 
   public HlsSampler() {
     initHttpSampler();
@@ -58,7 +88,7 @@ public class HlsSampler extends HTTPSampler {
     timeMachine = TimeMachine.SYSTEM;
   }
 
-  public HlsSampler(Function<URI, SampleResult> uriSampler,
+  public HlsSampler(Function<URI, HTTPSampleResult> uriSampler,
       Consumer<SampleResult> sampleResultNotifier,
       TimeMachine timeMachine) {
     initHttpSampler();
@@ -69,7 +99,29 @@ public class HlsSampler extends HTTPSampler {
 
   private void initHttpSampler() {
     setName("HLS Sampler");
-    setAutoRedirects(true);
+    setFollowRedirects(true);
+    setUseKeepAlive(true);
+    httpClient = new HlsHttpClient(this);
+  }
+
+  private HTTPSampleResult downloadUri(URI uri) {
+    try {
+      return sample(uri.toURL(), "GET", false, 0);
+    } catch (MalformedURLException e) {
+      throw new IllegalArgumentException(e);
+    }
+  }
+
+  private void notifySampleListeners(SampleResult sampleResult) {
+    JMeterContext threadContext = getThreadContext();
+    JMeterVariables threadContextVariables = threadContext.getVariables();
+    if (threadContextVariables != null) {
+      SamplePackage pack = (SamplePackage) threadContext.getVariables()
+          .getObject(JMeterThread.PACKAGE_OBJECT);
+      SampleEvent event = new SampleEvent(sampleResult, getThreadName(),
+          threadContext.getVariables(), false);
+      pack.getSampleListeners().forEach(l -> l.sampleOccurred(event));
+    }
   }
 
   public String getMasterUrl() {
@@ -128,22 +180,6 @@ public class HlsSampler extends HTTPSampler {
     setProperty(CUSTOM_BANDWIDTH_PROPERTY_NAME, bandwidth != null ? bandwidth.toString() : null);
   }
 
-  public String getAudioLanguage() {
-    return this.getPropertyAsString(AUDIO_LANGUAGE_PROPERTY_NAME);
-  }
-
-  public void setAudioLanguage(String language) {
-    this.setProperty(AUDIO_LANGUAGE_PROPERTY_NAME, language);
-  }
-
-  public String getSubtitleLanguage() {
-    return this.getPropertyAsString(SUBTITLE_LANGUAGE_PROPERTY_NAME);
-  }
-
-  public void setSubtitleLanguage(String language) {
-    this.setProperty(SUBTITLE_LANGUAGE_PROPERTY_NAME, language);
-  }
-
   // implemented for backwards compatibility
   @Override
   public CookieManager getCookieManager() {
@@ -171,6 +207,11 @@ public class HlsSampler extends HTTPSampler {
       lastSegmentNumber = -1;
     }
 
+    if (notifyFirstSampleAfterLoopRestart) {
+      httpClient.notifyFirstSampleAfterLoopRestart();
+      notifyFirstSampleAfterLoopRestart = false;
+    }
+
     URI masterUri = URI.create(getMasterUrl());
     Playlist masterPlaylist = downloadPlaylist(null, masterUri);
     if (masterPlaylist == null) {
@@ -178,16 +219,11 @@ public class HlsSampler extends HTTPSampler {
     }
 
     Playlist mediaPlaylist;
-    Playlist audioPlaylist = null;
-    Playlist subtitlePlaylist = null;
 
     if (!interrupted && masterPlaylist.isMasterPlaylist()) {
 
-      MediaStreamInf mediaStreamInf = masterPlaylist
-          .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector(),
-              getAudioLanguage(), getSubtitleLanguage());
-
-      URI mediaPlaylistUri = mediaStreamInf.getMediaPlaylistUri();
+      URI mediaPlaylistUri = masterPlaylist
+          .solveMediaPlaylistUri(getResolutionSelector(), getBandwidthSelector());
 
       if (mediaPlaylistUri == null) {
         return buildNotMatchingMediaPlaylistResult();
@@ -196,16 +232,6 @@ public class HlsSampler extends HTTPSampler {
       mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
       if (mediaPlaylist == null) {
         return null;
-      }
-
-      if (mediaStreamInf.getAudioUri() != null) {
-        audioPlaylist = downloadPlaylist(AUDIO_PLAYLIST_NAME, mediaStreamInf.getAudioUri());
-      } else {
-        audioPlaylist = null;
-      }
-
-      if (mediaStreamInf.getSubtitleUri() != null) {
-        subtitlePlaylist = downloadPlaylist(SUBTITLE_PLAYLIST_NAME, mediaStreamInf.getAudioUri());
       }
 
     } else {
@@ -217,21 +243,16 @@ public class HlsSampler extends HTTPSampler {
       playSeconds = Integer.parseInt(getPlaySeconds());
       if (playSeconds <= 0) {
         LOG.warn("Provided play seconds ({}) is less than or equal to zero. The sampler will "
-                + "reproduce the whole video", playSeconds);
+            + "reproduce the whole video", playSeconds);
       }
     }
     float consumedSeconds = 0;
     boolean playListEnd = false;
 
     try {
-      boolean playedRequestedTime = !playedRequestedTime(playSeconds, consumedSeconds);
-      while (!interrupted && mediaPlaylist != null && playedRequestedTime && !playListEnd) {
+      while (!interrupted && mediaPlaylist != null && !playedRequestedTime(playSeconds,
+          consumedSeconds) && !playListEnd) {
         Iterator<MediaSegment> mediaSegmentsIt = mediaPlaylist.getMediaSegments().iterator();
-
-        float audioConsumedSeconds = consumedSeconds;
-        float subtitleConsumedSeconds = consumedSeconds;
-        long lastAudioSegmentNumber = lastSegmentNumber;
-        long lastSubtitleSegmentNumber = lastSegmentNumber;
 
         while (!interrupted && mediaSegmentsIt.hasNext() && !playedRequestedTime(playSeconds,
             consumedSeconds)) {
@@ -243,17 +264,6 @@ public class HlsSampler extends HTTPSampler {
             lastSegmentNumber = segmentSequenceNumber;
             consumedSeconds += segment.getDurationSeconds();
           }
-        }
-
-        //TODO: This should be done in parallel
-        if (audioPlaylist != null) {
-          downloadSegments(audioPlaylist, playSeconds, audioConsumedSeconds,
-              lastAudioSegmentNumber, "audio segment");
-        }
-
-        if (subtitlePlaylist != null) {
-          downloadSegments(subtitlePlaylist, playSeconds, subtitleConsumedSeconds,
-              lastSubtitleSegmentNumber, "subtitle segment");
         }
 
         playListEnd = mediaPlaylist.hasEnd() && !mediaSegmentsIt.hasNext();
@@ -270,20 +280,10 @@ public class HlsSampler extends HTTPSampler {
     return null;
   }
 
-  private void downloadSegments(Playlist playlist, int playSeconds, float consumedSeconds,
-      long lastAudioSegmentNumber, String segmentName) {
-    Iterator<MediaSegment> audioSegments = playlist.getMediaSegments().iterator();
-    while (!interrupted && audioSegments.hasNext() && !playedRequestedTime(playSeconds,
-        consumedSeconds)) {
-      MediaSegment audioSegment = audioSegments.next();
-      long audoSegmentSequenceNumber = audioSegment.getSequenceNumber();
-      if (audoSegmentSequenceNumber > lastAudioSegmentNumber) {
-        SampleResult result = uriSampler.apply(audioSegment.getUri());
-        lastAudioSegmentNumber = audoSegmentSequenceNumber;
-        notifySampleResult(segmentName, result);
-        consumedSeconds += audioSegment.getDurationSeconds();
-      }
-    }
+  @Override
+  protected HTTPSampleResult sample(URL url, String method, boolean areFollowingRedirect,
+      int frameDepth) {
+    return httpClient.sample(url, method, areFollowingRedirect, frameDepth);
   }
 
   private SampleResult buildNotMatchingMediaPlaylistResult() {
@@ -298,12 +298,8 @@ public class HlsSampler extends HTTPSampler {
 
   private Playlist downloadPlaylist(String playlistName, URI uri) {
     Instant downloadTimestamp = timeMachine.now();
-    SampleResult playlistResult = uriSampler.apply(uri);
+    HTTPSampleResult playlistResult = uriSampler.apply(uri);
     if (!playlistResult.isSuccessful()) {
-      if (playlistName == null) {
-        playlistName = MASTER_PLAYLIST_NAME;
-      }
-
       notifySampleResult(playlistName, playlistResult);
       LOG.warn("Problem downloading {} {}", playlistName, uri);
       return null;
@@ -322,38 +318,18 @@ public class HlsSampler extends HTTPSampler {
       if (playlistName == null) {
         playlistName = playlist.isMasterPlaylist() ? MASTER_PLAYLIST_NAME : MEDIA_PLAYLIST_NAME;
       }
+      notifySampleResult(playlistName, playlistResult);
       return playlist;
     } catch (PlaylistParsingException e) {
+      notifySampleResult(playlistName, errorResult(e, playlistResult));
       LOG.warn("Problem parsing {} {}", playlistName, uri, e);
       return null;
-    } finally {
-      notifySampleResult(playlistName, playlistResult);
     }
   }
 
   private void notifySampleResult(String name, SampleResult result) {
-    result.setSampleLabel(getName() + " - " + name);
+    result.setSampleLabel(getName() + " - " + (name != null ? name : MASTER_PLAYLIST_NAME));
     sampleResultNotifier.accept(result);
-  }
-
-  private HTTPSampleResult downloadUri(URI uri) {
-    try {
-      return sample(uri.toURL(), "GET", false, 0);
-    } catch (MalformedURLException e) {
-      throw new IllegalArgumentException(e);
-    }
-  }
-
-  private void notifySampleListeners(SampleResult sampleResult) {
-    JMeterContext threadContext = getThreadContext();
-    JMeterVariables threadContextVariables = threadContext.getVariables();
-    if (threadContextVariables != null) {
-      SamplePackage pack = (SamplePackage) threadContext.getVariables()
-          .getObject(JMeterThread.PACKAGE_OBJECT);
-      SampleEvent event = new SampleEvent(sampleResult, getThreadName(),
-          threadContext.getVariables(), false);
-      pack.getSampleListeners().forEach(l -> l.sampleOccurred(event));
-    }
   }
 
   private boolean playedRequestedTime(int playSeconds, float consumedSeconds) {
@@ -366,23 +342,30 @@ public class HlsSampler extends HTTPSampler {
         timeMachine.now()));
     Playlist updatedMediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME,
         playlist.getUri());
-
-    boolean updatedPlayListBool = updatedMediaPlaylist.equals(playlist);
-    while (!interrupted && updatedMediaPlaylist != null && updatedPlayListBool) {
-      long millis = updatedMediaPlaylist
-          .getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now());
-
-      timeMachine.awaitMillis(millis);
+    while (!interrupted && updatedMediaPlaylist != null && updatedMediaPlaylist.equals(playlist)) {
+      timeMachine.awaitMillis(updatedMediaPlaylist
+          .getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now()));
       updatedMediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, playlist.getUri());
     }
     return updatedMediaPlaylist;
   }
 
+  @Override
   public boolean interrupt() {
     interrupted = true;
     timeMachine.interrupt();
-    super.interrupt();
-
+    httpClient.interrupt();
     return interrupted;
   }
+
+  @Override
+  public void threadFinished() {
+    httpClient.threadFinished();
+  }
+
+  @Override
+  public void testIterationStart(LoopIterationEvent event) {
+    notifyFirstSampleAfterLoopRestart = true;
+  }
+
 }
