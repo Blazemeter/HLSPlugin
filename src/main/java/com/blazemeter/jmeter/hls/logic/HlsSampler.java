@@ -385,12 +385,11 @@ public class HlsSampler extends HTTPSampler {
       }
       notifySampleResult(playlistName, playlistResult);
       return playlist;
-    } catch (PlaylistParsingException e ) {
+    } catch (PlaylistParsingException e) {
       //notifySampleResult(playlistName, errorResult(e, playlistResult));
       throw e;
     }
   }
-
 
   private Playlist downloadSubtitles(URI uri) {
     Instant downloadTimestamp = timeMachine.now();
