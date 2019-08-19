@@ -113,8 +113,8 @@ public class Playlist {
         subtitleLanguageSelector);
 
     return new MediaStream(buildAbsoluteUri(mediaStream.getURI()),
-        (audioPlayListUri != null ? buildAbsoluteUri(audioPlayListUri.toString()): null),
-        (subtitlePlayListUri != null ? buildAbsoluteUri(subtitlePlayListUri.toString()): null));
+        (audioPlayListUri != null ? buildAbsoluteUri(audioPlayListUri.toString()) : null),
+        (subtitlePlayListUri != null ? buildAbsoluteUri(subtitlePlayListUri.toString()) : null));
   }
 
   private URI getRenditionUri(String type, String groupId, String selector) {
