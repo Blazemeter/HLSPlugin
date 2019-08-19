@@ -47,7 +47,7 @@ public class HlsSamplerTest {
   private static final String SAMPLER_NAME = "HLS";
   private static final String MASTER_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - master playlist";
   private static final String MEDIA_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - media playlist";
-  private static final String SEGMENT_SAMPLE_NAME = SAMPLER_NAME + " - video segment";
+  private static final String SEGMENT_SAMPLE_NAME = SAMPLER_NAME + " - media segment";
   private static final int SEGMENT_DURATION_SECONDS = 5;
   private static final String SIMPLE_MEDIA_PLAYLIST_NAME = "simpleMediaPlaylist.m3u8";
   private static final String VOD_MEDIA_PLAYLIST_NAME = "vodMediaPlaylist.m3u8";
@@ -624,4 +624,18 @@ public class HlsSamplerTest {
         buildSegmentSampleResult(2),
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylistPart1)));
   }
+
+  public void shouldDownloadDefault() {
+
+  }
+
+  /*
+    Descargar Subtitlos Espanol
+    Descargar Subtitlos por defecto cuando no hay de los seleccionados
+    Descargar Audio Espanol
+    Descargar Audio por defecto cuando no hay de los seleccionados
+    Descargar Audio por defecto cuando no se selecciona alguno
+    Descargar Lista de Subtitlos
+    Descargar Archivo normal
+  */
 }
