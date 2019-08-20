@@ -3,15 +3,19 @@ package com.blazemeter.jmeter.hls.logic;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.apache.jmeter.engine.event.LoopIterationEvent;
 import org.apache.jmeter.protocol.http.control.CacheManager;
 import org.apache.jmeter.protocol.http.control.CookieManager;
 import org.apache.jmeter.protocol.http.control.HeaderManager;
+import org.apache.jmeter.protocol.http.sampler.HTTPHC4Impl;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
-import org.apache.jmeter.protocol.http.sampler.HTTPSampler;
+import org.apache.jmeter.protocol.http.sampler.HTTPSamplerBase;
+import org.apache.jmeter.samplers.Interruptible;
 import org.apache.jmeter.samplers.SampleEvent;
 import org.apache.jmeter.samplers.SampleResult;
 import org.apache.jmeter.threads.JMeterContext;
@@ -21,7 +25,7 @@ import org.apache.jmeter.threads.SamplePackage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class HlsSampler extends HTTPSampler {
+public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   private static final Logger LOG = LoggerFactory.getLogger(HlsSampler.class);
 
@@ -42,9 +46,8 @@ public class HlsSampler extends HTTPSampler {
   private static final String MEDIA_PLAYLIST_NAME = "media playlist";
   private static final String MASTER_PLAYLIST_NAME = "master playlist";
   private static final String AUDIO_PLAYLIST_NAME = "audio playlist";
-  private static final String SUBTITLE_PLAYLIST_NAME = "subtitle playlist";
 
-  private final transient Function<URI, SampleResult> uriSampler;
+  private final transient Function<URI, HTTPSampleResult> uriSampler;
   private final transient Consumer<SampleResult> sampleResultNotifier;
   private final transient TimeMachine timeMachine;
 
@@ -52,7 +55,38 @@ public class HlsSampler extends HTTPSampler {
   private transient long lastAudioSegmentNumber = -1;
   private transient long lastSubtitleSegmentNumber = -1;
 
+  private transient HlsHttpClient httpClient;
+  private transient volatile boolean notifyFirstSampleAfterLoopRestart;
+
   private transient volatile boolean interrupted = false;
+
+  /*
+  we use this class to be able to access some methods on super class and because we can't extend
+  HTTPProxySampler class
+   */
+  private static class HlsHttpClient extends HTTPHC4Impl {
+
+    private HlsHttpClient(HTTPSamplerBase testElement) {
+      super(testElement);
+    }
+
+    @Override
+    protected HTTPSampleResult sample(java.net.URL url, String method, boolean areFollowingRedirect,
+        int frameDepth) {
+      return super.sample(url, method, areFollowingRedirect, frameDepth);
+    }
+
+    @Override
+    protected void notifyFirstSampleAfterLoopRestart() {
+      super.notifyFirstSampleAfterLoopRestart();
+    }
+
+    @Override
+    protected void threadFinished() {
+      super.threadFinished();
+    }
+
+  }
 
   public HlsSampler() {
     initHttpSampler();
@@ -61,7 +95,7 @@ public class HlsSampler extends HTTPSampler {
     timeMachine = TimeMachine.SYSTEM;
   }
 
-  public HlsSampler(Function<URI, SampleResult> uriSampler,
+  public HlsSampler(Function<URI, HTTPSampleResult> uriSampler,
       Consumer<SampleResult> sampleResultNotifier,
       TimeMachine timeMachine) {
     initHttpSampler();
@@ -72,7 +106,29 @@ public class HlsSampler extends HTTPSampler {
 
   private void initHttpSampler() {
     setName("HLS Sampler");
-    setAutoRedirects(true);
+    setFollowRedirects(true);
+    setUseKeepAlive(true);
+    httpClient = new HlsHttpClient(this);
+  }
+
+  private HTTPSampleResult downloadUri(URI uri) {
+    try {
+      return sample(uri.toURL(), "GET", false, 0);
+    } catch (MalformedURLException e) {
+      throw new IllegalArgumentException(e);
+    }
+  }
+
+  private void notifySampleListeners(SampleResult sampleResult) {
+    JMeterContext threadContext = getThreadContext();
+    JMeterVariables threadContextVariables = threadContext.getVariables();
+    if (threadContextVariables != null) {
+      SamplePackage pack = (SamplePackage) threadContext.getVariables()
+          .getObject(JMeterThread.PACKAGE_OBJECT);
+      SampleEvent event = new SampleEvent(sampleResult, getThreadName(),
+          threadContext.getVariables(), false);
+      pack.getSampleListeners().forEach(l -> l.sampleOccurred(event));
+    }
   }
 
   public String getMasterUrl() {
@@ -184,6 +240,11 @@ public class HlsSampler extends HTTPSampler {
       Playlist audioPlaylist = null;
       Playlist subtitlesPlaylist = null;
 
+      if (notifyFirstSampleAfterLoopRestart) {
+        httpClient.notifyFirstSampleAfterLoopRestart();
+        notifyFirstSampleAfterLoopRestart = false;
+      }
+
       if (!interrupted && masterPlaylist.isMasterPlaylist()) {
 
         MediaStream mediaStream = masterPlaylist
@@ -256,6 +317,60 @@ public class HlsSampler extends HTTPSampler {
     }
 
     return null;
+  }
+
+  @Override
+  protected HTTPSampleResult sample(URL url, String method, boolean areFollowingRedirect,
+      int frameDepth) {
+    return httpClient.sample(url, method, areFollowingRedirect, frameDepth);
+  }
+
+  private Playlist downloadPlaylist(String playlistName, URI uri)
+      throws PlaylistParsingException, PlaylistDownloadException {
+    Instant downloadTimestamp = timeMachine.now();
+    HTTPSampleResult playlistResult = uriSampler.apply(uri);
+    if (!playlistResult.isSuccessful()) {
+
+      if (playlistName == null) {
+        playlistName = MASTER_PLAYLIST_NAME;
+      }
+
+      notifySampleResult(playlistName, playlistResult);
+      throw new PlaylistDownloadException(playlistName, uri);
+    }
+
+    // we update uri in case the request was redirected
+    try {
+      uri = playlistResult.getURL().toURI();
+    } catch (URISyntaxException e) {
+      LOG.warn("Problem updating uri from downloaded playlist {}. Continue with original uri {}",
+          playlistResult.getURL(), uri, e);
+    }
+
+    try {
+      Playlist playlist = Playlist
+          .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
+      if (playlistName == null) {
+        playlistName = playlist.isMasterPlaylist() ? MASTER_PLAYLIST_NAME : MEDIA_PLAYLIST_NAME;
+      }
+      notifySampleResult(playlistName, playlistResult);
+      return playlist;
+    } catch (PlaylistParsingException e) {
+      //notifySampleResult(playlistName, errorResult(e, playlistResult));
+      throw e;
+    }
+  }
+
+
+
+  private SampleResult buildNotMatchingMediaPlaylistResult() {
+    SampleResult res = new SampleResult();
+    res.setSampleLabel(getName() + " - " + MEDIA_PLAYLIST_NAME);
+    res.setResponseCode("Non HTTP response code: NoMatchingMediaPlaylist");
+    res.setResponseMessage("Non HTTP response message: No matching media "
+        + "playlist for provided resolution and bandwidth");
+    res.setSuccessful(false);
+    return res;
   }
 
   private class MediaPlayback {
@@ -347,50 +462,6 @@ public class HlsSampler extends HTTPSampler {
     }
   }
 
-  private SampleResult buildNotMatchingMediaPlaylistResult() {
-    SampleResult res = new SampleResult();
-    res.setSampleLabel(getName() + " - " + MEDIA_PLAYLIST_NAME);
-    res.setResponseCode("Non HTTP response code: NoMatchingMediaPlaylist");
-    res.setResponseMessage("Non HTTP response message: No matching media "
-        + "playlist for provided resolution and bandwidth");
-    res.setSuccessful(false);
-    return res;
-  }
-
-  private Playlist downloadPlaylist(String playlistName, URI uri)
-      throws PlaylistParsingException, PlaylistDownloadException {
-    Instant downloadTimestamp = timeMachine.now();
-    SampleResult playlistResult = uriSampler.apply(uri);
-    if (!playlistResult.isSuccessful()) {
-      if (playlistName == null) {
-        playlistName = MASTER_PLAYLIST_NAME;
-      }
-      notifySampleResult(playlistName, playlistResult);
-      throw new PlaylistDownloadException(playlistName, uri);
-    }
-
-    // we update uri in case the request was redirected
-    try {
-      uri = playlistResult.getURL().toURI();
-    } catch (URISyntaxException e) {
-      LOG.warn("Problem updating uri from downloaded playlist {}. Continue with original uri {}",
-          playlistResult.getURL(), uri, e);
-    }
-
-    try {
-      Playlist playlist = Playlist
-          .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
-      if (playlistName == null) {
-        playlistName = playlist.isMasterPlaylist() ? MASTER_PLAYLIST_NAME : MEDIA_PLAYLIST_NAME;
-      }
-      notifySampleResult(playlistName, playlistResult);
-      return playlist;
-    } catch (PlaylistParsingException e) {
-      //notifySampleResult(playlistName, errorResult(e, playlistResult));
-      throw e;
-    }
-  }
-
   private Playlist downloadSubtitles(URI uri) {
     Instant downloadTimestamp = timeMachine.now();
     SampleResult playlistResult = uriSampler.apply(uri);
@@ -426,35 +497,26 @@ public class HlsSampler extends HTTPSampler {
   }
 
   private void notifySampleResult(String name, SampleResult result) {
-    result.setSampleLabel(getName() + " - " + name);
+    result.setSampleLabel(getName() + " - " + (name != null ? name : MASTER_PLAYLIST_NAME));
     sampleResultNotifier.accept(result);
   }
 
-  private HTTPSampleResult downloadUri(URI uri) {
-    try {
-      return sample(uri.toURL(), "GET", false, 0);
-    } catch (MalformedURLException e) {
-      throw new IllegalArgumentException(e);
-    }
-  }
-
-  private void notifySampleListeners(SampleResult sampleResult) {
-    JMeterContext threadContext = getThreadContext();
-    JMeterVariables threadContextVariables = threadContext.getVariables();
-    if (threadContextVariables != null) {
-      SamplePackage pack = (SamplePackage) threadContext.getVariables()
-          .getObject(JMeterThread.PACKAGE_OBJECT);
-      SampleEvent event = new SampleEvent(sampleResult, getThreadName(),
-          threadContext.getVariables(), false);
-      pack.getSampleListeners().forEach(l -> l.sampleOccurred(event));
-    }
-  }
-
+  @Override
   public boolean interrupt() {
     interrupted = true;
     timeMachine.interrupt();
-    super.interrupt();
-
+    httpClient.interrupt();
     return interrupted;
   }
+
+  @Override
+  public void threadFinished() {
+    httpClient.threadFinished();
+  }
+
+  @Override
+  public void testIterationStart(LoopIterationEvent event) {
+    notifyFirstSampleAfterLoopRestart = true;
+  }
+
 }

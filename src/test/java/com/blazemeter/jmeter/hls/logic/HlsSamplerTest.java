@@ -90,25 +90,25 @@ public class HlsSamplerTest {
     buildSampler(uriSampler);
   }
 
-  private void buildSampler(Function<URI, SampleResult> uriSampler) {
+  private void buildSampler(Function<URI, HTTPSampleResult> uriSampler) {
     sampler = new HlsSampler(uriSampler, sampleResultNotifier, timeMachine);
     sampler.setName(SAMPLER_NAME);
     sampler.setMasterUrl(MASTER_URI.toString());
   }
 
-  private class SegmentResultFallbackUriSamplerMock implements Function<URI, SampleResult> {
+  private class SegmentResultFallbackUriSamplerMock implements Function<URI, HTTPSampleResult> {
 
     @SuppressWarnings("unchecked")
-    private Function<URI, SampleResult> mock = (Function<URI, SampleResult>) Mockito
+    private Function<URI, HTTPSampleResult> mock = (Function<URI, HTTPSampleResult>) Mockito
         .mock(Function.class);
 
     @Override
-    public SampleResult apply(URI uri) {
-      SampleResult result = mock.apply(uri);
+    public HTTPSampleResult apply(URI uri) {
+      HTTPSampleResult result = mock.apply(uri);
       return result != null ? result : buildSegmentResult(uri);
     }
 
-    private SampleResult buildSegmentResult(URI uri) {
+    private HTTPSampleResult buildSegmentResult(URI uri) {
       String uriStr = uri.toString();
       String segmentExtension = ".ts";
       int sequenceNumber = uriStr.endsWith(segmentExtension) ? Integer
@@ -118,7 +118,7 @@ public class HlsSamplerTest {
     }
   }
 
-  private SampleResult buildSegmentSampleResult(int sequenceNumber) {
+  private HTTPSampleResult buildSegmentSampleResult(int sequenceNumber) {
     return buildSampleResult(SEGMENT_SAMPLE_NAME, buildSegmentUri(sequenceNumber),
         SEGMENT_CONTENT_TYPE, "");
   }
@@ -127,7 +127,7 @@ public class HlsSamplerTest {
     return URI.create("http://media.example.com/00" + (sequenceNumber + 1) + ".ts");
   }
 
-  private SampleResult buildSampleResult(String name, URI uri, String contentType,
+  private HTTPSampleResult buildSampleResult(String name, URI uri, String contentType,
       String responseBody) {
     HTTPSampleResult ret = buildBaseSampleResult(name, uri);
     ret.setSuccessful(true);
@@ -169,7 +169,7 @@ public class HlsSamplerTest {
   }
 
   private void setupUriSamplerPlaylist(URI uri, String... playlists) {
-    SampleResult[] rest = new SampleResult[playlists.length - 1];
+    HTTPSampleResult[] rest = new HTTPSampleResult[playlists.length - 1];
     for (int i = 1; i < playlists.length; i++) {
       rest[i - 1] = buildPlaylistSampleResult(SAMPLER_NAME, uri, playlists[i]);
     }
@@ -177,7 +177,7 @@ public class HlsSamplerTest {
         .thenReturn(buildPlaylistSampleResult(SAMPLER_NAME, uri, playlists[0]), rest);
   }
 
-  private SampleResult buildPlaylistSampleResult(String name, URI uri, String body) {
+  private HTTPSampleResult buildPlaylistSampleResult(String name, URI uri, String body) {
     return buildSampleResult(name, uri, PLAYLIST_CONTENT_TYPE, body);
   }
 
@@ -348,7 +348,7 @@ public class HlsSamplerTest {
         .thenReturn(buildErrorSampleResult(SAMPLER_NAME, uri));
   }
 
-  private SampleResult buildErrorSampleResult(String name, URI uri) {
+  private HTTPSampleResult buildErrorSampleResult(String name, URI uri) {
     HTTPSampleResult ret = buildBaseSampleResult(name, uri);
     ret.setSuccessful(false);
     ret.setResponseCode("404");
@@ -409,14 +409,14 @@ public class HlsSamplerTest {
         .isBetween(TARGET_TIME_MILLIS, TARGET_TIME_MILLIS + TIME_THRESHOLD_MILLIS);
   }
 
-  private static class TimedUriSampler implements Function<URI, SampleResult> {
+  private static class TimedUriSampler implements Function<URI, HTTPSampleResult> {
 
-    private final Function<URI, SampleResult> baseUriSampler;
+    private final Function<URI, HTTPSampleResult> baseUriSampler;
     private final TimeMachine timeMachine;
     private final long downloadTimeMillis;
     private final Map<URI, List<Instant>> samplesTimestamps = new HashMap<>();
 
-    private TimedUriSampler(Function<URI, SampleResult> baseUriSampler, TimeMachine timeMachine,
+    private TimedUriSampler(Function<URI, HTTPSampleResult> baseUriSampler, TimeMachine timeMachine,
         long downloadTimeMillis) {
       this.baseUriSampler = baseUriSampler;
       this.timeMachine = timeMachine;
@@ -424,7 +424,7 @@ public class HlsSamplerTest {
     }
 
     @Override
-    public SampleResult apply(URI uri) {
+    public HTTPSampleResult apply(URI uri) {
       try {
         samplesTimestamps.computeIfAbsent(uri, k -> new ArrayList<>()).add(timeMachine.now());
         timeMachine.awaitMillis(downloadTimeMillis);
@@ -495,15 +495,15 @@ public class HlsSamplerTest {
     }
   }
 
-  private class DownloadBlockingUriSampler implements Function<URI, SampleResult> {
+  private class DownloadBlockingUriSampler implements Function<URI, HTTPSampleResult> {
 
-    private final Function<URI, SampleResult> uriSampler;
+    private final Function<URI, HTTPSampleResult> uriSampler;
     private final int blockingDownloadsCount;
     private final Semaphore startDownloadLock;
     private final Semaphore endDownloadLock;
     private int currentDownload;
 
-    private DownloadBlockingUriSampler(Function<URI, SampleResult> uriSampler,
+    private DownloadBlockingUriSampler(Function<URI, HTTPSampleResult> uriSampler,
         int blockingDownloadsCount) {
       this.uriSampler = uriSampler;
       this.blockingDownloadsCount = blockingDownloadsCount;
@@ -512,7 +512,7 @@ public class HlsSamplerTest {
     }
 
     @Override
-    public SampleResult apply(URI uri) {
+    public HTTPSampleResult apply(URI uri) {
       startDownloadLock.release();
       if (currentDownload < blockingDownloadsCount) {
         currentDownload++;
