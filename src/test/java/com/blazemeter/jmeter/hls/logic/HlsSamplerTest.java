@@ -47,6 +47,9 @@ public class HlsSamplerTest {
   private static final String SAMPLER_NAME = "HLS";
   private static final String MASTER_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - master playlist";
   private static final String MEDIA_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - media playlist";
+  private static final String AUDIO_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - audio playlist";
+  private static final String SUBTITLE_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - subtitles playlist";
+  private static final String SUBTITLE_SAMPLE_NAME = SAMPLER_NAME + " - subtitles";
   private static final String SEGMENT_SAMPLE_NAME = SAMPLER_NAME + " - media segment";
   private static final int SEGMENT_DURATION_SECONDS = 5;
   private static final String SIMPLE_MEDIA_PLAYLIST_NAME = "simpleMediaPlaylist.m3u8";
@@ -55,9 +58,18 @@ public class HlsSamplerTest {
   private static final String EVENT_MEDIA_PLAYLIST_PART_2_NAME = "eventMediaPlaylist-Part2.m3u8";
   private static final URI MEDIA_PLAYLIST_URI = URI.create("http://example.com/audio-only.m3u8");
   private static final String MASTER_PLAYLIST_NAME = "masterPlaylist.m3u8";
+
   private static final long TARGET_TIME_MILLIS = 10000;
   private static final long TIME_THRESHOLD_MILLIS = 5000;
   private static final long TEST_TIMEOUT = 10000;
+
+  private static final String MASTER_PLAYLIST_WITH_RENDITIONS = "masterPlaylistWithRenditions.m3u8";
+  private static final String SUBTITLES_PLAYLIST = "subtitlePlaylist.m3u8";
+  private static final String AUDIO_PLAYLIST = "audioPlaylist.m3u8";
+
+  private static final URI MASTER_PLAYLIST_WITH_RENDITIONS_URI = URI.create("http://example.com/masterPlaylistWithRenditions.m3u8");
+  private static final URI SUBTITLES_PLAYLIST_URI = URI.create("http://example.com/subtitles_fr.m3u8");
+  private static final URI AUDIO_PLAYLIST_URI = URI.create("http://example.com/audio/stereo/en/128kbit.m3u8");
 
   private HlsSampler sampler;
   private SegmentResultFallbackUriSamplerMock uriSampler = new SegmentResultFallbackUriSamplerMock();
@@ -173,8 +185,10 @@ public class HlsSamplerTest {
     for (int i = 1; i < playlists.length; i++) {
       rest[i - 1] = buildPlaylistSampleResult(SAMPLER_NAME, uri, playlists[i]);
     }
+    //Todo: REMOVE Me
+    HTTPSampleResult sampleResult = buildPlaylistSampleResult(SAMPLER_NAME, uri, playlists[0]);
     when(uriSampler.mock.apply(uri))
-        .thenReturn(buildPlaylistSampleResult(SAMPLER_NAME, uri, playlists[0]), rest);
+        .thenReturn(sampleResult, rest);
   }
 
   private HTTPSampleResult buildPlaylistSampleResult(String name, URI uri, String body) {
@@ -624,10 +638,63 @@ public class HlsSamplerTest {
         buildSegmentSampleResult(2),
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylistPart1)));
   }
-
-  public void shouldDownloadDefault() {
-
+/*
+  @Test
+  public void shouldDownloadSegmentWhenUriIsFromMasterPlaylist() throws Exception {
+    String masterPlaylist = getPlaylist(MASTER_PLAYLIST_NAME);
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, masterPlaylist);
+    setupUriSamplerPlaylist(MEDIA_PLAYLIST_URI, mediaPlaylist);
+    setPlaySeconds(SEGMENT_DURATION_SECONDS);
+    sampler.sample();
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, masterPlaylist),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
+        buildSegmentSampleResult(0)));
   }
+* */
+  @Test
+  public void shouldDownloadSubtitlesWhenSelector() throws Exception {
+    sampler.setMasterUrl(MASTER_PLAYLIST_WITH_RENDITIONS_URI.toString());
+
+    String masterPlaylist = getPlaylist(MASTER_PLAYLIST_WITH_RENDITIONS);
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    String audioPlaylist = getPlaylist(AUDIO_PLAYLIST);
+    String subtitlePlaylist = getPlaylist(SUBTITLES_PLAYLIST);
+
+    setPlaySeconds(3);
+
+    setupUriSamplerPlaylist(MASTER_PLAYLIST_WITH_RENDITIONS_URI, masterPlaylist);
+    setupUriSamplerPlaylist(MEDIA_PLAYLIST_URI, mediaPlaylist);
+    setupUriSamplerPlaylist(AUDIO_PLAYLIST_URI, audioPlaylist);
+    setupUriSamplerPlaylist(SUBTITLES_PLAYLIST_URI, subtitlePlaylist);
+
+    sampler.setSubtitleLanguage("fr");
+    sampler.sample();
+
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI, masterPlaylist),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
+        buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_URI, audioPlaylist),
+        buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLES_PLAYLIST_URI, subtitlePlaylist),
+        buildSegmentSampleResultByType(0, "media", true),
+        buildSegmentSampleResultByType(-1, "audio", true),
+        buildSegmentSampleResultByType(0, "audio", true),
+        buildSegmentSampleResultByType(1, "audio", true),
+        buildSegmentSampleResultByType(0, "subtitles", true)));
+  }
+
+  private HTTPSampleResult buildSegmentSampleResultByType(int sequenceNumber, String type, boolean segment) {
+    return buildSampleResult("HLS - " + type + (segment ? " segment" : ""), buildSegmentUri(sequenceNumber),
+        SEGMENT_CONTENT_TYPE, "");
+  }
+
+  private void shouldDownloadDefaultSubtitleWhenSelectorNotFound(){}
+  private void shouldDownloadDefaultAudioWhenSelectorNotFound(){}
+  private void shouldDownloadSubtitlePlaylist(){}
+  private void shouldDownloadSubtitleWholeFileWhenSubtitleWithoutPlaylist(){}
+  private void shouldKeepDownloadOtherSegmentsAndNotifyErrorWhenParsingPlaylistException(){}
+  private void shouldKeepDownloadOtherSegmentsAndNotifyErrorWhenDownloadingPlaylistException(){}
 
   /*
     Descargar Subtitlos Espanol
@@ -637,5 +704,9 @@ public class HlsSamplerTest {
     Descargar Audio por defecto cuando no se selecciona alguno
     Descargar Lista de Subtitlos
     Descargar Archivo normal
+    habria que hacer alguna prueba tb de ver que intercale los segmentos
+    Habria que hacer pruebas de cuando falla a descargar las playlists esas y los segmentos correspondientes, que siga bajando
+
+    que los reporte como sample results fallidos pero que siga bajando
   */
 }

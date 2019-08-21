@@ -356,12 +356,10 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       notifySampleResult(playlistName, playlistResult);
       return playlist;
     } catch (PlaylistParsingException e) {
-      //notifySampleResult(playlistName, errorResult(e, playlistResult));
+      notifySampleResult(playlistName, errorResult(e, playlistResult));
       throw e;
     }
   }
-
-
 
   private SampleResult buildNotMatchingMediaPlaylistResult() {
     SampleResult res = new SampleResult();
