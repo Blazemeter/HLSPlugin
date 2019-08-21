@@ -480,6 +480,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     // The subtitle can be playlist or a plain file, if the later,
     //no need to download anything else
     if (!uri.toString().contains(".m3u8")) {
+      notifySampleResult("subtitles", playlistResult);
       return null;
     }
 

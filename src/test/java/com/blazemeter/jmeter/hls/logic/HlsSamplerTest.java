@@ -638,21 +638,7 @@ public class HlsSamplerTest {
         buildSegmentSampleResult(2),
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylistPart1)));
   }
-/*
-  @Test
-  public void shouldDownloadSegmentWhenUriIsFromMasterPlaylist() throws Exception {
-    String masterPlaylist = getPlaylist(MASTER_PLAYLIST_NAME);
-    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
-    setupUriSamplerPlaylist(MASTER_URI, masterPlaylist);
-    setupUriSamplerPlaylist(MEDIA_PLAYLIST_URI, mediaPlaylist);
-    setPlaySeconds(SEGMENT_DURATION_SECONDS);
-    sampler.sample();
-    verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, masterPlaylist),
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
-        buildSegmentSampleResult(0)));
-  }
-* */
+
   @Test
   public void shouldDownloadSubtitlesWhenSelector() throws Exception {
     sampler.setMasterUrl(MASTER_PLAYLIST_WITH_RENDITIONS_URI.toString());
@@ -695,18 +681,4 @@ public class HlsSamplerTest {
   private void shouldDownloadSubtitleWholeFileWhenSubtitleWithoutPlaylist(){}
   private void shouldKeepDownloadOtherSegmentsAndNotifyErrorWhenParsingPlaylistException(){}
   private void shouldKeepDownloadOtherSegmentsAndNotifyErrorWhenDownloadingPlaylistException(){}
-
-  /*
-    Descargar Subtitlos Espanol
-    Descargar Subtitlos por defecto cuando no hay de los seleccionados
-    Descargar Audio Espanol
-    Descargar Audio por defecto cuando no hay de los seleccionados
-    Descargar Audio por defecto cuando no se selecciona alguno
-    Descargar Lista de Subtitlos
-    Descargar Archivo normal
-    habria que hacer alguna prueba tb de ver que intercale los segmentos
-    Habria que hacer pruebas de cuando falla a descargar las playlists esas y los segmentos correspondientes, que siga bajando
-
-    que los reporte como sample results fallidos pero que siga bajando
-  */
 }
