@@ -99,14 +99,9 @@ public class Playlist {
     is expecting it to be "SUBTITLE". If we do mediaStream.getSubtitle(), could return
     null. Because of that, we check with mediaStream.getTag().getAttributes() instead.
     */
-    String type = "SUBTITLES";
-    String subtitlesGroupId = mediaStream.getTag().getAttributes().get(type);
-    if (subtitlesGroupId == null) {
-      type = "SUBTITLE";
-      subtitlesGroupId = mediaStream.getTag().getAttributes().get(type);
-    }
+    String subtitlesGroupId = mediaStream.getTag().getAttributes().get("SUBTITLES");
 
-    URI subtitlePlayListUri = getRenditionUri(type, subtitlesGroupId,
+    URI subtitlePlayListUri = getRenditionUri("SUBTITLES", subtitlesGroupId,
         subtitleLanguageSelector);
 
     return new MediaStream(buildAbsoluteUri(mediaStream.getURI()),
@@ -116,10 +111,13 @@ public class Playlist {
 
   private URI getRenditionUri(String type, String groupId, String selector) {
 
+    if (groupId == null) {
+      return null;
+    }
+
     MasterPlaylist masterPlaylist = (MasterPlaylist) this.playlist;
 
-    Media lastDefaultRendition = null;
-    Media matchedRendition = null;
+    Media defaultRendition = null;
 
     for (Media rendition : masterPlaylist.getAlternateRenditions()) {
       String renditionType = rendition.getType();
@@ -128,29 +126,20 @@ public class Playlist {
       if (renditionType.equals(type) && renditionGroupId.equals(groupId)) {
 
         if (rendition.getDefault()) {
-          lastDefaultRendition = rendition;
+          defaultRendition = rendition;
         }
 
         if (rendition.getName().toLowerCase().trim().equals(selector.toLowerCase())
             || rendition.getLanguage().toLowerCase().trim().equals(selector.toLowerCase())) {
-          matchedRendition = rendition;
+          return URI.create(rendition.getURI());
         }
       }
     }
 
-    if (matchedRendition == null) {
-      LOG.warn("No {} was found for the selected param provided '{}', using default if exists.",
-          type.toLowerCase(), selector.toLowerCase());
+    LOG.warn("No {} was found for the selected param provided '{}', using default if exists.",
+        type.toLowerCase(), selector.toLowerCase());
 
-      if (lastDefaultRendition != null) {
-        return URI.create(lastDefaultRendition.getURI());
-      } else {
-        return null;
-      }
-
-    }
-
-    return URI.create(matchedRendition.getURI());
+    return (defaultRendition != null ? URI.create(defaultRendition.getURI()) : null);
   }
 
   private URI buildAbsoluteUri(String str) {

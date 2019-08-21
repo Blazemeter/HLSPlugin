@@ -48,7 +48,8 @@ public class HlsSamplerTest {
   private static final String MASTER_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - master playlist";
   private static final String MEDIA_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - media playlist";
   private static final String AUDIO_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - audio playlist";
-  private static final String SUBTITLE_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - subtitles playlist";
+  private static final String SUBTITLE_PLAYLIST_SAMPLE_NAME =
+      SAMPLER_NAME + " - subtitles playlist";
   private static final String SUBTITLE_SAMPLE_NAME = SAMPLER_NAME + " - subtitles";
   private static final String SEGMENT_SAMPLE_NAME = SAMPLER_NAME + " - media segment";
   private static final int SEGMENT_DURATION_SECONDS = 5;
@@ -67,9 +68,12 @@ public class HlsSamplerTest {
   private static final String SUBTITLES_PLAYLIST = "subtitlePlaylist.m3u8";
   private static final String AUDIO_PLAYLIST = "audioPlaylist.m3u8";
 
-  private static final URI MASTER_PLAYLIST_WITH_RENDITIONS_URI = URI.create("http://example.com/masterPlaylistWithRenditions.m3u8");
-  private static final URI SUBTITLES_PLAYLIST_URI = URI.create("http://example.com/subtitles_fr.m3u8");
-  private static final URI AUDIO_PLAYLIST_URI = URI.create("http://example.com/audio/stereo/en/128kbit.m3u8");
+  private static final URI MASTER_PLAYLIST_WITH_RENDITIONS_URI = URI
+      .create("http://example.com/masterPlaylistWithRenditions.m3u8");
+  private static final URI SUBTITLES_PLAYLIST_URI = URI
+      .create("http://example.com/subtitles_fr.m3u8");
+  private static final URI AUDIO_PLAYLIST_URI = URI
+      .create("http://example.com/audio/stereo/en/128kbit.m3u8");
 
   private HlsSampler sampler;
   private SegmentResultFallbackUriSamplerMock uriSampler = new SegmentResultFallbackUriSamplerMock();
@@ -659,7 +663,8 @@ public class HlsSamplerTest {
     sampler.sample();
 
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI, masterPlaylist),
+        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
+            masterPlaylist),
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
         buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_URI, audioPlaylist),
         buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLES_PLAYLIST_URI, subtitlePlaylist),
@@ -670,15 +675,28 @@ public class HlsSamplerTest {
         buildSegmentSampleResultByType(0, "subtitles", true)));
   }
 
-  private HTTPSampleResult buildSegmentSampleResultByType(int sequenceNumber, String type, boolean segment) {
-    return buildSampleResult("HLS - " + type + (segment ? " segment" : ""), buildSegmentUri(sequenceNumber),
+  private HTTPSampleResult buildSegmentSampleResultByType(int sequenceNumber, String type,
+      boolean segment) {
+    return buildSampleResult("HLS - " + type + (segment ? " segment" : ""),
+        buildSegmentUri(sequenceNumber),
         SEGMENT_CONTENT_TYPE, "");
   }
 
-  private void shouldDownloadDefaultSubtitleWhenSelectorNotFound(){}
-  private void shouldDownloadDefaultAudioWhenSelectorNotFound(){}
-  private void shouldDownloadSubtitlePlaylist(){}
-  private void shouldDownloadSubtitleWholeFileWhenSubtitleWithoutPlaylist(){}
-  private void shouldKeepDownloadOtherSegmentsAndNotifyErrorWhenParsingPlaylistException(){}
-  private void shouldKeepDownloadOtherSegmentsAndNotifyErrorWhenDownloadingPlaylistException(){}
+  private void shouldDownloadDefaultSubtitleWhenSelectorNotFound() {
+  }
+
+  private void shouldDownloadDefaultAudioWhenSelectorNotFound() {
+  }
+
+  private void shouldDownloadSubtitlePlaylist() {
+  }
+
+  private void shouldDownloadSubtitleWholeFileWhenSubtitleWithoutPlaylist() {
+  }
+
+  private void shouldKeepDownloadOtherSegmentsAndNotifyErrorWhenParsingPlaylistException() {
+  }
+
+  private void shouldKeepDownloadOtherSegmentsAndNotifyErrorWhenDownloadingPlaylistException() {
+  }
 }

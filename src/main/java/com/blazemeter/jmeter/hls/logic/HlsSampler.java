@@ -462,7 +462,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   private Playlist downloadSubtitles(URI uri) {
     Instant downloadTimestamp = timeMachine.now();
-    SampleResult playlistResult = uriSampler.apply(uri);
+    HTTPSampleResult playlistResult = uriSampler.apply(uri);
     if (!playlistResult.isSuccessful()) {
       notifySampleResult("subtitles", playlistResult);
       LOG.warn("Problem downloading subtitles from {}", uri);
@@ -489,6 +489,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
           .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
     } catch (PlaylistParsingException e) {
       LOG.warn("Problem parsing subtitles from {}", uri, e);
+      notifySampleResult("subtitles", errorResult(e, playlistResult));
       return null;
     } finally {
       notifySampleResult("subtitles", playlistResult);
