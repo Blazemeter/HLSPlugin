@@ -82,7 +82,8 @@ public class HlsSamplerTest {
   private static final long TARGET_TIME_MILLIS = 10000;
   private static final long TIME_THRESHOLD_MILLIS = 5000;
   private static final long TEST_TIMEOUT = 10000;
-  public static final URI AUDIO__FIRST_SEGMENT_DEFAULT_ENGLISH_URI = URI.create("media_w370587926_b160000_ao_slen_t64RW5nbGlzaA==_1.aac");
+  public static final URI AUDIO__FIRST_SEGMENT_DEFAULT_ENGLISH_URI = URI
+      .create("media_w370587926_b160000_ao_slen_t64RW5nbGlzaA==_1.aac");
 
 
   private HlsSampler sampler;

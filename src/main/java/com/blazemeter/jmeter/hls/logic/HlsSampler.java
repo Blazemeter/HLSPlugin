@@ -1,6 +1,5 @@
 package com.blazemeter.jmeter.hls.logic;
 
-import com.helger.commons.annotation.VisibleForTesting;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
