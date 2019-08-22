@@ -386,13 +386,13 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       this.playSeconds = playSeconds;
       this.type = type;
 
-      if (playlist != null) {
+      if (!interrupted && playlist != null) {
         updateMediaSegments();
       }
     }
 
     private void updateMediaSegments() {
-      mediaSegments = this.playlist.getMediaSegments().stream()
+      this.mediaSegments = this.playlist.getMediaSegments().stream()
           .filter(s -> s.getSequenceNumber() > lastSegmentNumber).iterator();
     }
 

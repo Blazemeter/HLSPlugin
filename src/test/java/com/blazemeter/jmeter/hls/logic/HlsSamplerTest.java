@@ -2,7 +2,6 @@ package com.blazemeter.jmeter.hls.logic;
 
 import static org.assertj.core.api.Java6Assertions.assertThat;
 import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -718,7 +717,7 @@ public class HlsSamplerTest {
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
         buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
             audioPlaylist),
-        buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
+        buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, FRENCH_SUBTITLES_PLAYLIST_URI,
             subtitlePlaylist),
         buildSegmentSampleResultByType(0, "media", true),
         buildSegmentSampleResultByType(-1, "audio", true),
@@ -775,8 +774,6 @@ public class HlsSamplerTest {
     setupUriSamplerPlaylist(AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI, audioPlaylist);
     setupUriSamplerPlaylist(SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
         subtitlePlaylistWithParsingException);
-
-    doThrow(new PlaylistParsingException(null, SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI)).when(uriSampler).mock.apply(SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI);
 
     sampler.sample();
 
