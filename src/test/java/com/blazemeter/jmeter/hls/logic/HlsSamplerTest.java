@@ -755,9 +755,6 @@ public class HlsSamplerTest {
         buildSegmentSampleResultByType(0, "subtitles", true)));
   }
 
-  public void shouldDownloadSubtitleWholeFileWhenSubtitleWithoutPlaylist() {
-  }
-
   @Test
   public void shouldKeepDownloadOtherSegmentsAndNotifyErrorWhenParsingPlaylistException()
       throws IOException {
@@ -792,4 +789,8 @@ public class HlsSamplerTest {
 
   public void shouldKeepDownloadOtherSegmentsAndNotifyErrorWhenDownloadingPlaylistException() {
   }
+
+  public void shouldDownloadSubtitleWholeFileWhenSubtitleWithoutPlaylist() {
+  }
+  
 }
