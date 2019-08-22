@@ -82,6 +82,7 @@ public class HlsSamplerTest {
   private static final long TARGET_TIME_MILLIS = 10000;
   private static final long TIME_THRESHOLD_MILLIS = 5000;
   private static final long TEST_TIMEOUT = 10000;
+  public static final URI AUDIO__FIRST_SEGMENT_DEFAULT_ENGLISH_URI = URI.create("media_w370587926_b160000_ao_slen_t64RW5nbGlzaA==_1.aac");
 
 
   private HlsSampler sampler;
@@ -203,6 +204,7 @@ public class HlsSamplerTest {
     when(uriSampler.mock.apply(uri))
         .thenReturn(sampleResult, rest);
   }
+
 
   private HTTPSampleResult buildPlaylistSampleResult(String name, URI uri, String body) {
     return buildSampleResult(name, uri, PLAYLIST_CONTENT_TYPE, body);
@@ -759,7 +761,7 @@ public class HlsSamplerTest {
   }
 
   @Test
-  public void shouldKeepDownloadOtherSegmentsAndNotifyErrorWhenParsingPlaylistException()
+  public void shouldKeepDownloadMediaAndAudioSegmentsWhenFailsSubtitleDownload()
       throws IOException {
     setUpSamplerForRenditions("", "sp", 3);
 
@@ -767,13 +769,17 @@ public class HlsSamplerTest {
     String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
     String audioPlaylist = getPlaylist(AUDIO_PLAYLIST_ENGLISH_DEFAULT_RESOURCE);
     String subtitlePlaylistWithParsingException = getPlaylist(
-        SUBTITLES_PLAYLIST_ENGLISH_PARSING_EXCEPTION_RESOURCE);
+        SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_RESOURCE);
 
     setupUriSamplerPlaylist(MASTER_PLAYLIST_WITH_RENDITIONS_URI, masterPlaylist);
     setupUriSamplerPlaylist(MEDIA_PLAYLIST_URI, mediaPlaylist);
     setupUriSamplerPlaylist(AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI, audioPlaylist);
     setupUriSamplerPlaylist(SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
         subtitlePlaylistWithParsingException);
+
+    HTTPSampleResult result = buildHttpSampleResultFailingDownload(
+        SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI);
+    when(uriSampler.apply(SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI)).thenReturn(result);
 
     sampler.sample();
 
@@ -786,11 +792,48 @@ public class HlsSamplerTest {
         buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
             subtitlePlaylistWithParsingException),
         buildSegmentSampleResultByType(0, "media", true),
-        buildSegmentSampleResultByType(0, "audio", true),
+        buildSegmentSampleResultByType(0, "audio", true)));
+  }
+
+  @Test
+  public void shouldKeepDownloadMediaAndSubtitleSegmentsWhenFailsAudioDownload()
+      throws IOException {
+    setUpSamplerForRenditions("", "sp", 3);
+
+    String masterPlaylist = getPlaylist(MASTER_PLAYLIST_WITH_RENDITIONS_RESOURCE);
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    String audioPlaylist = getPlaylist(AUDIO_PLAYLIST_ENGLISH_DEFAULT_RESOURCE);
+    String subtitlePlaylistWithParsingException = getPlaylist(
+        SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_RESOURCE);
+
+    setupUriSamplerPlaylist(MASTER_PLAYLIST_WITH_RENDITIONS_URI, masterPlaylist);
+    setupUriSamplerPlaylist(MEDIA_PLAYLIST_URI, mediaPlaylist);
+    setupUriSamplerPlaylist(AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI, audioPlaylist);
+    setupUriSamplerPlaylist(SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
+        subtitlePlaylistWithParsingException);
+
+    HTTPSampleResult result = buildHttpSampleResultFailingDownload(
+        AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI);
+    when(uriSampler.apply(AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI)).thenReturn(result);
+
+    sampler.sample();
+
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
+            masterPlaylist),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
+        buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
+            audioPlaylist),
+        buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
+            subtitlePlaylistWithParsingException),
+        buildSegmentSampleResultByType(0, "media", true),
         buildSegmentSampleResultByType(0, "subtitles", true)));
   }
 
-  public void shouldKeepDownloadOtherSegmentsAndNotifyErrorWhenDownloadingPlaylistException() {
+  private HTTPSampleResult buildHttpSampleResultFailingDownload(URI uri) {
+    HTTPSampleResult result = uriSampler.apply(uri);
+    result.setSuccessful(false);
+    return result;
   }
 
   @Test
@@ -823,4 +866,41 @@ public class HlsSamplerTest {
         buildSegmentSampleResultByType(1, "audio", true)));
   }
 
+  @Test
+  public void shouldKeepDownloadingSegmentsWhenOneSegmentDownloadFails() throws Exception {
+    setUpSamplerForRenditions("fr", "", 3);
+
+    String masterPlaylist = getPlaylist(MASTER_PLAYLIST_WITH_RENDITIONS_RESOURCE);
+    String audioPlaylist = getPlaylist(AUDIO_PLAYLIST_RESOURCE);
+    String subtitlePlaylist = getPlaylist(SUBTITLE_PLAYLIST_FRENCH_RESOURCE);
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+
+    setupUriSamplerPlaylist(MASTER_PLAYLIST_WITH_RENDITIONS_URI, masterPlaylist);
+    setupUriSamplerPlaylist(MEDIA_PLAYLIST_URI, mediaPlaylist);
+    setupUriSamplerPlaylist(AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI, audioPlaylist);
+    setupUriSamplerPlaylist(FRENCH_SUBTITLES_PLAYLIST_URI, subtitlePlaylist);
+
+    HTTPSampleResult result = uriSampler
+        .apply(AUDIO__FIRST_SEGMENT_DEFAULT_ENGLISH_URI);
+    result.setSuccessful(false);
+    when(uriSampler.apply(URI.create(AUDIO__FIRST_SEGMENT_DEFAULT_ENGLISH_URI.toString())))
+        .thenReturn(
+            result);
+
+    sampler.sample();
+
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
+            masterPlaylist),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
+        buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
+            audioPlaylist),
+        buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, FRENCH_SUBTITLES_PLAYLIST_URI,
+            subtitlePlaylist),
+        buildSegmentSampleResultByType(0, "media", true),
+        buildSegmentSampleResultByType(-1, "audio", true),
+        buildSegmentSampleResultByType(0, "audio", true),
+        buildSegmentSampleResultByType(1, "audio", true),
+        buildSegmentSampleResultByType(0, "subtitles", true)));
+  }
 }

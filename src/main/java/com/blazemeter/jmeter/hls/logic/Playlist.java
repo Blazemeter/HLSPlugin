@@ -95,9 +95,8 @@ public class Playlist {
         audioLanguageSelector);
 
     /*
-    The lists of renditions could have either SUBTITLE or SUBTITLES tags but, the library
-    is expecting it to be "SUBTITLE". If we do mediaStream.getSubtitle(), could return
-    null. Because of that, we check with mediaStream.getTag().getAttributes() instead.
+    Because of a bug in the library, the mediaStream.getSubtitle() method wont return
+    the subtitlesGroupId but null. Because of it, we are use getTag instead.
     */
     String subtitlesGroupId = mediaStream.getTag().getAttributes().get("SUBTITLES");
 
