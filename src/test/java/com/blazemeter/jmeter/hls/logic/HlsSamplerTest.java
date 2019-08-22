@@ -60,6 +60,22 @@ public class HlsSamplerTest {
   private static final URI MEDIA_PLAYLIST_URI = URI.create("http://example.com/audio-only.m3u8");
   private static final String MASTER_PLAYLIST_NAME = "masterPlaylist.m3u8";
 
+  private static final String MASTER_PLAYLIST_WITH_RENDITIONS_RESOURCE = "masterPlaylistWithRenditions.m3u8";
+  private static final String SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_RESOURCE = "defaultEnglishSubtitlePlaylist.m3u8";
+  private static final String SUBTITLES_PLAYLIST_ENGLISH_PARSING_EXCEPTION_RESOURCE = "defaultEnglishSubtitlePlaylistParsingException.m3u8";
+  private static final String SUBTITLE_PLAYLIST_FRENCH_RESOURCE = "frenchSubtitlePlaylist.m3u8";
+  private static final String AUDIO_PLAYLIST_RESOURCE = "audioPlaylist.m3u8";
+  private static final String AUDIO_PLAYLIST_ENGLISH_DEFAULT_RESOURCE = "defaultEnglishAudioPlaylist.m3u8";
+
+  private static final URI MASTER_PLAYLIST_WITH_RENDITIONS_URI = URI
+      .create("http://example.com/masterPlaylistWithRenditions.m3u8");
+  private static final URI SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI = URI
+      .create("http://example.com/subtitles_en_default.m3u8");
+  private static final URI FRENCH_SUBTITLES_PLAYLIST_URI = URI
+      .create("http://example.com/subtitles_fr_no_default.m3u8");
+  private static final URI AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI = URI
+      .create("http://example.com/audio/audio_stereo_en_default.m3u8");
+
   private static final long TARGET_TIME_MILLIS = 10000;
   private static final long TIME_THRESHOLD_MILLIS = 5000;
   private static final long TEST_TIMEOUT = 10000;
@@ -633,22 +649,6 @@ public class HlsSamplerTest {
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylistPart1)));
   }
 
-  private static final String MASTER_PLAYLIST_WITH_RENDITIONS_RESOURCE = "masterPlaylistWithRenditions.m3u8";
-  private static final String SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_RESOURCE = "defaultEnglishSubtitlePlaylist.m3u8";
-  private static final String SUBTITLES_PLAYLIST_ENGLISH_PARSING_EXCEPTION_RESOURCE = "defaultEnglishSubtitlePlaylistParsingException.m3u8";
-  private static final String SUBTITLE_PLAYLIST_FRENCH_RESOURCE = "frenchSubtitlePlaylist.m3u8";
-  private static final String AUDIO_PLAYLIST_RESOURCE = "audioPlaylist.m3u8";
-  private static final String AUDIO_PLAYLIST_ENGLISH_DEFAULT_RESOURCE = "defaultEnglishAudioPlaylist.m3u8";
-
-  private static final URI MASTER_PLAYLIST_WITH_RENDITIONS_URI = URI
-      .create("http://example.com/masterPlaylistWithRenditions.m3u8");
-  private static final URI SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI = URI
-      .create("http://example.com/subtitles_en_default.m3u8");
-  private static final URI FRENCH_SUBTITLES_PLAYLIST_URI = URI
-      .create("http://example.com/subtitles_fr_no_default.m3u8");
-  private static final URI AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI = URI
-      .create("http://example.com/audio/audio_stereo_en_default.m3u8");
-
   @Test
   public void shouldDownloadDefaultSubtitleWhenSelectorNotFound() throws IOException {
     setUpSamplerForRenditions("sp", "", 3);
@@ -791,6 +791,31 @@ public class HlsSamplerTest {
   }
 
   public void shouldDownloadSubtitleWholeFileWhenSubtitleWithoutPlaylist() {
+    setUpSamplerForRenditions("", "sp", 3);
+
+    String masterPlaylist = getPlaylist(MASTER_PLAYLIST_WITH_RENDITIONS_RESOURCE);
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    String audioPlaylist = getPlaylist(AUDIO_PLAYLIST_ENGLISH_DEFAULT_RESOURCE);
+    String subtitlePlaylist = getPlaylist(SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_RESOURCE);
+
+    setupUriSamplerPlaylist(MASTER_PLAYLIST_WITH_RENDITIONS_URI, masterPlaylist);
+    setupUriSamplerPlaylist(MEDIA_PLAYLIST_URI, mediaPlaylist);
+    setupUriSamplerPlaylist(AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI, audioPlaylist);
+    setupUriSamplerPlaylist(SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI, subtitlePlaylist);
+
+    sampler.sample();
+
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
+            masterPlaylist),
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
+        buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
+            audioPlaylist),
+        buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
+            subtitlePlaylist),
+        buildSegmentSampleResultByType(0, "media", true),
+        buildSegmentSampleResultByType(0, "audio", true),
+        buildSegmentSampleResultByType(0, "subtitles", true)));
   }
-  
+
 }
