@@ -199,10 +199,9 @@ public class HlsSamplerTest {
     for (int i = 1; i < playlists.length; i++) {
       rest[i - 1] = buildPlaylistSampleResult(SAMPLER_NAME, uri, playlists[i]);
     }
-    //Todo: REMOVE Me
-    HTTPSampleResult sampleResult = buildPlaylistSampleResult(SAMPLER_NAME, uri, playlists[0]);
+
     when(uriSampler.mock.apply(uri))
-        .thenReturn(sampleResult, rest);
+        .thenReturn(buildPlaylistSampleResult(SAMPLER_NAME, uri, playlists[0]), rest);
   }
 
 
