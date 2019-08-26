@@ -91,7 +91,7 @@ public class Playlist {
       return null;
     }
 
-    URI audioPlayListUri = getRenditionUri("AUDIO", mediaStream.getAudio(),
+    String audioPlayListUri = getRenditionUri("AUDIO", mediaStream.getAudio(),
         audioLanguageSelector);
 
     /*
@@ -100,15 +100,15 @@ public class Playlist {
     */
     String subtitlesGroupId = mediaStream.getTag().getAttributes().get("SUBTITLES");
 
-    URI subtitlePlayListUri = getRenditionUri("SUBTITLES", subtitlesGroupId,
+    String subtitlePlayListUri = getRenditionUri("SUBTITLES", subtitlesGroupId,
         subtitleLanguageSelector);
 
     return new MediaStream(buildAbsoluteUri(mediaStream.getURI()),
-        (audioPlayListUri != null ? buildAbsoluteUri(audioPlayListUri.toString()) : null),
-        (subtitlePlayListUri != null ? buildAbsoluteUri(subtitlePlayListUri.toString()) : null));
+        (audioPlayListUri != null ? buildAbsoluteUri(audioPlayListUri) : null),
+        (subtitlePlayListUri != null ? buildAbsoluteUri(subtitlePlayListUri) : null));
   }
 
-  private URI getRenditionUri(String type, String groupId, String selector) {
+  private String getRenditionUri(String type, String groupId, String selector) {
 
     if (groupId == null) {
       return null;
@@ -130,15 +130,17 @@ public class Playlist {
 
         if (rendition.getName().toLowerCase().trim().equals(selector.toLowerCase())
             || rendition.getLanguage().toLowerCase().trim().equals(selector.toLowerCase())) {
-          return URI.create(rendition.getURI());
+          return rendition.getURI();
         }
       }
     }
 
-    LOG.warn("No {} was found for the selected param provided '{}', using default if exists.",
-        type.toLowerCase(), selector.toLowerCase());
+    if (!selector.isEmpty()) {
+      LOG.warn("No {} was found for the selected param provided '{}', using default if exists.",
+          type, selector);
+    }
 
-    return (defaultRendition != null ? URI.create(defaultRendition.getURI()) : null);
+    return (defaultRendition != null ? defaultRendition.getURI() : null);
   }
 
   private URI buildAbsoluteUri(String str) {

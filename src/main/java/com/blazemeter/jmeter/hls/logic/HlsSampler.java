@@ -46,6 +46,9 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private static final String MEDIA_PLAYLIST_NAME = "media playlist";
   private static final String MASTER_PLAYLIST_NAME = "master playlist";
   private static final String AUDIO_PLAYLIST_NAME = "audio playlist";
+  public static final String SUBTITLES_TYPE_NAME = "subtitles";
+  public static final String MEDIA_TYPE_NAME = "media";
+  public static final String AUDIO_TYPE_NAME = "audio";
 
   private final transient Function<URI, HTTPSampleResult> uriSampler;
   private final transient Consumer<SampleResult> sampleResultNotifier;
@@ -232,6 +235,12 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       lastAudioSegmentNumber = -1;
       lastSubtitleSegmentNumber = -1;
     }
+
+    if (notifyFirstSampleAfterLoopRestart) {
+      httpClient.notifyFirstSampleAfterLoopRestart();
+      notifyFirstSampleAfterLoopRestart = false;
+    }
+
     try {
       URI masterUri = URI.create(getMasterUrl());
       Playlist masterPlaylist = downloadPlaylist(null, masterUri);
@@ -240,21 +249,17 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       Playlist audioPlaylist = null;
       Playlist subtitlesPlaylist = null;
 
-      if (notifyFirstSampleAfterLoopRestart) {
-        httpClient.notifyFirstSampleAfterLoopRestart();
-        notifyFirstSampleAfterLoopRestart = false;
-      }
-
       if (!interrupted && masterPlaylist.isMasterPlaylist()) {
 
         MediaStream mediaStream = masterPlaylist
             .solveMediaStream(getResolutionSelector(), getBandwidthSelector(),
                 getAudioLanguage(), getSubtitleLanguage());
-
-        URI mediaPlaylistUri = mediaStream.getMediaPlaylistUri();
-        if (mediaPlaylistUri == null) {
+        if (mediaStream == null) {
           return buildNotMatchingMediaPlaylistResult();
         }
+
+        URI mediaPlaylistUri = mediaStream.getMediaPlaylistUri();
+
 
         mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
 
@@ -283,11 +288,11 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       }
 
       MediaPlayback mediaPlayback = new MediaPlayback(mediaPlaylist, lastVideoSegmentNumber,
-          playSeconds, "media");
+          playSeconds, MEDIA_TYPE_NAME);
       MediaPlayback audioPlayback = new MediaPlayback(audioPlaylist, lastAudioSegmentNumber,
-          playSeconds, "audio");
+          playSeconds, AUDIO_TYPE_NAME);
       MediaPlayback subtitlesPlayback = new MediaPlayback(subtitlesPlaylist,
-          lastSubtitleSegmentNumber, playSeconds, "subtitles");
+          lastSubtitleSegmentNumber, playSeconds, SUBTITLES_TYPE_NAME);
 
       try {
         while (!interrupted && !mediaPlayback.hasEnded()) {
@@ -464,7 +469,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     Instant downloadTimestamp = timeMachine.now();
     HTTPSampleResult playlistResult = uriSampler.apply(uri);
     if (!playlistResult.isSuccessful()) {
-      notifySampleResult("subtitles", playlistResult);
+      notifySampleResult(SUBTITLES_TYPE_NAME, playlistResult);
       LOG.warn("Problem downloading subtitles from {}", uri);
       return null;
     }
@@ -480,7 +485,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     // The subtitle can be playlist or a plain file, if the later,
     //no need to download anything else
     if (!uri.toString().contains(".m3u8")) {
-      notifySampleResult("subtitles", playlistResult);
+      notifySampleResult(SUBTITLES_TYPE_NAME, playlistResult);
       return null;
     }
 
@@ -489,10 +494,10 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
           .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
     } catch (PlaylistParsingException e) {
       LOG.warn("Problem parsing subtitles from {}", uri, e);
-      notifySampleResult("subtitles", errorResult(e, playlistResult));
+      notifySampleResult(SUBTITLES_TYPE_NAME, errorResult(e, playlistResult));
       return null;
     } finally {
-      notifySampleResult("subtitles", playlistResult);
+      notifySampleResult(SUBTITLES_TYPE_NAME, playlistResult);
     }
   }
 
