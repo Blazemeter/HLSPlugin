@@ -260,7 +260,6 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
         URI mediaPlaylistUri = mediaStream.getMediaPlaylistUri();
 
-
         mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
 
         try {
