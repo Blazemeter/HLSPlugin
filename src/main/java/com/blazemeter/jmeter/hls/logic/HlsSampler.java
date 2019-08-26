@@ -46,9 +46,9 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private static final String MEDIA_PLAYLIST_NAME = "media playlist";
   private static final String MASTER_PLAYLIST_NAME = "master playlist";
   private static final String AUDIO_PLAYLIST_NAME = "audio playlist";
-  public static final String SUBTITLES_TYPE_NAME = "subtitles";
-  public static final String MEDIA_TYPE_NAME = "media";
-  public static final String AUDIO_TYPE_NAME = "audio";
+  private static final String SUBTITLES_TYPE_NAME = "subtitles";
+  private static final String MEDIA_TYPE_NAME = "media";
+  private static final String AUDIO_TYPE_NAME = "audio";
 
   private final transient Function<URI, HTTPSampleResult> uriSampler;
   private final transient Consumer<SampleResult> sampleResultNotifier;
