@@ -686,17 +686,21 @@ public class HlsSamplerTest {
             audioPlaylist),
         buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
             defaultSubtitlePlaylist),
-        buildSegmentSampleResultByType(0, MEDIA_TYPE_NAME),
-        buildSegmentSampleResultByType(-1, AUDIO_TYPE_NAME),
-        buildSegmentSampleResultByType(0, AUDIO_TYPE_NAME),
+        buildSegmentSampleResultByType(1, MEDIA_TYPE_NAME),
         buildSegmentSampleResultByType(1, AUDIO_TYPE_NAME),
-        buildSegmentSampleResultByType(0, SUBTITLES_TYPE_NAME)));
+        buildSegmentSampleResultByType(2, AUDIO_TYPE_NAME),
+        buildSegmentSampleResultByType(3, AUDIO_TYPE_NAME),
+        buildSegmentSampleResultByType(1, SUBTITLES_TYPE_NAME)));
   }
 
   private HTTPSampleResult buildSegmentSampleResultByType(int sequenceNumber, String type) {
     return buildSampleResult("HLS - " + type + " segment",
-        buildSegmentUri(sequenceNumber),
+        buildAudioSegmentUri(sequenceNumber),
         SEGMENT_CONTENT_TYPE, "");
+  }
+
+  private URI buildAudioSegmentUri(int sequenceNumber) {
+    return URI.create("http://media.example.com/00" + (sequenceNumber) + ".ts");
   }
 
   private void setUpSamplerForRenditions(String subtitleLanguage, String audioLanguage) {
@@ -730,11 +734,11 @@ public class HlsSamplerTest {
             audioPlaylist),
         buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, FRENCH_SUBTITLES_PLAYLIST_URI,
             subtitlePlaylist),
-        buildSegmentSampleResultByType(0, MEDIA_TYPE_NAME),
-        buildSegmentSampleResultByType(-1, AUDIO_TYPE_NAME),
-        buildSegmentSampleResultByType(0, AUDIO_TYPE_NAME),
+        buildSegmentSampleResultByType(1, MEDIA_TYPE_NAME),
         buildSegmentSampleResultByType(1, AUDIO_TYPE_NAME),
-        buildSegmentSampleResultByType(0, SUBTITLES_TYPE_NAME)));
+        buildSegmentSampleResultByType(2, AUDIO_TYPE_NAME),
+        buildSegmentSampleResultByType(3, AUDIO_TYPE_NAME),
+        buildSegmentSampleResultByType(1, SUBTITLES_TYPE_NAME)));
   }
 
   @Test
@@ -761,9 +765,9 @@ public class HlsSamplerTest {
             audioPlaylist),
         buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
             subtitlePlaylist),
-        buildSegmentSampleResultByType(0, MEDIA_TYPE_NAME),
-        buildSegmentSampleResultByType(0, AUDIO_TYPE_NAME),
-        buildSegmentSampleResultByType(0, SUBTITLES_TYPE_NAME)));
+        buildSegmentSampleResultByType(1, MEDIA_TYPE_NAME),
+        buildSegmentSampleResultByType(1, AUDIO_TYPE_NAME),
+        buildSegmentSampleResultByType(1, SUBTITLES_TYPE_NAME)));
   }
 
   @Test
@@ -797,8 +801,8 @@ public class HlsSamplerTest {
             audioPlaylist),
         buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
             subtitlePlaylistWithParsingException),
-        buildSegmentSampleResultByType(0, MEDIA_TYPE_NAME),
-        buildSegmentSampleResultByType(0, AUDIO_TYPE_NAME)));
+        buildSegmentSampleResultByType(1, MEDIA_TYPE_NAME),
+        buildSegmentSampleResultByType(1, AUDIO_TYPE_NAME)));
   }
 
   @Test
@@ -832,8 +836,8 @@ public class HlsSamplerTest {
             audioPlaylist),
         buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
             subtitlePlaylistWithParsingException),
-        buildSegmentSampleResultByType(0, MEDIA_TYPE_NAME),
-        buildSegmentSampleResultByType(0, SUBTITLES_TYPE_NAME)));
+        buildSegmentSampleResultByType(1, MEDIA_TYPE_NAME),
+        buildSegmentSampleResultByType(1, SUBTITLES_TYPE_NAME)));
   }
 
   private HTTPSampleResult buildHttpSampleResultFailingDownload(URI uri) {
@@ -866,10 +870,10 @@ public class HlsSamplerTest {
             audioPlaylist),
         buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLE_FILE_ITALIAN_URI,
             subtitlePlaylist),
-        buildSegmentSampleResultByType(0, MEDIA_TYPE_NAME),
-        buildSegmentSampleResultByType(-1, AUDIO_TYPE_NAME),
-        buildSegmentSampleResultByType(0, AUDIO_TYPE_NAME),
-        buildSegmentSampleResultByType(1, AUDIO_TYPE_NAME)));
+        buildSegmentSampleResultByType(1, MEDIA_TYPE_NAME),
+        buildSegmentSampleResultByType(1, AUDIO_TYPE_NAME),
+        buildSegmentSampleResultByType(2, AUDIO_TYPE_NAME),
+        buildSegmentSampleResultByType(3, AUDIO_TYPE_NAME)));
   }
 
   @Test
@@ -903,11 +907,11 @@ public class HlsSamplerTest {
             audioPlaylist),
         buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, FRENCH_SUBTITLES_PLAYLIST_URI,
             subtitlePlaylist),
-        buildSegmentSampleResultByType(0, MEDIA_TYPE_NAME),
-        buildSegmentSampleResultByType(-1, AUDIO_TYPE_NAME),
-        buildSegmentSampleResultByType(0, AUDIO_TYPE_NAME),
+        buildSegmentSampleResultByType(1, MEDIA_TYPE_NAME),
         buildSegmentSampleResultByType(1, AUDIO_TYPE_NAME),
-        buildSegmentSampleResultByType(0, SUBTITLES_TYPE_NAME)));
+        buildSegmentSampleResultByType(2, AUDIO_TYPE_NAME),
+        buildSegmentSampleResultByType(3, AUDIO_TYPE_NAME),
+        buildSegmentSampleResultByType(1, SUBTITLES_TYPE_NAME)));
   }
 
   @Test
@@ -924,7 +928,5 @@ public class HlsSamplerTest {
     verifyNotifiedSampleResults(Arrays.asList(
         buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
             masterPlaylist)));
-
-
   }
 }
