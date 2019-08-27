@@ -33,6 +33,9 @@ public class HlsSamplerPanel extends JPanel {
   private JRadioButton maxBandwidthOption;
   private JRadioButton minBandwidthOption;
 
+  private JTextField subtitleField;
+  private JTextField audioField;
+
   public HlsSamplerPanel() {
     initComponents();
   }
@@ -43,6 +46,8 @@ public class HlsSamplerPanel extends JPanel {
     JPanel resolutionPanel = buildResolutionPanel();
     JPanel bandwidthPanel = buildBandwidthPanel();
     JPanel resumeDownloadPanel = buildResumeDownloadPanel();
+    JPanel trackPanel = buildTracksPanel();
+
     BlazeMeterLabsLogo blazeMeterLabsLogo = new BlazeMeterLabsLogo();
     GroupLayout layout = new GroupLayout(this);
     layout.setAutoCreateContainerGaps(true);
@@ -50,7 +55,9 @@ public class HlsSamplerPanel extends JPanel {
     setLayout(layout);
     layout.setHorizontalGroup(layout.createParallelGroup()
         .addComponent(urlPanel)
-        .addComponent(durationPanel)
+        .addGroup(layout.createSequentialGroup()
+          .addComponent(durationPanel)
+          .addComponent(trackPanel))
         .addGroup(layout.createSequentialGroup()
             .addComponent(resolutionPanel)
             .addComponent(bandwidthPanel))
@@ -61,8 +68,11 @@ public class HlsSamplerPanel extends JPanel {
     layout.setVerticalGroup(layout.createSequentialGroup()
         .addComponent(urlPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
             GroupLayout.PREFERRED_SIZE)
-        .addComponent(durationPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
-            GroupLayout.PREFERRED_SIZE)
+        .addGroup(layout.createParallelGroup()
+            .addComponent(durationPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
+                GroupLayout.PREFERRED_SIZE)
+            .addComponent(trackPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
+                GroupLayout.PREFERRED_SIZE))
         .addGroup(layout.createParallelGroup()
             .addComponent(resolutionPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
                 GroupLayout.PREFERRED_SIZE)
@@ -96,6 +106,37 @@ public class HlsSamplerPanel extends JPanel {
   private static <T extends JComponent> T namedComponent(String name, T component) {
     component.setName(name);
     return component;
+  }
+
+  private JPanel buildTracksPanel() {
+    JPanel panel = new JPanel();
+    panel.setBorder(BorderFactory.createTitledBorder("Tracks"));
+
+    JLabel subtitleLabel = new JLabel("Subtitle (e.g.: sp): ");
+    JLabel audioLabel = new JLabel("Audio (e.g.: sp): ");
+
+    subtitleField = namedComponent("subtitleField", new JTextField());
+    audioField = namedComponent("audioField", new JTextField());
+
+    GroupLayout layout = new GroupLayout(panel);
+    layout.setAutoCreateContainerGaps(true);
+    panel.setLayout(layout);
+    layout.setHorizontalGroup(layout.createParallelGroup()
+        .addGroup(layout.createSequentialGroup()
+            .addComponent(audioLabel)
+            .addComponent(audioField))
+        .addGroup(layout.createSequentialGroup()
+            .addComponent(subtitleLabel)
+            .addComponent(subtitleField)));
+    layout.setVerticalGroup(layout.createSequentialGroup()
+        .addGroup(layout.createParallelGroup()
+            .addComponent(audioLabel)
+            .addComponent(audioField))
+        .addGroup(layout.createParallelGroup()
+            .addComponent(subtitleLabel)
+            .addComponent(subtitleField)));
+
+    return panel;
   }
 
   private JPanel buildDurationPanel() {
@@ -332,4 +373,19 @@ public class HlsSamplerPanel extends JPanel {
     }
   }
 
+  public String getSubtitleLanguage() {
+    return subtitleField.getText();
+  }
+
+  public void setSubtitleLanguage(String subtitleLanguage) {
+    this.subtitleField.setText(subtitleLanguage);
+  }
+
+  public String getAudioLanguage() {
+    return audioField.getText();
+  }
+
+  public void setAudioLanguage(String audioLanguage) {
+    this.audioField.setText(audioLanguage);
+  }
 }

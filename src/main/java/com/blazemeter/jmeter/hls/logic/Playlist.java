@@ -6,9 +6,11 @@ import com.comcast.viper.hlsparserj.IPlaylist;
 import com.comcast.viper.hlsparserj.MasterPlaylist;
 import com.comcast.viper.hlsparserj.MediaPlaylist;
 import com.comcast.viper.hlsparserj.PlaylistFactory;
+import com.comcast.viper.hlsparserj.tags.master.Media;
 import com.comcast.viper.hlsparserj.tags.master.StreamInf;
 import com.comcast.viper.hlsparserj.tags.media.MediaSequence;
 import com.comcast.viper.hlsparserj.tags.media.PlaylistType;
+import com.comcast.viper.hlsparserj.tags.media.TargetDuration;
 import java.net.URI;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -39,11 +41,8 @@ public class Playlist {
   public static Playlist fromUriAndBody(URI uri, String body, Instant timestamp)
       throws PlaylistParsingException {
     try {
-      IPlaylist parsed = PlaylistFactory.parsePlaylist(TWELVE, body.replace("\r", ""));
-      if (parsed.getTags().isEmpty()) {
-        throw new PlaylistParsingException(uri);
-      }
-      return new Playlist(uri, body, timestamp, parsed);
+      return new Playlist(uri, body, timestamp,
+          PlaylistFactory.parsePlaylist(TWELVE, body.replace("\r", "")));
     } catch (Exception e) {
       throw new PlaylistParsingException(e, uri);
     }
@@ -53,32 +52,95 @@ public class Playlist {
     return uri;
   }
 
-  public URI solveMediaPlaylistUri(ResolutionSelector resolutionSelector,
+  private StreamInf solveStream(ResolutionSelector resolutionSelector,
       BandwidthSelector bandwidthSelector) {
+
     Long lastMatchedBandwidth = null;
     String lastMatchedResolution = null;
-    String mediaPlaylistUri = null;
+
+    StreamInf lastMatchStreamInf = null;
 
     MasterPlaylist masterplaylist = (MasterPlaylist) playlist;
-    for (StreamInf variant : masterplaylist.getVariantStreams()) {
 
+    for (StreamInf variant : masterplaylist.getVariantStreams()) {
       long streamBandwidth = variant.getBandwidth();
       String streamResolution = variant.getResolution();
-
       if (bandwidthSelector.matches(streamBandwidth, lastMatchedBandwidth)) {
-
         lastMatchedBandwidth = streamBandwidth;
         LOG.info("resolution match: {}, {}, {}, {}", streamResolution, lastMatchedResolution,
             resolutionSelector.getName(), resolutionSelector.getCustomResolution());
-
         if (resolutionSelector.matches(streamResolution, lastMatchedResolution)) {
           lastMatchedResolution = streamResolution;
-          mediaPlaylistUri = variant.getURI();
+          LOG.info("Matched Stream: Audio {} | Subtitle {}", variant.getAudio(),
+              variant.getSubtitle());
+          lastMatchStreamInf = variant;
         }
       }
     }
 
-    return mediaPlaylistUri != null ? buildAbsoluteUri(mediaPlaylistUri) : null;
+    return lastMatchStreamInf;
+  }
+
+  public MediaStream solveMediaStream(ResolutionSelector resolutionSelector,
+      BandwidthSelector bandwidthSelector, String audioLanguageSelector,
+      String subtitleLanguageSelector) {
+
+    StreamInf mediaStream = solveStream(resolutionSelector, bandwidthSelector);
+
+    if (mediaStream == null) {
+      return null;
+    }
+
+    String audioPlayListUri = getRenditionUri("AUDIO", mediaStream.getAudio(),
+        audioLanguageSelector);
+
+    /*
+    Because of a bug in the library, the mediaStream.getSubtitle() method wont return
+    the subtitlesGroupId but null. Because of it, we are use getTag instead.
+    */
+    String subtitlesGroupId = mediaStream.getTag().getAttributes().get("SUBTITLES");
+
+    String subtitlePlayListUri = getRenditionUri("SUBTITLES", subtitlesGroupId,
+        subtitleLanguageSelector);
+
+    return new MediaStream(buildAbsoluteUri(mediaStream.getURI()),
+        (audioPlayListUri != null ? buildAbsoluteUri(audioPlayListUri) : null),
+        (subtitlePlayListUri != null ? buildAbsoluteUri(subtitlePlayListUri) : null));
+  }
+
+  private String getRenditionUri(String type, String groupId, String selector) {
+
+    if (groupId == null) {
+      return null;
+    }
+
+    MasterPlaylist masterPlaylist = (MasterPlaylist) this.playlist;
+
+    Media defaultRendition = null;
+
+    for (Media rendition : masterPlaylist.getAlternateRenditions()) {
+      String renditionType = rendition.getType();
+      String renditionGroupId = rendition.getGroupId();
+
+      if (renditionType.equals(type) && renditionGroupId.equals(groupId)) {
+
+        if (rendition.getDefault()) {
+          defaultRendition = rendition;
+        }
+
+        if (rendition.getName().toLowerCase().trim().equals(selector.toLowerCase())
+            || rendition.getLanguage().toLowerCase().trim().equals(selector.toLowerCase())) {
+          return rendition.getURI();
+        }
+      }
+    }
+
+    if (!selector.isEmpty()) {
+      LOG.warn("No {} was found for the selected param provided '{}', using default if exists.",
+          type, selector);
+    }
+
+    return (defaultRendition != null ? defaultRendition.getURI() : null);
   }
 
   private URI buildAbsoluteUri(String str) {
@@ -133,7 +195,9 @@ public class Playlist {
   public long getReloadTimeMillisForDurationMultiplier(double targetDurationMultiplier,
       Instant now) {
     MediaPlaylist media = (MediaPlaylist) playlist;
-    long targetDuration = media.getTargetDuration().getDuration();
+    TargetDuration mediaTargetDuration = media.getTargetDuration();
+    long targetDuration = (mediaTargetDuration != null
+        ? media.getTargetDuration().getDuration() : 0);
     long timeDiffMillis = downloadTimestamp.until(now, ChronoUnit.MILLIS);
     long reloadPeriodMillis = TimeUnit.SECONDS.toMillis(Math
         .round(targetDuration * targetDurationMultiplier));
