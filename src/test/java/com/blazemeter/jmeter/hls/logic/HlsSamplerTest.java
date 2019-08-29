@@ -34,6 +34,7 @@ import org.apache.jmeter.threads.JMeterContext;
 import org.apache.jmeter.threads.JMeterContextService;
 import org.json.simple.JSONObject;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -93,6 +94,7 @@ public class HlsSamplerTest {
   public static final int PLAY_SECONDS_FOR_RENDITIONS = 3;
   public static final long CUSTOM_BANDWIDTH = 1234567;
 
+  private static JMeterContext context;
 
   private HlsSampler sampler;
   private SegmentResultFallbackUriSamplerMock uriSampler = new SegmentResultFallbackUriSamplerMock();
@@ -120,16 +122,17 @@ public class HlsSamplerTest {
     }
   };
 
+  @BeforeClass
+  public static void setupClass() {
+    JMeterTestUtils.setupJmeterEnv();
+    context = JMeterContextService.getContext();
+  }
+
   @Before
   public void setUp() {
     buildSampler(uriSampler);
-    JMeterTestUtils.setupJmeterEnv();
+    JMeterContextService.replaceContext(context);
   }
-
-  /*@BeforeClass
-  public static void setupClass() {
-    JMeterTestUtils.setupJmeterEnv();
-  }*/
 
   private void buildSampler(Function<URI, HTTPSampleResult> uriSampler) {
     sampler = new HlsSampler(uriSampler, sampleResultNotifier, timeMachine);
@@ -526,11 +529,10 @@ public class HlsSamplerTest {
   }
 
   private void runWithAsyncSample(Callable<Void> run) throws Exception {
-    JMeterContext ctx = JMeterContextService.getContext();
     ExecutorService executor = Executors.newSingleThreadExecutor();
     try {
       Future<Object> sampleResult = executor.submit(() -> {
-        JMeterContextService.replaceContext(ctx);
+        JMeterContextService.replaceContext(context);
         return sampler.sample();
       });
       run.call();
@@ -933,7 +935,7 @@ public class HlsSamplerTest {
 
     sampler.sample();
 
-    verifyNotifiedSampleResults(Arrays.asList(
+    verifyNotifiedSampleResults(Collections.singletonList(
         buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
             masterPlaylist)));
   }
