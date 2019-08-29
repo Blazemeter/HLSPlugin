@@ -5,6 +5,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.blazemeter.jmeter.hls.JMeterTestUtils;
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector.CustomBandwidthSelector;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
@@ -29,8 +30,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
 import org.apache.jmeter.samplers.SampleResult;
+import org.apache.jmeter.threads.JMeterContext;
+import org.apache.jmeter.threads.JMeterContextService;
 import org.json.simple.JSONObject;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -49,8 +53,6 @@ public class HlsSamplerTest {
   private static final String MASTER_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - master playlist";
   private static final String MEDIA_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - media playlist";
   private static final String AUDIO_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - audio playlist";
-  private static final String SUBTITLE_PLAYLIST_SAMPLE_NAME =
-      SAMPLER_NAME + " - subtitles playlist";
   private static final String SUBTITLE_SAMPLE_NAME = SAMPLER_NAME + " - subtitles";
   private static final String SEGMENT_SAMPLE_NAME = SAMPLER_NAME + " - media segment";
   private static final int SEGMENT_DURATION_SECONDS = 5;
@@ -64,7 +66,6 @@ public class HlsSamplerTest {
   private static final String MASTER_PLAYLIST_WITH_RENDITIONS_RESOURCE = "masterPlaylistWithRenditions.m3u8";
   private static final String MASTER_PLAYLIST_WITHOUT_MEDIA = "masterPlaylistWithoutMedia.m3u8";
   private static final String SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_RESOURCE = "defaultEnglishSubtitlePlaylist.m3u8";
-  private static final String SUBTITLES_PLAYLIST_ENGLISH_PARSING_EXCEPTION_RESOURCE = "defaultEnglishSubtitlePlaylistParsingException.m3u8";
   private static final String SUBTITLE_PLAYLIST_FRENCH_RESOURCE = "frenchSubtitlePlaylist.m3u8";
   private static final String AUDIO_PLAYLIST_RESOURCE = "audioPlaylist.m3u8";
   private static final String AUDIO_PLAYLIST_ENGLISH_DEFAULT_RESOURCE = "defaultEnglishAudioPlaylist.m3u8";
@@ -91,8 +92,9 @@ public class HlsSamplerTest {
   public static final String MEDIA_TYPE_NAME = "media";
   public static final String FRENCH_LANGUAGE_SELECTOR = "fr";
   public static final int PLAY_SECONDS_FOR_RENDITIONS = 3;
-  public static final long CUSTOM_BANDWIDTH = 1234567l;
+  public static final long CUSTOM_BANDWIDTH = 1234567;
 
+  private static JMeterContext context;
 
   private HlsSampler sampler;
   private SegmentResultFallbackUriSamplerMock uriSampler = new SegmentResultFallbackUriSamplerMock();
@@ -120,9 +122,16 @@ public class HlsSamplerTest {
     }
   };
 
+  @BeforeClass
+  public static void setupClass() {
+    JMeterTestUtils.setupJmeterEnv();
+    context = JMeterContextService.getContext();
+  }
+
   @Before
   public void setUp() {
     buildSampler(uriSampler);
+    JMeterContextService.replaceContext(context);
   }
 
   private void buildSampler(Function<URI, HTTPSampleResult> uriSampler) {
@@ -208,11 +217,9 @@ public class HlsSamplerTest {
     for (int i = 1; i < playlists.length; i++) {
       rest[i - 1] = buildPlaylistSampleResult(SAMPLER_NAME, uri, playlists[i]);
     }
-
     when(uriSampler.mock.apply(uri))
         .thenReturn(buildPlaylistSampleResult(SAMPLER_NAME, uri, playlists[0]), rest);
   }
-
 
   private HTTPSampleResult buildPlaylistSampleResult(String name, URI uri, String body) {
     return buildSampleResult(name, uri, PLAYLIST_CONTENT_TYPE, body);
@@ -291,7 +298,7 @@ public class HlsSamplerTest {
         buildSegmentSampleResult(1),
         buildSegmentSampleResult(2),
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist2),
-        buildSegmentSampleResult(PLAY_SECONDS_FOR_RENDITIONS),
+        buildSegmentSampleResult(3),
         buildSegmentSampleResult(4)));
   }
 
@@ -352,7 +359,7 @@ public class HlsSamplerTest {
         buildSegmentSampleResult(1),
         buildSegmentSampleResult(2),
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist2),
-        buildSegmentSampleResult(PLAY_SECONDS_FOR_RENDITIONS)));
+        buildSegmentSampleResult(3)));
   }
 
   @Test
@@ -369,7 +376,7 @@ public class HlsSamplerTest {
         buildSegmentSampleResult(1),
         buildSegmentSampleResult(2),
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist2),
-        buildSegmentSampleResult(PLAY_SECONDS_FOR_RENDITIONS)));
+        buildSegmentSampleResult(3)));
   }
 
   @Test
@@ -478,7 +485,7 @@ public class HlsSamplerTest {
 
   @Test
   public void shouldNotWaitWhenSegmentsDownloadSlowerThanTargetTime() throws Exception {
-    int segmentsCount = PLAY_SECONDS_FOR_RENDITIONS;
+    int segmentsCount = 3;
     long requestDownloadTime = TARGET_TIME_MILLIS / (segmentsCount - 1);
     TimedUriSampler timedUriSampler = new TimedUriSampler(uriSampler, timeMachine,
         requestDownloadTime);
@@ -524,7 +531,10 @@ public class HlsSamplerTest {
   private void runWithAsyncSample(Callable<Void> run) throws Exception {
     ExecutorService executor = Executors.newSingleThreadExecutor();
     try {
-      Future<Object> sampleResult = executor.submit(() -> sampler.sample());
+      Future<Object> sampleResult = executor.submit(() -> {
+        JMeterContextService.replaceContext(context);
+        return sampler.sample();
+      });
       run.call();
       sampleResult.get();
     } finally {
@@ -624,7 +634,7 @@ public class HlsSamplerTest {
     setupUriSamplerPlaylist(MASTER_URI, mediaPlaylistPart1);
 
     runWithAsyncSample(() -> {
-      for (int i = 0; i < PLAY_SECONDS_FOR_RENDITIONS; i++) {
+      for (int i = 0; i < 3; i++) {
         uriSampler.syncDownload();
       }
       uriSampler.interruptSamplerWhileDownloading(sampler);
@@ -925,7 +935,7 @@ public class HlsSamplerTest {
 
     sampler.sample();
 
-    verifyNotifiedSampleResults(Arrays.asList(
+    verifyNotifiedSampleResults(Collections.singletonList(
         buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
             masterPlaylist)));
   }

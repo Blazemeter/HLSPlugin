@@ -7,4 +7,5 @@ public class PlaylistDownloadException extends Throwable {
   public PlaylistDownloadException(String playlistName, URI uri) {
     super("Problem downloading " + playlistName + " " + uri);
   }
+
 }

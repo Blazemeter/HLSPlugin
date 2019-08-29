@@ -8,10 +8,6 @@ public class PlaylistParsingException extends Exception  {
     super(buildErrorMessage(uri), cause);
   }
 
-  public PlaylistParsingException(URI uri) {
-    super(buildErrorMessage(uri));
-  }
-
   private static String buildErrorMessage(URI uri) {
     return "Error parsing the play list " + uri;
   }
