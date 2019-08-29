@@ -3,12 +3,12 @@ package com.blazemeter.jmeter.hls.gui;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.blazemeter.jmeter.hls.JMeterTestUtils;
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector.CustomBandwidthSelector;
 import com.blazemeter.jmeter.hls.logic.HlsSampler;
 import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
 import com.blazemeter.jmeter.hls.logic.ResolutionSelector.CustomResolutionSelector;
-import kg.apc.emulators.TestJMeterUtils;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -39,7 +39,7 @@ public class HlsSamplerGuiTest {
 
   @BeforeClass
   public static void setupClass() {
-    TestJMeterUtils.createJmeterEnv();
+    JMeterTestUtils.setupJmeterEnv();
   }
 
   @Before

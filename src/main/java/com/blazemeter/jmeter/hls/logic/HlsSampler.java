@@ -19,6 +19,7 @@ import org.apache.jmeter.samplers.Interruptible;
 import org.apache.jmeter.samplers.SampleEvent;
 import org.apache.jmeter.samplers.SampleResult;
 import org.apache.jmeter.threads.JMeterContext;
+import org.apache.jmeter.threads.JMeterContextService;
 import org.apache.jmeter.threads.JMeterThread;
 import org.apache.jmeter.threads.JMeterVariables;
 import org.apache.jmeter.threads.SamplePackage;
@@ -501,7 +502,11 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   }
 
   private void notifySampleResult(String name, SampleResult result) {
+    result.setAllThreads(JMeterContextService.getNumberOfThreads());
+    result.setThreadName(getThreadContext().getThread().getThreadName());
+    result.setGroupThreads(getThreadContext().getThreadGroup().getNumberOfThreads());
     result.setSampleLabel(getName() + " - " + (name != null ? name : MASTER_PLAYLIST_NAME));
+    getThreadContext().setPreviousResult(result);
     sampleResultNotifier.accept(result);
   }
 
