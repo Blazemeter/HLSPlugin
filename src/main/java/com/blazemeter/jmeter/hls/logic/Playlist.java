@@ -67,12 +67,8 @@ public class Playlist {
       String streamResolution = variant.getResolution();
       if (bandwidthSelector.matches(streamBandwidth, lastMatchedBandwidth)) {
         lastMatchedBandwidth = streamBandwidth;
-        LOG.info("resolution match: {}, {}, {}, {}", streamResolution, lastMatchedResolution,
-            resolutionSelector.getName(), resolutionSelector.getCustomResolution());
         if (resolutionSelector.matches(streamResolution, lastMatchedResolution)) {
           lastMatchedResolution = streamResolution;
-          LOG.info("Matched Stream: Audio {} | Subtitle {}", variant.getAudio(),
-              variant.getSubtitle());
           lastMatchStreamInf = variant;
         }
       }
