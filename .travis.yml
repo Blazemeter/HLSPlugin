@@ -9,7 +9,9 @@ jobs:
       install:
         - "sudo -H pip install -q -I bzt"
         - "sudo -H pip install --upgrade six"
-
+        - "Xvfb :99 &"
+        - "export DISPLAY=:99"
+  
       script:
         - "mvn clean install -q"
         - "cd target/jmeter-test"
@@ -19,6 +21,7 @@ jobs:
         - "travis_wait sudo sh testJmeterTravis.sh '5.1'"
         - "travis_wait sudo sh testJmeterTravis.sh '5.1.1'"
         - "travis_wait sudo sh testJmeterTravis.sh '5.0' ${BZ_TOKEN}"
+        - "cd ../.."
       stage: "JMeter Compatibility"
 
       before_deploy:
