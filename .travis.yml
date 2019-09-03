@@ -1,8 +1,11 @@
+dist: xenial
+language: python
+jdk: oraclejdk8
+
 cache:
   directories:
     - $HOME/.jmeter/
-dist: xenial
-jdk: oraclejdk8
+
 jobs:
   include:
     -
@@ -11,10 +14,12 @@ jobs:
         - "sudo -H pip install --upgrade six"
         - "Xvfb :99 &"
         - "export DISPLAY=:99"
-  
+
       script:
         - "mvn clean install -q"
         - "cd target/jmeter-test"
+        #Since this tests outputs too much text, travis throws 'exceeded the maximum log length' error
+        #We are using the travis_wait avoiding excessive logging.
         - "travis_wait sudo sh testJmeterTravis.sh '3.3'"
         - "travis_wait sudo sh testJmeterTravis.sh '4.0'"
         - "travis_wait sudo sh testJmeterTravis.sh '5.0'"
@@ -39,4 +44,3 @@ jobs:
       script:
         - "mvn clean install -q -DskipTests"
       stage: "GitHub Release"
-language: python
