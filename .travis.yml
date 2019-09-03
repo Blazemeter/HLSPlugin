@@ -1,6 +1,3 @@
-branches:
-  only:
-    - master
 cache:
   directories:
     - $HOME/.jmeter/
@@ -9,31 +6,23 @@ jdk: oraclejdk8
 jobs:
   include:
     -
-      script:
-        - "echo \"Running tests\""
-      stage: "Build and Running Tests"
-
-    -
-      before_install:
-        - "python --version"
-        - "sudo pip install -I bzt"
+      install:
+        - "sudo -H pip install -q -I bzt"
         - "sudo -H pip install --upgrade six"
-      install: true
+
       script:
-        - "travis_wait mvn clean install -DskipTests"
+        - "mvn clean install -q"
         - "cd target/jmeter-test"
         - "travis_wait sudo sh testJmeterTravis.sh '3.3'"
-        #   - "travis_wait sudo sh testJmeterTravis.sh '4.0'"
+        - "travis_wait sudo sh testJmeterTravis.sh '4.0'"
         - "travis_wait sudo sh testJmeterTravis.sh '5.0'"
         - "travis_wait sudo sh testJmeterTravis.sh '5.1'"
         - "travis_wait sudo sh testJmeterTravis.sh '5.1.1'"
         - "travis_wait sudo sh testJmeterTravis.sh '5.0' ${BZ_TOKEN}"
       stage: "JMeter Compatibility"
 
-    -
       before_deploy:
         - "mvn --batch-mode versions:set -DnewVersion=$(T=${TRAVIS_TAG%%-lib}; echo ${T:1})"
-        - "mvn clean package -DskipTests"
       deploy:
         api_key: "${GH_TOKEN}"
         file_glob: true
@@ -42,11 +31,9 @@ jobs:
         file: target/jmeter-bzm-hls-*.jar
         name: "HLSPlugin"
         on:
-          repo: rpoleo/TemporalHLS
+          repo: Blazemeter/HLSPlugin
           tags: true
       script:
-        - "export TRAVIS_TAG=${TRAVIS_TAG:-$(date +'%Y%m%d%H%M%S')-$(git log --format=%h -1)}"
-        - "git tag $TRAVIS_TAG"
-        - "travis_wait mvn clean install -DskipTests"
+        - "mvn clean install -q -DskipTests"
       stage: "GitHub Release"
 language: python
