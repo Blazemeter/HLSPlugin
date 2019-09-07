@@ -6,8 +6,6 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.time.Instant;
 import java.util.Iterator;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import org.apache.jmeter.engine.event.LoopIterationEvent;
 import org.apache.jmeter.protocol.http.control.CacheManager;
 import org.apache.jmeter.protocol.http.control.CookieManager;
@@ -51,24 +49,20 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private static final String MEDIA_TYPE_NAME = "media";
   private static final String AUDIO_TYPE_NAME = "audio";
 
-  private final transient Function<URI, HTTPSampleResult> uriSampler;
-  private final transient Consumer<SampleResult> sampleResultNotifier;
+  private final transient HlsHttpClient httpClient;
   private final transient TimeMachine timeMachine;
 
   private transient long lastVideoSegmentNumber = -1;
   private transient long lastAudioSegmentNumber = -1;
   private transient long lastSubtitleSegmentNumber = -1;
-
-  private transient HlsHttpClient httpClient;
   private transient volatile boolean notifyFirstSampleAfterLoopRestart;
-
   private transient volatile boolean interrupted = false;
 
   /*
   we use this class to be able to access some methods on super class and because we can't extend
   HTTPProxySampler class
    */
-  private static class HlsHttpClient extends HTTPHC4Impl {
+  public static class HlsHttpClient extends HTTPHC4Impl {
 
     private HlsHttpClient(HTTPSamplerBase testElement) {
       super(testElement);
@@ -94,17 +88,13 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   public HlsSampler() {
     initHttpSampler();
-    uriSampler = this::downloadUri;
-    sampleResultNotifier = this::notifySampleListeners;
+    httpClient = new HlsHttpClient(this);
     timeMachine = TimeMachine.SYSTEM;
   }
 
-  public HlsSampler(Function<URI, HTTPSampleResult> uriSampler,
-      Consumer<SampleResult> sampleResultNotifier,
-      TimeMachine timeMachine) {
+  public HlsSampler(HlsHttpClient httpClient, TimeMachine timeMachine) {
     initHttpSampler();
-    this.uriSampler = uriSampler;
-    this.sampleResultNotifier = sampleResultNotifier;
+    this.httpClient = httpClient;
     this.timeMachine = timeMachine;
   }
 
@@ -112,27 +102,6 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     setName("HLS Sampler");
     setFollowRedirects(true);
     setUseKeepAlive(true);
-    httpClient = new HlsHttpClient(this);
-  }
-
-  private HTTPSampleResult downloadUri(URI uri) {
-    try {
-      return sample(uri.toURL(), "GET", false, 0);
-    } catch (MalformedURLException e) {
-      throw new IllegalArgumentException(e);
-    }
-  }
-
-  private void notifySampleListeners(SampleResult sampleResult) {
-    JMeterContext threadContext = getThreadContext();
-    JMeterVariables threadContextVariables = threadContext.getVariables();
-    if (threadContextVariables != null) {
-      SamplePackage pack = (SamplePackage) threadContext.getVariables()
-          .getObject(JMeterThread.PACKAGE_OBJECT);
-      SampleEvent event = new SampleEvent(sampleResult, getThreadName(),
-          threadContext.getVariables(), false);
-      pack.getSampleListeners().forEach(l -> l.sampleOccurred(event));
-    }
   }
 
   public String getMasterUrl() {
@@ -250,7 +219,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       Playlist audioPlaylist = null;
       Playlist subtitlesPlaylist = null;
 
-      if (!interrupted && masterPlaylist.isMasterPlaylist()) {
+      if (masterPlaylist.isMasterPlaylist()) {
 
         MediaStream mediaStream = masterPlaylist
             .solveMediaStream(getResolutionSelector(), getBandwidthSelector(),
@@ -264,14 +233,14 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
         mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
 
         try {
-          if (!interrupted && mediaStream.getAudioUri() != null) {
+          if (mediaStream.getAudioUri() != null) {
             audioPlaylist = downloadPlaylist(AUDIO_PLAYLIST_NAME, mediaStream.getAudioUri());
           }
         } catch (PlaylistDownloadException | PlaylistParsingException e) {
           LOG.warn("Problem downloading audio playlist", e);
         }
 
-        if (!interrupted && mediaStream.getSubtitlesUri() != null) {
+        if (mediaStream.getSubtitlesUri() != null) {
           subtitlesPlaylist = downloadSubtitles(mediaStream.getSubtitlesUri());
         }
       } else {
@@ -295,17 +264,9 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
           lastSubtitleSegmentNumber, playSeconds, SUBTITLES_TYPE_NAME);
 
       try {
-        while (!interrupted && !mediaPlayback.hasEnded()) {
+        while (!mediaPlayback.hasEnded()) {
           mediaPlayback.downloadNextSegment();
-          if (interrupted) {
-            break;
-          }
-
           audioPlayback.downloadUntilTimeSecond(mediaPlayback.playedTimeSeconds());
-
-          if (interrupted) {
-            break;
-          }
           subtitlesPlayback.downloadUntilTimeSecond(mediaPlayback.playedTimeSeconds());
         }
       } finally {
@@ -313,7 +274,8 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
         lastSubtitleSegmentNumber = subtitlesPlayback.lastSegmentNumber;
         lastAudioSegmentNumber = audioPlayback.lastSegmentNumber;
       }
-
+    } catch (SamplerInterruptedException e) {
+      LOG.debug("Sampler interrupted by jmeter", e);
     } catch (InterruptedException e) {
       LOG.warn("Sampler has been interrupted", e);
       Thread.currentThread().interrupt();
@@ -333,14 +295,14 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private Playlist downloadPlaylist(String playlistName, URI uri)
       throws PlaylistParsingException, PlaylistDownloadException {
     Instant downloadTimestamp = timeMachine.now();
-    HTTPSampleResult playlistResult = uriSampler.apply(uri);
+    HTTPSampleResult playlistResult = downloadUri(uri);
     if (!playlistResult.isSuccessful()) {
 
       if (playlistName == null) {
         playlistName = MASTER_PLAYLIST_NAME;
       }
 
-      notifySampleResult(playlistName, playlistResult);
+      processSampleResult(playlistName, playlistResult);
       throw new PlaylistDownloadException(playlistName, uri);
     }
 
@@ -358,12 +320,28 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       if (playlistName == null) {
         playlistName = playlist.isMasterPlaylist() ? MASTER_PLAYLIST_NAME : MEDIA_PLAYLIST_NAME;
       }
-      notifySampleResult(playlistName, playlistResult);
+      processSampleResult(playlistName, playlistResult);
       return playlist;
     } catch (PlaylistParsingException e) {
-      notifySampleResult(playlistName, errorResult(e, playlistResult));
+      processSampleResult(playlistName, errorResult(e, playlistResult));
       throw e;
     }
+  }
+
+  private HTTPSampleResult downloadUri(URI uri) {
+    if (interrupted) {
+      throw new SamplerInterruptedException();
+    }
+    try {
+      return sample(uri.toURL(), "GET", false, 0);
+    } catch (MalformedURLException e) {
+      throw new IllegalArgumentException(e);
+    }
+  }
+
+  // exception created to avoid polluting all the logic checking for interrupted flag
+  private static class SamplerInterruptedException extends RuntimeException {
+
   }
 
   private SampleResult buildNotMatchingMediaPlaylistResult() {
@@ -391,7 +369,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       this.playSeconds = playSeconds;
       this.type = type;
 
-      if (!interrupted && playlist != null) {
+      if (playlist != null) {
         updateMediaSegments();
       }
     }
@@ -408,10 +386,10 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
         updatePlaylist();
       }
 
-      if (!interrupted && mediaSegments.hasNext()) {
+      if (mediaSegments.hasNext()) {
         MediaSegment segment = mediaSegments.next();
-        SampleResult result = uriSampler.apply(segment.getUri());
-        notifySampleResult(type + " segment", result);
+        SampleResult result = downloadUri(segment.getUri());
+        processSampleResult(type + " segment", result);
         lastSegmentNumber = segment.getSequenceNumber();
         consumedSeconds += segment.getDurationSeconds();
       }
@@ -426,7 +404,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       Playlist updatedPlaylist = downloadPlaylist(playlistName,
           playlist.getUri());
 
-      while (!interrupted && updatedPlaylist != null && updatedPlaylist.equals(playlist)) {
+      while (updatedPlaylist.equals(playlist)) {
         long millis = updatedPlaylist
             .getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now());
 
@@ -456,7 +434,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       }
 
       try {
-        while (!interrupted && consumedSeconds <= untilTimeSecond) {
+        while (consumedSeconds <= untilTimeSecond) {
           downloadNextSegment();
         }
       } catch (PlaylistParsingException | PlaylistDownloadException e) {
@@ -467,9 +445,9 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   private Playlist downloadSubtitles(URI uri) {
     Instant downloadTimestamp = timeMachine.now();
-    HTTPSampleResult playlistResult = uriSampler.apply(uri);
+    HTTPSampleResult playlistResult = downloadUri(uri);
     if (!playlistResult.isSuccessful()) {
-      notifySampleResult(SUBTITLES_TYPE_NAME, playlistResult);
+      processSampleResult(SUBTITLES_TYPE_NAME, playlistResult);
       LOG.warn("Problem downloading subtitles from {}", uri);
       return null;
     }
@@ -485,7 +463,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     // The subtitle can be playlist or a plain file, if the later,
     //no need to download anything else
     if (!uri.toString().contains(".m3u8")) {
-      notifySampleResult(SUBTITLES_TYPE_NAME, playlistResult);
+      processSampleResult(SUBTITLES_TYPE_NAME, playlistResult);
       return null;
     }
 
@@ -494,20 +472,32 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
           .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
     } catch (PlaylistParsingException e) {
       LOG.warn("Problem parsing subtitles from {}", uri, e);
-      notifySampleResult(SUBTITLES_TYPE_NAME, errorResult(e, playlistResult));
+      processSampleResult(SUBTITLES_TYPE_NAME, errorResult(e, playlistResult));
       return null;
     } finally {
-      notifySampleResult(SUBTITLES_TYPE_NAME, playlistResult);
+      processSampleResult(SUBTITLES_TYPE_NAME, playlistResult);
     }
   }
 
-  private void notifySampleResult(String name, SampleResult result) {
+  private void processSampleResult(String name, SampleResult result) {
     result.setAllThreads(JMeterContextService.getNumberOfThreads());
     result.setThreadName(getThreadContext().getThread().getThreadName());
     result.setGroupThreads(getThreadContext().getThreadGroup().getNumberOfThreads());
     result.setSampleLabel(getName() + " - " + (name != null ? name : MASTER_PLAYLIST_NAME));
     getThreadContext().setPreviousResult(result);
-    sampleResultNotifier.accept(result);
+    notifySampleListeners(result);
+  }
+
+  private void notifySampleListeners(SampleResult sampleResult) {
+    JMeterContext threadContext = getThreadContext();
+    JMeterVariables threadContextVariables = threadContext.getVariables();
+    if (threadContextVariables != null) {
+      SamplePackage pack = (SamplePackage) threadContext.getVariables()
+          .getObject(JMeterThread.PACKAGE_OBJECT);
+      SampleEvent event = new SampleEvent(sampleResult, getThreadName(),
+          threadContext.getVariables(), false);
+      pack.getSampleListeners().forEach(l -> l.sampleOccurred(event));
+    }
   }
 
   @Override

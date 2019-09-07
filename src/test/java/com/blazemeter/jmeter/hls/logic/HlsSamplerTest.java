@@ -1,17 +1,22 @@
 package com.blazemeter.jmeter.hls.logic;
 
 import static org.assertj.core.api.Java6Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.blazemeter.jmeter.hls.JMeterTestUtils;
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector.CustomBandwidthSelector;
+import com.blazemeter.jmeter.hls.logic.HlsSampler.HlsHttpClient;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URL;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -29,9 +34,13 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
+import org.apache.jmeter.samplers.SampleEvent;
+import org.apache.jmeter.samplers.SampleListener;
 import org.apache.jmeter.samplers.SampleResult;
 import org.apache.jmeter.threads.JMeterContext;
 import org.apache.jmeter.threads.JMeterContextService;
+import org.apache.jmeter.threads.JMeterThread;
+import org.apache.jmeter.threads.SamplePackage;
 import org.json.simple.JSONObject;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -94,12 +103,13 @@ public class HlsSamplerTest {
   public static final int PLAY_SECONDS_FOR_RENDITIONS = 3;
   public static final long CUSTOM_BANDWIDTH = 1234567;
 
+  // we use static context and listener due to issue
   private static JMeterContext context;
 
   private HlsSampler sampler;
   private SegmentResultFallbackUriSamplerMock uriSampler = new SegmentResultFallbackUriSamplerMock();
   @Mock
-  private Consumer<SampleResult> sampleResultNotifier;
+  private Consumer<SampleResult> sampleResultListener;
   @Captor
   private ArgumentCaptor<SampleResult> sampleResultCaptor;
 
@@ -132,10 +142,35 @@ public class HlsSamplerTest {
   public void setUp() {
     buildSampler(uriSampler);
     JMeterContextService.replaceContext(context);
+    setupSampleListener();
+  }
+
+  private void setupSampleListener() {
+    SampleListener sampleListener = new SampleListener() {
+      @Override
+      public void sampleOccurred(SampleEvent sampleEvent) {
+        sampleResultListener.accept(sampleEvent.getResult());
+      }
+
+      @Override
+      public void sampleStarted(SampleEvent sampleEvent) {
+      }
+
+      @Override
+      public void sampleStopped(SampleEvent sampleEvent) {
+      }
+    };
+    SamplePackage pack = new SamplePackage(Collections.emptyList(),
+        Collections.singletonList(sampleListener), Collections.emptyList(), Collections.emptyList(),
+        Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+    context.getVariables().putObject(JMeterThread.PACKAGE_OBJECT, pack);
   }
 
   private void buildSampler(Function<URI, HTTPSampleResult> uriSampler) {
-    sampler = new HlsSampler(uriSampler, sampleResultNotifier, timeMachine);
+    HlsHttpClient httpClient = Mockito.mock(HlsHttpClient.class);
+    when(httpClient.sample(any(), any(), anyBoolean(), anyInt()))
+        .thenAnswer(a -> uriSampler.apply(a.getArgument(0, URL.class).toURI()));
+    sampler = new HlsSampler(httpClient, timeMachine);
     sampler.setName(SAMPLER_NAME);
     sampler.setMasterUrl(MASTER_URI.toString());
   }
@@ -231,7 +266,7 @@ public class HlsSamplerTest {
   }
 
   private void verifyNotifiedSampleResults(List<SampleResult> results) {
-    verify(sampleResultNotifier, atLeastOnce()).accept(sampleResultCaptor.capture());
+    verify(sampleResultListener, atLeastOnce()).accept(sampleResultCaptor.capture());
     //we convert to json to easily compare and trace issues
 
     List<String> result = toJson(sampleResultCaptor.getAllValues());
@@ -542,7 +577,7 @@ public class HlsSamplerTest {
     }
   }
 
-  private class DownloadBlockingUriSampler implements Function<URI, HTTPSampleResult> {
+  private static class DownloadBlockingUriSampler implements Function<URI, HTTPSampleResult> {
 
     private final Function<URI, HTTPSampleResult> uriSampler;
     private final int blockingDownloadsCount;
