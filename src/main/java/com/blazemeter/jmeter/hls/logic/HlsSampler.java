@@ -1,12 +1,21 @@
 package com.blazemeter.jmeter.hls.logic;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.time.Instant;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.jmeter.assertions.Assertion;
+import org.apache.jmeter.assertions.AssertionResult;
 import org.apache.jmeter.engine.event.LoopIterationEvent;
+import org.apache.jmeter.processor.PostProcessor;
 import org.apache.jmeter.protocol.http.control.CacheManager;
 import org.apache.jmeter.protocol.http.control.CookieManager;
 import org.apache.jmeter.protocol.http.control.HeaderManager;
@@ -15,12 +24,15 @@ import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
 import org.apache.jmeter.protocol.http.sampler.HTTPSamplerBase;
 import org.apache.jmeter.samplers.Interruptible;
 import org.apache.jmeter.samplers.SampleEvent;
+import org.apache.jmeter.samplers.SampleListener;
 import org.apache.jmeter.samplers.SampleResult;
+import org.apache.jmeter.testbeans.TestBeanHelper;
+import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.threads.JMeterContext;
 import org.apache.jmeter.threads.JMeterContextService;
 import org.apache.jmeter.threads.JMeterThread;
-import org.apache.jmeter.threads.JMeterVariables;
 import org.apache.jmeter.threads.SamplePackage;
+import org.apache.jorphan.util.JMeterError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,12 +54,11 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private static final String HEADER_MANAGER = "HLSRequest.header_manager";
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
   private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
-  private static final String MEDIA_PLAYLIST_NAME = "media playlist";
-  private static final String MASTER_PLAYLIST_NAME = "master playlist";
-  private static final String AUDIO_PLAYLIST_NAME = "audio playlist";
+  private static final String MASTER_TYPE_NAME = "master";
   private static final String SUBTITLES_TYPE_NAME = "subtitles";
   private static final String MEDIA_TYPE_NAME = "media";
   private static final String AUDIO_TYPE_NAME = "audio";
+  private static final Set<String> SAMPLE_TYPE_NAMES = buildSampleTypesSet();
 
   private final transient HlsHttpClient httpClient;
   private final transient TimeMachine timeMachine;
@@ -102,6 +113,23 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     setName("HLS Sampler");
     setFollowRedirects(true);
     setUseKeepAlive(true);
+  }
+
+  private static Set<String> buildSampleTypesSet() {
+    Set<String> sampleTypes = Stream.of(SUBTITLES_TYPE_NAME, MEDIA_TYPE_NAME, AUDIO_TYPE_NAME)
+        .flatMap(t -> Stream.of(buildPlaylistName(t), buildSegmentName(t)))
+        .collect(Collectors.toSet());
+    sampleTypes.add(buildPlaylistName(MASTER_TYPE_NAME));
+    sampleTypes.add(SUBTITLES_TYPE_NAME);
+    return sampleTypes;
+  }
+
+  private static String buildPlaylistName(String playlistType) {
+    return playlistType + " playlist";
+  }
+
+  private static String buildSegmentName(String segmentType) {
+    return segmentType + " segment";
   }
 
   public String getMasterUrl() {
@@ -213,7 +241,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
     try {
       URI masterUri = URI.create(getMasterUrl());
-      Playlist masterPlaylist = downloadPlaylist(null, masterUri);
+      Playlist masterPlaylist = downloadMasterPlaylist(masterUri);
 
       Playlist mediaPlaylist;
       Playlist audioPlaylist = null;
@@ -225,24 +253,16 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
             .solveMediaStream(getResolutionSelector(), getBandwidthSelector(),
                 getAudioLanguage(), getSubtitleLanguage());
         if (mediaStream == null) {
-          return buildNotMatchingMediaPlaylistResult();
+          processSampleResult(buildPlaylistName(MEDIA_TYPE_NAME),
+              buildNotMatchingMediaPlaylistResult());
+          return null;
         }
 
-        URI mediaPlaylistUri = mediaStream.getMediaPlaylistUri();
-
-        mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
-
-        try {
-          if (mediaStream.getAudioUri() != null) {
-            audioPlaylist = downloadPlaylist(AUDIO_PLAYLIST_NAME, mediaStream.getAudioUri());
-          }
-        } catch (PlaylistDownloadException | PlaylistParsingException e) {
-          LOG.warn("Problem downloading audio playlist", e);
-        }
-
-        if (mediaStream.getSubtitlesUri() != null) {
-          subtitlesPlaylist = downloadSubtitles(mediaStream.getSubtitlesUri());
-        }
+        mediaPlaylist = downloadPlaylist(mediaStream.getMediaPlaylistUri(), MEDIA_TYPE_NAME);
+        audioPlaylist = tryDownloadPlaylist(mediaStream.getAudioUri(),
+            p -> buildPlaylistName(AUDIO_TYPE_NAME));
+        subtitlesPlaylist = tryDownloadPlaylist(mediaStream.getSubtitlesUri(),
+            p -> p != null ? buildPlaylistName(SUBTITLES_TYPE_NAME) : SUBTITLES_TYPE_NAME);
       } else {
         mediaPlaylist = masterPlaylist;
       }
@@ -275,14 +295,13 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
         lastAudioSegmentNumber = audioPlayback.lastSegmentNumber;
       }
     } catch (SamplerInterruptedException e) {
-      LOG.debug("Sampler interrupted by jmeter", e);
+      LOG.debug("Sampler interrupted by JMeter", e);
     } catch (InterruptedException e) {
       LOG.warn("Sampler has been interrupted", e);
       Thread.currentThread().interrupt();
     } catch (PlaylistDownloadException | PlaylistParsingException e) {
       LOG.warn("Problem downloading playlist", e);
     }
-
     return null;
   }
 
@@ -292,16 +311,24 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     return httpClient.sample(url, method, areFollowingRedirect, frameDepth);
   }
 
-  private Playlist downloadPlaylist(String playlistName, URI uri)
+  private Playlist downloadMasterPlaylist(URI uri)
+      throws PlaylistDownloadException, PlaylistParsingException {
+    return downloadPlaylist(uri,
+        p -> p != null && !p.isMasterPlaylist() ? buildPlaylistName(MEDIA_TYPE_NAME)
+            : buildPlaylistName(MASTER_TYPE_NAME));
+  }
+
+  private Playlist downloadPlaylist(URI uri, String type)
+      throws PlaylistDownloadException, PlaylistParsingException {
+    return downloadPlaylist(uri, p -> buildPlaylistName(type));
+  }
+
+  private Playlist downloadPlaylist(URI uri, Function<Playlist, String> namer)
       throws PlaylistParsingException, PlaylistDownloadException {
     Instant downloadTimestamp = timeMachine.now();
     HTTPSampleResult playlistResult = downloadUri(uri);
     if (!playlistResult.isSuccessful()) {
-
-      if (playlistName == null) {
-        playlistName = MASTER_PLAYLIST_NAME;
-      }
-
+      String playlistName = namer.apply(null);
       processSampleResult(playlistName, playlistResult);
       throw new PlaylistDownloadException(playlistName, uri);
     }
@@ -314,16 +341,18 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
           playlistResult.getURL(), uri, e);
     }
 
+    if (!uri.toString().contains(".m3u8")) {
+      processSampleResult(namer.apply(null), playlistResult);
+      return null;
+    }
+
     try {
       Playlist playlist = Playlist
           .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
-      if (playlistName == null) {
-        playlistName = playlist.isMasterPlaylist() ? MASTER_PLAYLIST_NAME : MEDIA_PLAYLIST_NAME;
-      }
-      processSampleResult(playlistName, playlistResult);
+      processSampleResult(namer.apply(playlist), playlistResult);
       return playlist;
     } catch (PlaylistParsingException e) {
-      processSampleResult(playlistName, errorResult(e, playlistResult));
+      processSampleResult(namer.apply(null), errorResult(e, playlistResult));
       throw e;
     }
   }
@@ -344,9 +373,9 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   }
 
-  private SampleResult buildNotMatchingMediaPlaylistResult() {
-    SampleResult res = new SampleResult();
-    res.setSampleLabel(getName() + " - " + MEDIA_PLAYLIST_NAME);
+  @VisibleForTesting
+  public static HTTPSampleResult buildNotMatchingMediaPlaylistResult() {
+    HTTPSampleResult res = new HTTPSampleResult();
     res.setResponseCode("Non HTTP response code: NoMatchingMediaPlaylist");
     res.setResponseMessage("Non HTTP response message: No matching media "
         + "playlist for provided resolution and bandwidth");
@@ -389,7 +418,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       if (mediaSegments.hasNext()) {
         MediaSegment segment = mediaSegments.next();
         SampleResult result = downloadUri(segment.getUri());
-        processSampleResult(type + " segment", result);
+        processSampleResult(buildSegmentName(type), result);
         lastSegmentNumber = segment.getSequenceNumber();
         consumedSeconds += segment.getDurationSeconds();
       }
@@ -400,16 +429,14 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
       timeMachine.awaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1,
           timeMachine.now()));
-      String playlistName = this.type + " playlist";
-      Playlist updatedPlaylist = downloadPlaylist(playlistName,
-          playlist.getUri());
+      Playlist updatedPlaylist = downloadPlaylist(playlist.getUri(), this.type);
 
       while (updatedPlaylist.equals(playlist)) {
         long millis = updatedPlaylist
             .getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now());
 
         timeMachine.awaitMillis(millis);
-        updatedPlaylist = downloadPlaylist(playlistName, playlist.getUri());
+        updatedPlaylist = downloadPlaylist(playlist.getUri(), this.type);
       }
 
       this.playlist = updatedPlaylist;
@@ -443,61 +470,107 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     }
   }
 
-  private Playlist downloadSubtitles(URI uri) {
-    Instant downloadTimestamp = timeMachine.now();
-    HTTPSampleResult playlistResult = downloadUri(uri);
-    if (!playlistResult.isSuccessful()) {
-      processSampleResult(SUBTITLES_TYPE_NAME, playlistResult);
-      LOG.warn("Problem downloading subtitles from {}", uri);
-      return null;
-    }
-
-    // we update uri in case the request was redirected
+  private Playlist tryDownloadPlaylist(URI uri, Function<Playlist, String> namer) {
     try {
-      uri = playlistResult.getURL().toURI();
-    } catch (URISyntaxException e) {
-      LOG.warn("Problem updating uri from downloaded playlist {}. Continue with original uri {}",
-          playlistResult.getURL(), uri, e);
+      if (uri != null) {
+        return downloadPlaylist(uri, namer);
+      }
+    } catch (PlaylistDownloadException | PlaylistParsingException e) {
+      LOG.warn("Problem downloading {}", namer.apply(null), e);
     }
-
-    // The subtitle can be playlist or a plain file, if the later,
-    //no need to download anything else
-    if (!uri.toString().contains(".m3u8")) {
-      processSampleResult(SUBTITLES_TYPE_NAME, playlistResult);
-      return null;
-    }
-
-    try {
-      return Playlist
-          .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
-    } catch (PlaylistParsingException e) {
-      LOG.warn("Problem parsing subtitles from {}", uri, e);
-      processSampleResult(SUBTITLES_TYPE_NAME, errorResult(e, playlistResult));
-      return null;
-    } finally {
-      processSampleResult(SUBTITLES_TYPE_NAME, playlistResult);
-    }
+    return null;
   }
 
   private void processSampleResult(String name, SampleResult result) {
-    result.setAllThreads(JMeterContextService.getNumberOfThreads());
-    result.setThreadName(getThreadContext().getThread().getThreadName());
-    result.setGroupThreads(getThreadContext().getThreadGroup().getNumberOfThreads());
-    result.setSampleLabel(getName() + " - " + (name != null ? name : MASTER_PLAYLIST_NAME));
+    result.setSampleLabel(getName() + " - " + name);
+    JMeterContext threadContext = getThreadContext();
+    updateSampleResultThreadsInfo(result, threadContext);
     getThreadContext().setPreviousResult(result);
-    notifySampleListeners(result);
+    SamplePackage pack = (SamplePackage) threadContext.getVariables()
+        .getObject(JMeterThread.PACKAGE_OBJECT);
+    runPostProcessors(result, pack.getPostProcessors());
+    checkAssertions(result, pack.getAssertions());
+    threadContext.getVariables()
+        .put(JMeterThread.LAST_SAMPLE_OK, Boolean.toString(result.isSuccessful()));
+    notifySampleListeners(result, pack.getSampleListeners());
   }
 
-  private void notifySampleListeners(SampleResult sampleResult) {
-    JMeterContext threadContext = getThreadContext();
-    JMeterVariables threadContextVariables = threadContext.getVariables();
-    if (threadContextVariables != null) {
-      SamplePackage pack = (SamplePackage) threadContext.getVariables()
-          .getObject(JMeterThread.PACKAGE_OBJECT);
-      SampleEvent event = new SampleEvent(sampleResult, getThreadName(),
-          threadContext.getVariables(), false);
-      pack.getSampleListeners().forEach(l -> l.sampleOccurred(event));
+  private void updateSampleResultThreadsInfo(SampleResult result, JMeterContext threadContext) {
+    int totalActiveThreads = JMeterContextService.getNumberOfThreads();
+    String threadName = threadContext.getThread().getThreadName();
+    int activeThreadsInGroup = threadContext.getThreadGroup().getNumberOfThreads();
+    result.setAllThreads(totalActiveThreads);
+    result.setThreadName(threadName);
+    result.setGroupThreads(activeThreadsInGroup);
+    SampleResult[] subResults = result.getSubResults();
+    if (subResults != null) {
+      for (SampleResult subResult : subResults) {
+        subResult.setGroupThreads(activeThreadsInGroup);
+        subResult.setAllThreads(totalActiveThreads);
+        subResult.setThreadName(threadName);
+      }
     }
+  }
+
+  private void runPostProcessors(SampleResult result, List<PostProcessor> extractors) {
+    for (PostProcessor ex : extractors) {
+      TestBeanHelper.prepare((TestElement) ex);
+      if (doesTestElementApplyToSampleResult(result, (TestElement) ex)) {
+        ex.process();
+      }
+    }
+  }
+
+  private void checkAssertions(SampleResult result, List<Assertion> assertions) {
+    for (Assertion assertion : assertions) {
+      TestElement testElem = (TestElement) assertion;
+      TestBeanHelper.prepare(testElem);
+      if (doesTestElementApplyToSampleResult(result, testElem)) {
+        AssertionResult assertionResult;
+        try {
+          assertionResult = assertion.getResult(result);
+        } catch (AssertionError e) {
+          LOG.debug("Error processing Assertion.", e);
+          assertionResult = new AssertionResult(
+              "Assertion failed! See log file (debug level, only).");
+          assertionResult.setFailure(true);
+          assertionResult.setFailureMessage(e.toString());
+        } catch (JMeterError e) {
+          LOG.error("Error processing Assertion.", e);
+          assertionResult = new AssertionResult("Assertion failed! See log file.");
+          assertionResult.setError(true);
+          assertionResult.setFailureMessage(e.toString());
+        } catch (Exception e) {
+          LOG.error("Exception processing Assertion.", e);
+          assertionResult = new AssertionResult("Assertion failed! See log file.");
+          assertionResult.setError(true);
+          assertionResult.setFailureMessage(e.toString());
+        }
+        result.setSuccessful(
+            result.isSuccessful() && !(assertionResult.isError() || assertionResult.isFailure()));
+        result.addAssertionResult(assertionResult);
+      }
+    }
+  }
+
+  private boolean doesTestElementApplyToSampleResult(SampleResult result, TestElement assertion) {
+    String assertionType = extractLabelType(assertion.getName());
+    String sampleType = extractLabelType(result.getSampleLabel());
+    return sampleType.equals(assertionType) || !SAMPLE_TYPE_NAMES.contains(assertionType);
+  }
+
+  private String extractLabelType(String label) {
+    int typeSeparatorIndex = label.lastIndexOf('-');
+    return typeSeparatorIndex >= 0 ? label.substring(typeSeparatorIndex + 1).trim().toLowerCase()
+        : "";
+  }
+
+  private void notifySampleListeners(SampleResult sampleResult,
+      List<SampleListener> sampleListeners) {
+    JMeterContext threadContext = getThreadContext();
+    SampleEvent event = new SampleEvent(sampleResult, getThreadName(), threadContext.getVariables(),
+        false);
+    threadContext.getThread().getNotifier().notifyListeners(event, sampleListeners);
   }
 
   @Override

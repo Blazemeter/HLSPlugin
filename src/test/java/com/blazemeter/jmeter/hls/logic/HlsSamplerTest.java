@@ -5,8 +5,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 import com.blazemeter.jmeter.hls.JMeterTestUtils;
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector.CustomBandwidthSelector;
@@ -33,13 +36,17 @@ import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.apache.jmeter.assertions.ResponseAssertion;
+import org.apache.jmeter.extractor.RegexExtractor;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
 import org.apache.jmeter.samplers.SampleEvent;
 import org.apache.jmeter.samplers.SampleListener;
 import org.apache.jmeter.samplers.SampleResult;
+import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.threads.JMeterContext;
 import org.apache.jmeter.threads.JMeterContextService;
 import org.apache.jmeter.threads.JMeterThread;
+import org.apache.jmeter.threads.JMeterVariables;
 import org.apache.jmeter.threads.SamplePackage;
 import org.json.simple.JSONObject;
 import org.junit.Before;
@@ -62,8 +69,12 @@ public class HlsSamplerTest {
   private static final String MASTER_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - master playlist";
   private static final String MEDIA_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - media playlist";
   private static final String AUDIO_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - audio playlist";
+  private static final String SUBTITLE_PLAYLIST_SAMPLE_NAME =
+      SAMPLER_NAME + " - subtitles playlist";
   private static final String SUBTITLE_SAMPLE_NAME = SAMPLER_NAME + " - subtitles";
-  private static final String SEGMENT_SAMPLE_NAME = SAMPLER_NAME + " - media segment";
+  private static final String MEDIA_SEGMENT_SAMPLE_TYPE = "media segment";
+  private static final String SEGMENT_SAMPLE_NAME =
+      SAMPLER_NAME + " - " + MEDIA_SEGMENT_SAMPLE_TYPE;
   private static final int SEGMENT_DURATION_SECONDS = 5;
   private static final String SIMPLE_MEDIA_PLAYLIST_NAME = "simpleMediaPlaylist.m3u8";
   private static final String VOD_MEDIA_PLAYLIST_NAME = "vodMediaPlaylist.m3u8";
@@ -94,14 +105,16 @@ public class HlsSamplerTest {
   private static final long TARGET_TIME_MILLIS = 10000;
   private static final long TIME_THRESHOLD_MILLIS = 5000;
   private static final long TEST_TIMEOUT = 10000;
-  public static final URI AUDIO__FIRST_SEGMENT_DEFAULT_ENGLISH_URI = URI
+  private static final URI AUDIO_FIRST_SEGMENT_DEFAULT_ENGLISH_URI = URI
       .create("media_w370587926_b160000_ao_slen_t64RW5nbGlzaA==_1.aac");
-  public static final String SUBTITLES_TYPE_NAME = "subtitles";
-  public static final String AUDIO_TYPE_NAME = "audio";
-  public static final String MEDIA_TYPE_NAME = "media";
-  public static final String FRENCH_LANGUAGE_SELECTOR = "fr";
-  public static final int PLAY_SECONDS_FOR_RENDITIONS = 3;
-  public static final long CUSTOM_BANDWIDTH = 1234567;
+  private static final String SUBTITLES_TYPE_NAME = "subtitles";
+  private static final String AUDIO_TYPE_NAME = "audio";
+  private static final String MEDIA_TYPE_NAME = "media";
+  private static final String FRENCH_LANGUAGE_SELECTOR = "fr";
+  private static final int PLAY_SECONDS_FOR_RENDITIONS = 3;
+  private static final long CUSTOM_BANDWIDTH = 1234567;
+  private static final String ASSERTION_FAILING_TEST_STRING = "FAILURE";
+  private static final String EXTRACTOR_VAR_NAME = "myVar";
 
   // we use static context and listener due to issue
   private static JMeterContext context;
@@ -142,28 +155,9 @@ public class HlsSamplerTest {
   public void setUp() {
     buildSampler(uriSampler);
     JMeterContextService.replaceContext(context);
+    JMeterContextService.getContext().setVariables(new JMeterVariables());
     setupSampleListener();
-  }
-
-  private void setupSampleListener() {
-    SampleListener sampleListener = new SampleListener() {
-      @Override
-      public void sampleOccurred(SampleEvent sampleEvent) {
-        sampleResultListener.accept(sampleEvent.getResult());
-      }
-
-      @Override
-      public void sampleStarted(SampleEvent sampleEvent) {
-      }
-
-      @Override
-      public void sampleStopped(SampleEvent sampleEvent) {
-      }
-    };
-    SamplePackage pack = new SamplePackage(Collections.emptyList(),
-        Collections.singletonList(sampleListener), Collections.emptyList(), Collections.emptyList(),
-        Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
-    context.getVariables().putObject(JMeterThread.PACKAGE_OBJECT, pack);
+    getSamplePackage().getAssertions().clear();
   }
 
   private void buildSampler(Function<URI, HTTPSampleResult> uriSampler) {
@@ -173,6 +167,26 @@ public class HlsSamplerTest {
     sampler = new HlsSampler(httpClient, timeMachine);
     sampler.setName(SAMPLER_NAME);
     sampler.setMasterUrl(MASTER_URI.toString());
+  }
+
+  private void setupSampleListener() {
+    SampleListener sampleListener = mock(SampleListener.class, withSettings().extraInterfaces(
+        TestElement.class));
+    doAnswer(a -> {
+      sampleResultListener.accept(a.getArgument(0, SampleEvent.class).getResult());
+      return null;
+    }).
+        when(sampleListener).sampleOccurred(any());
+    // we use arrayList for assertions and post processors to be able to add elements
+    SamplePackage pack = new SamplePackage(Collections.emptyList(),
+        Collections.singletonList(sampleListener), Collections.emptyList(), new ArrayList<>(),
+        new ArrayList<>(), Collections.emptyList(), Collections.emptyList());
+    context.getVariables().putObject(JMeterThread.PACKAGE_OBJECT, pack);
+  }
+
+  private SamplePackage getSamplePackage() {
+    return (SamplePackage) JMeterContextService.getContext().getVariables()
+        .getObject(JMeterThread.PACKAGE_OBJECT);
   }
 
   private class SegmentResultFallbackUriSamplerMock implements Function<URI, HTTPSampleResult> {
@@ -284,6 +298,7 @@ public class HlsSamplerTest {
   @SuppressWarnings("unchecked")
   private String sampleResultToJson(SampleResult sample) {
     JSONObject json = new JSONObject();
+    json.put("successful", sample.isSuccessful());
     json.put("label", sample.getSampleLabel());
     json.put("requestHeaders", sample.getRequestHeaders());
     json.put("sampleData", sample.getSamplerData());
@@ -729,7 +744,8 @@ public class HlsSamplerTest {
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
         buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
             audioPlaylist),
-        buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
+        buildPlaylistSampleResult(SUBTITLE_PLAYLIST_SAMPLE_NAME,
+            SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
             defaultSubtitlePlaylist),
         buildSegmentSampleResultByType(1, MEDIA_TYPE_NAME),
         buildSegmentSampleResultByType(1, AUDIO_TYPE_NAME),
@@ -777,7 +793,7 @@ public class HlsSamplerTest {
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
         buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
             audioPlaylist),
-        buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, FRENCH_SUBTITLES_PLAYLIST_URI,
+        buildPlaylistSampleResult(SUBTITLE_PLAYLIST_SAMPLE_NAME, FRENCH_SUBTITLES_PLAYLIST_URI,
             subtitlePlaylist),
         buildSegmentSampleResultByType(1, MEDIA_TYPE_NAME),
         buildSegmentSampleResultByType(1, AUDIO_TYPE_NAME),
@@ -808,7 +824,8 @@ public class HlsSamplerTest {
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
         buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
             audioPlaylist),
-        buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
+        buildPlaylistSampleResult(SUBTITLE_PLAYLIST_SAMPLE_NAME,
+            SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
             subtitlePlaylist),
         buildSegmentSampleResultByType(1, MEDIA_TYPE_NAME),
         buildSegmentSampleResultByType(1, AUDIO_TYPE_NAME),
@@ -832,8 +849,7 @@ public class HlsSamplerTest {
     setupUriSamplerPlaylist(SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
         subtitlePlaylistWithParsingException);
 
-    HTTPSampleResult result = buildHttpSampleResultFailingDownload(
-        SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI);
+    HTTPSampleResult result = buildFailedResultFromUri(SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI);
     when(uriSampler.apply(SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI)).thenReturn(result);
 
     sampler.sample();
@@ -844,8 +860,9 @@ public class HlsSamplerTest {
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
         buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
             audioPlaylist),
-        buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
-            subtitlePlaylistWithParsingException),
+        buildFailedResult(
+            buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
+                subtitlePlaylistWithParsingException)),
         buildSegmentSampleResultByType(1, MEDIA_TYPE_NAME),
         buildSegmentSampleResultByType(1, AUDIO_TYPE_NAME)));
   }
@@ -867,8 +884,7 @@ public class HlsSamplerTest {
     setupUriSamplerPlaylist(SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
         subtitlePlaylistWithParsingException);
 
-    HTTPSampleResult result = buildHttpSampleResultFailingDownload(
-        AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI);
+    HTTPSampleResult result = buildFailedResultFromUri(AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI);
     when(uriSampler.apply(AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI)).thenReturn(result);
 
     sampler.sample();
@@ -877,16 +893,21 @@ public class HlsSamplerTest {
         buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
             masterPlaylist),
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
-        buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
-            audioPlaylist),
-        buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
+        buildFailedResult(buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME,
+            AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
+            audioPlaylist)),
+        buildPlaylistSampleResult(SUBTITLE_PLAYLIST_SAMPLE_NAME,
+            SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
             subtitlePlaylistWithParsingException),
         buildSegmentSampleResultByType(1, MEDIA_TYPE_NAME),
         buildSegmentSampleResultByType(1, SUBTITLES_TYPE_NAME)));
   }
 
-  private HTTPSampleResult buildHttpSampleResultFailingDownload(URI uri) {
-    HTTPSampleResult result = uriSampler.apply(uri);
+  private HTTPSampleResult buildFailedResultFromUri(URI uri) {
+    return buildFailedResult(uriSampler.apply(uri));
+  }
+
+  private HTTPSampleResult buildFailedResult(HTTPSampleResult result) {
     result.setSuccessful(false);
     return result;
   }
@@ -935,12 +956,10 @@ public class HlsSamplerTest {
     setupUriSamplerPlaylist(AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI, audioPlaylist);
     setupUriSamplerPlaylist(FRENCH_SUBTITLES_PLAYLIST_URI, subtitlePlaylist);
 
-    HTTPSampleResult result = uriSampler
-        .apply(AUDIO__FIRST_SEGMENT_DEFAULT_ENGLISH_URI);
-    result.setSuccessful(false);
-    when(uriSampler.apply(URI.create(AUDIO__FIRST_SEGMENT_DEFAULT_ENGLISH_URI.toString())))
-        .thenReturn(
-            result);
+    HTTPSampleResult failedAudioResult = buildFailedResultFromUri(
+        AUDIO_FIRST_SEGMENT_DEFAULT_ENGLISH_URI);
+    when(uriSampler.apply(URI.create(AUDIO_FIRST_SEGMENT_DEFAULT_ENGLISH_URI.toString())))
+        .thenReturn(failedAudioResult);
 
     sampler.sample();
 
@@ -950,7 +969,7 @@ public class HlsSamplerTest {
         buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
         buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
             audioPlaylist),
-        buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, FRENCH_SUBTITLES_PLAYLIST_URI,
+        buildPlaylistSampleResult(SUBTITLE_PLAYLIST_SAMPLE_NAME, FRENCH_SUBTITLES_PLAYLIST_URI,
             subtitlePlaylist),
         buildSegmentSampleResultByType(1, MEDIA_TYPE_NAME),
         buildSegmentSampleResultByType(1, AUDIO_TYPE_NAME),
@@ -970,8 +989,125 @@ public class HlsSamplerTest {
 
     sampler.sample();
 
-    verifyNotifiedSampleResults(Collections.singletonList(
+    verifyNotifiedSampleResults(Arrays.asList(
         buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
-            masterPlaylist)));
+            masterPlaylist),
+        buildNotMatchingPlaylistResult()));
   }
+
+  private HTTPSampleResult buildNotMatchingPlaylistResult() {
+    HTTPSampleResult result = HlsSampler.buildNotMatchingMediaPlaylistResult();
+    result.setSampleLabel(MEDIA_PLAYLIST_SAMPLE_NAME);
+    return result;
+  }
+
+  @Test
+  public void shouldGetSuccessResultWhenAssertionWithSameLabelTypeAndPasses() throws Exception {
+    addAssertionWithLabelTypeAndTestString(MEDIA_SEGMENT_SAMPLE_TYPE, "");
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    setPlaySeconds(SEGMENT_DURATION_SECONDS);
+    sampler.sample();
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildSegmentSampleResult(0)));
+  }
+
+  private void addAssertionWithLabelTypeAndTestString(String labelType, String testString) {
+    ResponseAssertion assertion = new ResponseAssertion();
+    assertion.setName("test - " + labelType);
+    assertion.setTestFieldURL();
+    assertion.setToContainsType();
+    assertion.addTestString(testString);
+    getSamplePackage().addAssertion(assertion);
+  }
+
+  @Test
+  public void shouldGetFailResultWhenAssertionWithSameLabelTypeAndFails() throws Exception {
+    buildFailedAssertionWithLabelType(MEDIA_SEGMENT_SAMPLE_TYPE);
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    setPlaySeconds(SEGMENT_DURATION_SECONDS);
+    sampler.sample();
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildFailedResult(buildSegmentSampleResult(0))));
+  }
+
+  private void buildFailedAssertionWithLabelType(String labelType) {
+    addAssertionWithLabelTypeAndTestString(labelType, ASSERTION_FAILING_TEST_STRING);
+  }
+
+  @Test
+  public void shouldGetFailResultsWhenAssertionWithNoLabelTypeAndFails() throws Exception {
+    buildFailedAssertionWithLabelType("");
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    setPlaySeconds(SEGMENT_DURATION_SECONDS);
+    sampler.sample();
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildFailedResult(
+            buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist)),
+        buildFailedResult(buildSegmentSampleResult(0))));
+  }
+
+  @Test
+  public void shouldGetSuccessResultWhenAssertionWithDifferentLabelTypeAndFails() throws Exception {
+    buildFailedAssertionWithLabelType("audio playlist");
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    setPlaySeconds(SEGMENT_DURATION_SECONDS);
+    sampler.sample();
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildSegmentSampleResult(0)
+    ));
+  }
+
+  @Test
+  public void shouldGetExtractedVariableWhenExtractorWithSameLabelType()
+      throws Exception {
+    addExtractorWithLabelType(MEDIA_SEGMENT_SAMPLE_TYPE);
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    setPlaySeconds(SEGMENT_DURATION_SECONDS);
+    sampler.sample();
+    assertThat(getExtractedVariable()).isNotNull();
+  }
+
+  private String getExtractedVariable() {
+    return JMeterContextService.getContext().getVariables().get(EXTRACTOR_VAR_NAME);
+  }
+
+  private void addExtractorWithLabelType(String labelType) {
+    RegexExtractor extractor = new RegexExtractor();
+    extractor.setName("-" + labelType);
+    extractor.setRefName(EXTRACTOR_VAR_NAME);
+    extractor.setMatchNumber(1);
+    extractor.setRegex(".*");
+    getSamplePackage().addPostProcessor(extractor);
+  }
+
+  @Test
+  public void shouldGetNullVariableWhenExtractorWithDifferentLabelType()
+      throws Exception {
+    addExtractorWithLabelType("audio playlist");
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    setPlaySeconds(SEGMENT_DURATION_SECONDS);
+    sampler.sample();
+    assertThat(getExtractedVariable()).isNull();
+  }
+
+  @Test
+  public void shouldGetExtractedVariableWhenExtractorWithNoLabelType()
+      throws Exception {
+    addExtractorWithLabelType("");
+    String mediaPlaylist = getPlaylist(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    setPlaySeconds(SEGMENT_DURATION_SECONDS);
+    sampler.sample();
+    assertThat(getExtractedVariable()).isNotNull();
+  }
+
 }
