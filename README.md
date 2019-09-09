@@ -91,7 +91,19 @@ You can set listeners to evaluate the results of your tests. The View Results Tr
 
 ![](docs/sample-results.png)
 
-Assertions are supported for the master playlist and variant (child) playlist. Examples: Response Assertion and Duration Assertion. Select `Main sample only` in assertion to test the master playlist response and `Sub-samples only` to test the variant (child) playlist response.
+
+## Assertions and Post Processors
+
+The plugin supports adding assertions and post processors on any of the potential types of sample results (master playlist, media playlist, media segment, audio playlist, audio segment, subtitles, subtitles playlist and subtitles segment).
+To add an assertion or post processor that matches a particular result just use as name suffix `-` plus the type of the sample result which it should assert or post process.
+
+Following is an example of an assertion that applies only to media segments:
+
+![](docs/assertion.png)
+
+If you want an assertion to apply to all generated sample results, then just use any name that does not include a sample result type suffix.
+
+**Note:** Assertions and post processors will not work for sub results (like redirection sub samples).
 
 ## Stop/Shutdown Buttons
 
