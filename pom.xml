@@ -37,6 +37,7 @@
             <artifactId>hlsparserj</artifactId>
             <version>1.0.0</version>
         </dependency>
+
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
@@ -92,11 +93,12 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.9.4</version>
-            <scope>test</scope>
+            <groupId>io.lindstrom</groupId>
+            <artifactId>mpd-parser</artifactId>
+            <version>0.6</version>
         </dependency>
+        
+
     </dependencies>
 
     <build>
