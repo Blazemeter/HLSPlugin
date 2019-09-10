@@ -1,5 +1,11 @@
 package com.blazemeter.jmeter.hls.logic;
 
+import io.lindstrom.mpd.MPDParser;
+import io.lindstrom.mpd.data.AdaptationSet;
+import io.lindstrom.mpd.data.MPD;
+import io.lindstrom.mpd.data.Representation;
+import io.lindstrom.mpd.data.SegmentTemplate;
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -8,6 +14,8 @@ import java.time.Instant;
 import java.util.Iterator;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.jmeter.engine.event.LoopIterationEvent;
 import org.apache.jmeter.protocol.http.control.CacheManager;
 import org.apache.jmeter.protocol.http.control.CookieManager;
@@ -50,6 +58,9 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private static final String SUBTITLES_TYPE_NAME = "subtitles";
   private static final String MEDIA_TYPE_NAME = "media";
   private static final String AUDIO_TYPE_NAME = "audio";
+  public static final String VIDEO_TYPE_NAME = "video";
+  public static final String SUBTITLE = "subtitle";
+  public static final String AUDIO = "audio";
 
   private final transient Function<URI, HTTPSampleResult> uriSampler;
   private final transient Consumer<SampleResult> sampleResultNotifier;
@@ -63,6 +74,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private transient volatile boolean notifyFirstSampleAfterLoopRestart;
 
   private transient volatile boolean interrupted = false;
+  private String baseURL;
 
   /*
   we use this class to be able to access some methods on super class and because we can't extend
@@ -242,86 +254,322 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       notifyFirstSampleAfterLoopRestart = false;
     }
 
-    try {
-      URI masterUri = URI.create(getMasterUrl());
-      Playlist masterPlaylist = downloadPlaylist(null, masterUri);
+    String url = getMasterUrl();
 
-      Playlist mediaPlaylist;
-      Playlist audioPlaylist = null;
-      Playlist subtitlesPlaylist = null;
+    if (url.contains(".mpd")) {
+      try {
+        MPD manifest = downloadManifest(url);
 
-      if (!interrupted && masterPlaylist.isMasterPlaylist()) {
+        if (!interrupted && manifest != null) {
+          try {
+            if (manifest.getBaseURLs() == null || manifest.getBaseURLs().size() < 1) {
+              int lastIndex = url.lastIndexOf("/");
+              baseURL = url.substring(0, lastIndex + 1);
+              LOG.info("Base URL not found, using {} instead", baseURL);
+            } else {
+              baseURL = manifest.getBaseURLs().get(0).getValue();
+            }
 
-        MediaStream mediaStream = masterPlaylist
-            .solveMediaStream(getResolutionSelector(), getBandwidthSelector(),
-                getAudioLanguage(), getSubtitleLanguage());
-        if (mediaStream == null) {
-          return buildNotMatchingMediaPlaylistResult();
+            DashPlaylist videoPlaylist = new DashPlaylist(VIDEO_TYPE_NAME, manifest,
+                timeMachine.now());
+            DashPlaylist audioPlaylist = new DashPlaylist(AUDIO, manifest, timeMachine.now());
+            DashPlaylist subtitlePlaylist = new DashPlaylist(SUBTITLE, manifest, timeMachine.now());
+
+            MediaRepresentation videoRepresentation = videoPlaylist
+                .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), null);
+            MediaRepresentation audioRepresentation = audioPlaylist
+                .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(),
+                    getAudioLanguage());
+            MediaRepresentation subtitleRepresentation = subtitlePlaylist
+                .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(),
+                    getSubtitleLanguage());
+
+            if (!interrupted && (
+                (videoRepresentation != null && videoRepresentation.exists()) ||
+                    (audioRepresentation != null && audioRepresentation.exists()) ||
+                    (audioRepresentation != null && subtitleRepresentation.exists()))
+            ) {
+              int playSeconds = getPlaySecondsOrWarn();
+
+              DashMediaPlayback videoPlayback = new DashMediaPlayback(videoRepresentation,
+                  lastVideoSegmentNumber, playSeconds, "video");
+              DashMediaPlayback audioPlayback = new DashMediaPlayback(audioRepresentation,
+                  lastAudioSegmentNumber, playSeconds, "audio");
+              DashMediaPlayback subtitlePlayback = new DashMediaPlayback(subtitleRepresentation,
+                  lastSubtitleSegmentNumber, playSeconds, "subtitle");
+
+              while (!interrupted && (!videoPlayback.hasEnded() || !audioPlayback.hasEnded()
+                  || !subtitlePlayback.hasEnded())) {
+
+                if (videoPlayback.canDownload()) {
+                  videoPlayback.downloadNextSegment();
+                }
+
+                if (audioPlayback.canDownload()) {
+                  audioPlayback.downloadNextSegment();
+                }
+
+                if (subtitlePlayback.canDownload()) {
+                  subtitlePlayback.downloadNextSegment();
+                }
+              }
+            }
+          } catch (Exception e) {
+            e.printStackTrace();
+          }
+        }
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+    } else {
+      try {
+        URI masterUri = URI.create(url);
+        Playlist masterPlaylist = downloadPlaylist(null, masterUri);
+
+        Playlist mediaPlaylist;
+        Playlist audioPlaylist = null;
+        Playlist subtitlesPlaylist = null;
+
+        if (!interrupted && masterPlaylist.isMasterPlaylist()) {
+
+          MediaStream mediaStream = masterPlaylist
+              .solveMediaStream(getResolutionSelector(), getBandwidthSelector(),
+                  getAudioLanguage(), getSubtitleLanguage());
+          if (mediaStream == null) {
+            return buildNotMatchingMediaPlaylistResult();
+          }
+
+          URI mediaPlaylistUri = mediaStream.getMediaPlaylistUri();
+
+          mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
+
+          try {
+            if (!interrupted && mediaStream.getAudioUri() != null) {
+              audioPlaylist = downloadPlaylist(AUDIO_PLAYLIST_NAME, mediaStream.getAudioUri());
+            }
+          } catch (PlaylistDownloadException | PlaylistParsingException e) {
+            LOG.warn("Problem downloading audio playlist", e);
+          }
+
+          if (!interrupted && mediaStream.getSubtitlesUri() != null) {
+            subtitlesPlaylist = downloadSubtitles(mediaStream.getSubtitlesUri());
+          }
+        } else {
+          mediaPlaylist = masterPlaylist;
         }
 
-        URI mediaPlaylistUri = mediaStream.getMediaPlaylistUri();
+        int playSeconds = getPlaySecondsOrWarn();
 
-        mediaPlaylist = downloadPlaylist(MEDIA_PLAYLIST_NAME, mediaPlaylistUri);
+        MediaPlayback mediaPlayback = new MediaPlayback(mediaPlaylist, lastVideoSegmentNumber,
+            playSeconds, MEDIA_TYPE_NAME);
+        MediaPlayback audioPlayback = new MediaPlayback(audioPlaylist, lastAudioSegmentNumber,
+            playSeconds, AUDIO_TYPE_NAME);
+        MediaPlayback subtitlesPlayback = new MediaPlayback(subtitlesPlaylist,
+            lastSubtitleSegmentNumber, playSeconds, SUBTITLES_TYPE_NAME);
 
         try {
-          if (!interrupted && mediaStream.getAudioUri() != null) {
-            audioPlaylist = downloadPlaylist(AUDIO_PLAYLIST_NAME, mediaStream.getAudioUri());
+          while (!interrupted && !mediaPlayback.hasEnded()) {
+            mediaPlayback.downloadNextSegment();
+            if (interrupted) {
+              break;
+            }
+
+            audioPlayback.downloadUntilTimeSecond(mediaPlayback.playedTimeSeconds());
+
+            if (interrupted) {
+              break;
+            }
+            subtitlesPlayback.downloadUntilTimeSecond(mediaPlayback.playedTimeSeconds());
           }
-        } catch (PlaylistDownloadException | PlaylistParsingException e) {
-          LOG.warn("Problem downloading audio playlist", e);
+        } finally {
+          lastVideoSegmentNumber = mediaPlayback.lastSegmentNumber;
+          lastSubtitleSegmentNumber = subtitlesPlayback.lastSegmentNumber;
+          lastAudioSegmentNumber = audioPlayback.lastSegmentNumber;
         }
 
-        if (!interrupted && mediaStream.getSubtitlesUri() != null) {
-          subtitlesPlaylist = downloadSubtitles(mediaStream.getSubtitlesUri());
-        }
-      } else {
-        mediaPlaylist = masterPlaylist;
+      } catch (InterruptedException e) {
+        LOG.warn("Sampler has been interrupted", e);
+        Thread.currentThread().interrupt();
+      } catch (PlaylistDownloadException | PlaylistParsingException e) {
+        LOG.warn("Problem downloading playlist", e);
       }
-
-      int playSeconds = 0;
-      if (isPlayVideoDuration() && !getPlaySeconds().isEmpty()) {
-        playSeconds = Integer.parseInt(getPlaySeconds());
-        if (playSeconds <= 0) {
-          LOG.warn("Provided play seconds ({}) is less than or equal to zero. The sampler will "
-              + "reproduce the whole video", playSeconds);
-        }
-      }
-
-      MediaPlayback mediaPlayback = new MediaPlayback(mediaPlaylist, lastVideoSegmentNumber,
-          playSeconds, MEDIA_TYPE_NAME);
-      MediaPlayback audioPlayback = new MediaPlayback(audioPlaylist, lastAudioSegmentNumber,
-          playSeconds, AUDIO_TYPE_NAME);
-      MediaPlayback subtitlesPlayback = new MediaPlayback(subtitlesPlaylist,
-          lastSubtitleSegmentNumber, playSeconds, SUBTITLES_TYPE_NAME);
-
-      try {
-        while (!interrupted && !mediaPlayback.hasEnded()) {
-          mediaPlayback.downloadNextSegment();
-          if (interrupted) {
-            break;
-          }
-
-          audioPlayback.downloadUntilTimeSecond(mediaPlayback.playedTimeSeconds());
-
-          if (interrupted) {
-            break;
-          }
-          subtitlesPlayback.downloadUntilTimeSecond(mediaPlayback.playedTimeSeconds());
-        }
-      } finally {
-        lastVideoSegmentNumber = mediaPlayback.lastSegmentNumber;
-        lastSubtitleSegmentNumber = subtitlesPlayback.lastSegmentNumber;
-        lastAudioSegmentNumber = audioPlayback.lastSegmentNumber;
-      }
-
-    } catch (InterruptedException e) {
-      LOG.warn("Sampler has been interrupted", e);
-      Thread.currentThread().interrupt();
-    } catch (PlaylistDownloadException | PlaylistParsingException e) {
-      LOG.warn("Problem downloading playlist", e);
     }
 
     return null;
+  }
+
+  private MPD downloadManifest(String url) throws Exception {
+    URI manifestUri = URI.create(url);
+    HTTPSampleResult result = uriSampler.apply(manifestUri);
+
+    if (!result.isSuccessful()) {
+      throw new Exception("Need to create the Error Parsing Manifest Exception");
+    }
+
+    // we update uri in case the request was redirected
+    try {
+      manifestUri = result.getURL().toURI();
+    } catch (URISyntaxException e) {
+      LOG.warn("Problem updating uri from downloaded manifest {}. Continue with original uri {}",
+          result.getURL(), manifestUri, e);
+    }
+
+    try {
+      MPD manifest = new MPDParser().parse(result.getResponseDataAsString());
+      notifySampleResult("Manifest", result);
+      return manifest;
+    } catch (IOException e) {
+      LOG.error("Error parsing the manifest from url {}. Error log: {}", url, e.getMessage());
+    }
+
+    return null;
+  }
+
+  private SampleResult buildErrorParsingManifestResult(String url) {
+    SampleResult res = new SampleResult();
+    res.setSampleLabel(getName() + " - Manifest" );
+    res.setResponseCode("Non HTTP response code: ProblemParsingManifest");
+    res.setResponseMessage("Non HTTP response message: Invalid Manifest at url "+url);
+    res.setSuccessful(false);
+    return res;
+
+  }
+
+  public class DashMediaPlayback {
+
+    private MediaRepresentation representation;
+    private long lastSegmentNumber;
+    private int playSeconds;
+    private float consumedSeconds;
+    private String type;
+
+    private DashMediaPlayback(MediaRepresentation representation, long lastSegmentNumber,
+        int playSeconds, String type) {
+      this.representation = representation;
+      this.lastSegmentNumber = lastSegmentNumber;
+      this.playSeconds = playSeconds;
+      this.consumedSeconds = 0f;
+      this.type = type;
+    }
+
+    private boolean canDownload() {
+      return representation != null;
+    }
+
+    /*
+     * TODO: DELETEME (This is just to avoid going to the document)
+     * The formula fits the format described in Table 16 — Identifiers for URL templates
+     * $RepresentationID$ : This identifier is substituted with the value of the attribute
+     *  Representation@id of the containing Representation.
+     * $Number$ : This identifier is substituted with the number of the corresponding Segment.
+     * $Bandwidth$ : This identifier is substituted with the value of Representation@bandwidth
+     *  attribute value.
+     * $Time$ : This identifier is substituted with the value of the SegmentTimeline@t attribute
+     *  for the Segment being accessed. Either $Number$ or $Time$ may be used but not both at the same time.
+     * */
+
+    private void downloadNextSegment() {
+
+      AdaptationSet adaptationSetUsed = representation.getAdaptationSetUsed();
+      SegmentTemplate template = adaptationSetUsed.getSegmentTemplate();
+      String adaptationBaseURL = adaptationSetUsed.getBaseURLs().get(0).getValue();
+
+      if (lastSegmentNumber < 1) {
+        if (template.getStartNumber() != null) {
+          lastSegmentNumber = template.getStartNumber();
+        } else {
+          lastSegmentNumber = 1;
+        }
+      }
+
+      if (lastSegmentNumber < 2) {
+        String initializeURL = baseURL + adaptationBaseURL + buildMediaFormula(template
+            .getInitialization());
+        LOG.info("Downloading {}", initializeURL);
+        HTTPSampleResult initializeResult = uriSampler.apply(URI.create(initializeURL));
+        if (!initializeResult.isSuccessful()) {
+          SampleResult failInitresult = buildNotMatchingMediaPlaylistResult();
+          notifySampleResult("Init "+type, failInitresult);
+          //TODO: Create/Throw exception here
+        }
+        else {
+          notifySampleResult("Init "+type, initializeResult);
+        }
+      }
+
+      String segmentURL =
+          baseURL + adaptationBaseURL + buildMediaFormula(template.getMedia());
+      LOG.info("Downloading {}", segmentURL);
+
+      HTTPSampleResult downloadSegmentResult = uriSampler.apply(URI.create(segmentURL));
+      if (!downloadSegmentResult.isSuccessful()) {
+        notifySampleResult(type + " segment", downloadSegmentResult);
+      }
+      else {
+        notifySampleResult(type + " segment", downloadSegmentResult);
+      }
+
+      long secondsPassed = 1;
+      if (template.getTimescale() != null && template.getTimescale() != 0) {
+        secondsPassed = template.getTimescale() / 1000;
+      }
+
+      consumedSeconds += secondsPassed;
+      lastSegmentNumber++;
+    }
+
+    private String buildMediaFormula(String formula) {
+
+      //TODO: Review the case when multiple SegmentTimeline and how to match them
+      //formula = formula.replace("$Time$", Long.toString(representation.getAdaptationSetUsed().getSegmentTemplate().getSegmentTimeline().get(0).getT()))
+
+      formula = formula
+          .replace("$RepresentationID$", representation.getSelectedRepresentation().getId());
+      formula = formula.replace("$Bandwidth$",
+          Long.toString(representation.getSelectedRepresentation().getBandwidth()));
+
+      Pattern pattern = Pattern.compile("(?<=\\$Number)(.*?)(?=\\$)");
+      Matcher matcher = pattern.matcher(formula);
+      if (matcher.find()) {
+        String lastSegmentFormatted = String.format(matcher.group(1), lastSegmentNumber);
+        formula = formula.replaceAll("(?<=\\$)(.*?)(?=\\$)", lastSegmentFormatted).replace("$", "");
+      }
+
+      return formula;
+    }
+
+    private boolean hasEnded() {
+      return (representation == null || playedRequestedTime() || hasReachedEnd());
+    }
+
+    private boolean playedRequestedTime() {
+      return playSeconds > 0 && playSeconds <= this.consumedSeconds;
+    }
+
+    private boolean hasReachedEnd() {
+      return lastSegmentNumber >= representation.getAdaptationSetUsed().getSegmentTemplate()
+          .getDuration();
+    }
+
+    public MediaRepresentation getRepresentation() {
+      return representation;
+    }
+
+    public void setRepresentation(MediaRepresentation representation) {
+      this.representation = representation;
+    }
+  }
+
+  private int getPlaySecondsOrWarn() {
+    int playSeconds = 0;
+    if (isPlayVideoDuration() && !getPlaySeconds().isEmpty()) {
+      playSeconds = Integer.parseInt(getPlaySeconds());
+      if (playSeconds <= 0) {
+        LOG.warn("Provided play seconds ({}) is less than or equal to zero. The sampler will "
+            + "reproduce the whole video", playSeconds);
+      }
+    }
+    return playSeconds;
   }
 
   @Override
