@@ -10,12 +10,13 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+//TODO: update the adaptation set when multiple Periods
 public class DashPlaylist {
 
-  //private final URL urlBase;
+  public static final String VIDEO_TYPE_NAME = "video";
+  private static final Logger LOG = LoggerFactory.getLogger(DashPlaylist.class);
   private final Instant downloadTimestamp;
-  private static final Logger LOG = LoggerFactory.getLogger(Playlist.class);
-  private MPD manifest; //This will be used when we need to get the new AdaptationSet
+  private MPD manifest;
   private String type;
 
   public DashPlaylist(String type, MPD manifest, Instant downloadTimestamp) {
@@ -42,7 +43,8 @@ public class DashPlaylist {
     return null;
   }
 
-  private Representation solveRepresentation(String type, AdaptationSet adaptationSet, ResolutionSelector resolutionSelector, BandwidthSelector bandwidthSelector) {
+  private Representation solveRepresentation(String type, AdaptationSet adaptationSet,
+      ResolutionSelector resolutionSelector, BandwidthSelector bandwidthSelector) {
 
     if (adaptationSet == null) {
       return null;
@@ -55,14 +57,13 @@ public class DashPlaylist {
     for (Representation representation : adaptationSet.getRepresentations()) {
       if (bandwidthSelector.matches(representation.getBandwidth(), lastMatchedBandwidth)) {
         lastMatchedBandwidth = representation.getBandwidth();
-        if (type.equals("video")) {
+        if (type.equals(VIDEO_TYPE_NAME)) {
           if (resolutionSelector.matches(representation.getWidth() + "x" +
               representation.getHeight(), lastMatchedResolution)) {
             lastMatchedResolution = representation.getWidth() + "x" + representation.getHeight();
             lastMatchedRepresentation = representation;
           }
-        }
-        else {
+        } else {
           lastMatchedRepresentation = representation;
         }
       }
@@ -71,19 +72,20 @@ public class DashPlaylist {
     return lastMatchedRepresentation;
   }
 
-  private AdaptationSet getAdaptationSetByType (String type, Period period, String typeLanguageSelector) {
+  private AdaptationSet getAdaptationSetByType(String type, Period period,
+      String typeLanguageSelector) {
 
     List<AdaptationSet> adaptationSetByTypes = period.getAdaptationSets().stream()
         .filter(adaptationSet -> adaptationSet.getMimeType().contains(type)).collect(
             Collectors.toList());
 
     if (adaptationSetByTypes.size() > 0) {
-      if (type.equals(HlsSampler.VIDEO_TYPE_NAME)) {
+      if (type.equals(VIDEO_TYPE_NAME)) {
         return adaptationSetByTypes.get(0);
       }
 
       return adaptationSetByTypes.stream().filter(adaptationSet ->
-        adaptationSet.getLang().contains(typeLanguageSelector)).findAny().orElse(null);
+          adaptationSet.getLang().contains(typeLanguageSelector)).findAny().orElse(null);
     }
 
     return null;

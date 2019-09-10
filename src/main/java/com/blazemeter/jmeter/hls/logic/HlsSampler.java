@@ -3,7 +3,6 @@ package com.blazemeter.jmeter.hls.logic;
 import io.lindstrom.mpd.MPDParser;
 import io.lindstrom.mpd.data.AdaptationSet;
 import io.lindstrom.mpd.data.MPD;
-import io.lindstrom.mpd.data.Representation;
 import io.lindstrom.mpd.data.SegmentTemplate;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -58,9 +57,8 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private static final String SUBTITLES_TYPE_NAME = "subtitles";
   private static final String MEDIA_TYPE_NAME = "media";
   private static final String AUDIO_TYPE_NAME = "audio";
-  public static final String VIDEO_TYPE_NAME = "video";
-  public static final String SUBTITLE = "subtitle";
-  public static final String AUDIO = "audio";
+  private static final String VIDEO_TYPE_NAME = "video";
+  private static final String SUBTITLE_TYPE_NAME = "subtitle";
 
   private final transient Function<URI, HTTPSampleResult> uriSampler;
   private final transient Consumer<SampleResult> sampleResultNotifier;
@@ -272,8 +270,10 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
             DashPlaylist videoPlaylist = new DashPlaylist(VIDEO_TYPE_NAME, manifest,
                 timeMachine.now());
-            DashPlaylist audioPlaylist = new DashPlaylist(AUDIO, manifest, timeMachine.now());
-            DashPlaylist subtitlePlaylist = new DashPlaylist(SUBTITLE, manifest, timeMachine.now());
+            DashPlaylist audioPlaylist = new DashPlaylist(AUDIO_TYPE_NAME, manifest,
+                timeMachine.now());
+            DashPlaylist subtitlePlaylist = new DashPlaylist(SUBTITLE_TYPE_NAME, manifest,
+                timeMachine.now());
 
             MediaRepresentation videoRepresentation = videoPlaylist
                 .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), null);
@@ -285,9 +285,9 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
                     getSubtitleLanguage());
 
             if (!interrupted && (
-                (videoRepresentation != null && videoRepresentation.exists()) ||
-                    (audioRepresentation != null && audioRepresentation.exists()) ||
-                    (audioRepresentation != null && subtitleRepresentation.exists()))
+                (videoRepresentation != null && videoRepresentation.exists())
+                    || (audioRepresentation != null && audioRepresentation.exists())
+                    || (audioRepresentation != null && subtitleRepresentation.exists()))
             ) {
               int playSeconds = getPlaySecondsOrWarn();
 
@@ -398,6 +398,12 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     return null;
   }
 
+  @Override
+  protected HTTPSampleResult sample(URL url, String method, boolean areFollowingRedirect,
+      int frameDepth) {
+    return httpClient.sample(url, method, areFollowingRedirect, frameDepth);
+  }
+
   private MPD downloadManifest(String url) throws Exception {
     URI manifestUri = URI.create(url);
     HTTPSampleResult result = uriSampler.apply(manifestUri);
@@ -427,9 +433,9 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   private SampleResult buildErrorParsingManifestResult(String url) {
     SampleResult res = new SampleResult();
-    res.setSampleLabel(getName() + " - Manifest" );
+    res.setSampleLabel(getName() + " - Manifest");
     res.setResponseCode("Non HTTP response code: ProblemParsingManifest");
-    res.setResponseMessage("Non HTTP response message: Invalid Manifest at url "+url);
+    res.setResponseMessage("Non HTTP response message: Invalid Manifest at url " + url);
     res.setSuccessful(false);
     return res;
 
@@ -465,7 +471,8 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
      * $Bandwidth$ : This identifier is substituted with the value of Representation@bandwidth
      *  attribute value.
      * $Time$ : This identifier is substituted with the value of the SegmentTimeline@t attribute
-     *  for the Segment being accessed. Either $Number$ or $Time$ may be used but not both at the same time.
+     *  for the Segment being accessed. Either $Number$ or $Time$ may be used but not both at
+     * the same time.
      * */
 
     private void downloadNextSegment() {
@@ -489,11 +496,10 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
         HTTPSampleResult initializeResult = uriSampler.apply(URI.create(initializeURL));
         if (!initializeResult.isSuccessful()) {
           SampleResult failInitresult = buildNotMatchingMediaPlaylistResult();
-          notifySampleResult("Init "+type, failInitresult);
+          notifySampleResult("Init " + type, failInitresult);
           //TODO: Create/Throw exception here
-        }
-        else {
-          notifySampleResult("Init "+type, initializeResult);
+        } else {
+          notifySampleResult("Init " + type, initializeResult);
         }
       }
 
@@ -504,8 +510,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       HTTPSampleResult downloadSegmentResult = uriSampler.apply(URI.create(segmentURL));
       if (!downloadSegmentResult.isSuccessful()) {
         notifySampleResult(type + " segment", downloadSegmentResult);
-      }
-      else {
+      } else {
         notifySampleResult(type + " segment", downloadSegmentResult);
       }
 
@@ -521,7 +526,8 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     private String buildMediaFormula(String formula) {
 
       //TODO: Review the case when multiple SegmentTimeline and how to match them
-      //formula = formula.replace("$Time$", Long.toString(representation.getAdaptationSetUsed().getSegmentTemplate().getSegmentTimeline().get(0).getT()))
+      //formula = formula.replace("$Time$", Long.toString(representation.getAdaptationSetUsed()
+      // .getSegmentTemplate().getSegmentTimeline().get(0).getT()))
 
       formula = formula
           .replace("$RepresentationID$", representation.getSelectedRepresentation().getId());
@@ -570,12 +576,6 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       }
     }
     return playSeconds;
-  }
-
-  @Override
-  protected HTTPSampleResult sample(URL url, String method, boolean areFollowingRedirect,
-      int frameDepth) {
-    return httpClient.sample(url, method, areFollowingRedirect, frameDepth);
   }
 
   private Playlist downloadPlaylist(String playlistName, URI uri)
