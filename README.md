@@ -43,7 +43,6 @@ Set the link to the master playlist file
 
 - URL
 
-
 ![](docs/video-url.png)
 
 #### Play options
@@ -78,7 +77,6 @@ After selecting the desired resolution you can select the bandwidth you want to 
 
 ![](docs/bandwidth.png)
 
-
 #### Resume video downloads
 
 When iterations are used, the sampler will (by default) start downloading video segments from the beginning of the video for each iteration. It is possible to make the sampler continue in each iteration downloading video segments from the last iteration by checking the "Resume video downloads between iterations" checkbox.
@@ -91,6 +89,7 @@ You can set listeners to evaluate the results of your tests. The View Results Tr
 
 ![](docs/sample-results.png)
 
+The sampler will automatically add an `X-MEDIA-SEGMENT-DURATION` HTTP response header which contains the media segment duration in seconds (in decimal representation). This value can later be used to perform analysis comparing it to the time taken in the associated sample. 
 
 ## Assertions and Post Processors
 

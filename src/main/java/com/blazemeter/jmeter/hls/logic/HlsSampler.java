@@ -286,8 +286,12 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       try {
         while (!mediaPlayback.hasEnded()) {
           mediaPlayback.downloadNextSegment();
-          audioPlayback.downloadUntilTimeSecond(mediaPlayback.playedTimeSeconds());
-          subtitlesPlayback.downloadUntilTimeSecond(mediaPlayback.playedTimeSeconds());
+          float playedSeconds = mediaPlayback.playedTimeSeconds();
+          if (playSeconds > 0 && playSeconds < playedSeconds) {
+            playedSeconds = playSeconds;
+          }
+          audioPlayback.downloadUntilTimeSecond(playedSeconds);
+          subtitlesPlayback.downloadUntilTimeSecond(playedSeconds);
         }
       } finally {
         lastVideoSegmentNumber = mediaPlayback.lastSegmentNumber;
@@ -418,6 +422,9 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       if (mediaSegments.hasNext()) {
         MediaSegment segment = mediaSegments.next();
         SampleResult result = downloadUri(segment.getUri());
+        result.setResponseHeaders(
+            result.getResponseHeaders() + "X-MEDIA-SEGMENT-DURATION: " + segment
+                .getDurationSeconds() + "\n");
         processSampleResult(buildSegmentName(type), result);
         lastSegmentNumber = segment.getSequenceNumber();
         consumedSeconds += segment.getDurationSeconds();
