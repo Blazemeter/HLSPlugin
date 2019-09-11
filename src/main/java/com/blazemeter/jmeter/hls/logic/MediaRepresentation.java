@@ -5,24 +5,30 @@ import io.lindstrom.mpd.data.Representation;
 
 public class MediaRepresentation {
 
-  private AdaptationSet adaptationSetUsed;
-  private Representation selectedRepresentation;
+  private AdaptationSet adaptationSet;
+  private Representation representation;
+  private String baseURL;
 
   public MediaRepresentation(Representation representation,
-      AdaptationSet adaptationSet) {
-    this.adaptationSetUsed = adaptationSet;
-    this.selectedRepresentation = representation;
+      AdaptationSet adaptationSet, String baseURL) {
+    this.adaptationSet = adaptationSet;
+    this.representation = representation;
+    this.baseURL = baseURL;
   }
 
-  public AdaptationSet getAdaptationSetUsed() {
-    return adaptationSetUsed;
+  public AdaptationSet getAdaptationSet() {
+    return adaptationSet;
   }
 
-  public Representation getSelectedRepresentation() {
-    return selectedRepresentation;
+  public Representation getRepresentation() {
+    return representation;
   }
 
   public boolean exists() {
-    return (adaptationSetUsed != null && selectedRepresentation != null);
+    return (adaptationSet != null && representation != null);
+  }
+
+  public String getBaseURL() {
+    return baseURL;
   }
 }

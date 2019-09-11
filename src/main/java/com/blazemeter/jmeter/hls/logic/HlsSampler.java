@@ -56,9 +56,8 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private static final String AUDIO_PLAYLIST_NAME = "audio playlist";
   private static final String SUBTITLES_TYPE_NAME = "subtitles";
   private static final String MEDIA_TYPE_NAME = "media";
-  private static final String AUDIO_TYPE_NAME = "audio";
   private static final String VIDEO_TYPE_NAME = "video";
-  private static final String SUBTITLE_TYPE_NAME = "subtitle";
+  private static final String AUDIO_TYPE_NAME = "audio";
 
   private final transient Function<URI, HTTPSampleResult> uriSampler;
   private final transient Consumer<SampleResult> sampleResultNotifier;
@@ -256,59 +255,53 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
     if (url.contains(".mpd")) {
       try {
-        MPD manifest = downloadManifest(url);
+        DashPlaylist mediaPlaylist = downloadManifest(url);
 
-        if (!interrupted && manifest != null) {
+        if (!interrupted && mediaPlaylist.getManifest() != null) {
           try {
-            if (manifest.getBaseURLs() == null || manifest.getBaseURLs().size() < 1) {
-              int lastIndex = url.lastIndexOf("/");
-              baseURL = url.substring(0, lastIndex + 1);
-              LOG.info("Base URL not found, using {} instead", baseURL);
-            } else {
-              baseURL = manifest.getBaseURLs().get(0).getValue();
-            }
 
-            DashPlaylist videoPlaylist = new DashPlaylist(VIDEO_TYPE_NAME, manifest,
+            DashPlaylist audioPlaylist = new DashPlaylist(AUDIO_TYPE_NAME, mediaPlaylist.getManifest(),
                 timeMachine.now());
-            DashPlaylist audioPlaylist = new DashPlaylist(AUDIO_TYPE_NAME, manifest,
-                timeMachine.now());
-            DashPlaylist subtitlePlaylist = new DashPlaylist(SUBTITLE_TYPE_NAME, manifest,
+            DashPlaylist subtitlePlaylist = new DashPlaylist(SUBTITLES_TYPE_NAME, mediaPlaylist.getManifest(),
                 timeMachine.now());
 
-            MediaRepresentation videoRepresentation = videoPlaylist
-                .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), null);
+            MediaRepresentation mediaRepresentation = mediaPlaylist
+                .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), url, null);
             MediaRepresentation audioRepresentation = audioPlaylist
-                .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(),
+                .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), url,
                     getAudioLanguage());
             MediaRepresentation subtitleRepresentation = subtitlePlaylist
-                .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(),
+                .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), url,
                     getSubtitleLanguage());
 
-            if (!interrupted && (
-                (videoRepresentation != null && videoRepresentation.exists())
+            if (!interrupted
+                && ((mediaRepresentation != null && mediaRepresentation.exists())
                     || (audioRepresentation != null && audioRepresentation.exists())
                     || (audioRepresentation != null && subtitleRepresentation.exists()))
             ) {
               int playSeconds = getPlaySecondsOrWarn();
 
-              DashMediaPlayback videoPlayback = new DashMediaPlayback(videoRepresentation,
-                  lastVideoSegmentNumber, playSeconds, "video");
+              DashMediaPlayback mediaPlayback = new DashMediaPlayback(mediaRepresentation,
+                  lastVideoSegmentNumber, playSeconds, MEDIA_TYPE_NAME);
               DashMediaPlayback audioPlayback = new DashMediaPlayback(audioRepresentation,
-                  lastAudioSegmentNumber, playSeconds, "audio");
+                  lastAudioSegmentNumber, playSeconds, AUDIO_TYPE_NAME);
               DashMediaPlayback subtitlePlayback = new DashMediaPlayback(subtitleRepresentation,
-                  lastSubtitleSegmentNumber, playSeconds, "subtitle");
+                  lastSubtitleSegmentNumber, playSeconds, SUBTITLES_TYPE_NAME);
 
-              while (!interrupted && (!videoPlayback.hasEnded() || !audioPlayback.hasEnded()
+              while (!interrupted && (!mediaPlayback.hasEnded() || !audioPlayback.hasEnded()
                   || !subtitlePlayback.hasEnded())) {
 
-                if (videoPlayback.canDownload()) {
-                  videoPlayback.downloadNextSegment();
+                LOG.info("Media can download {}",mediaPlayback.canDownload());
+                if (mediaPlayback.canDownload()) {
+                  mediaPlayback.downloadNextSegment();
                 }
 
+                LOG.info("Audio can download {}",audioPlayback.canDownload());
                 if (audioPlayback.canDownload()) {
                   audioPlayback.downloadNextSegment();
                 }
 
+                LOG.info("Subtitle can download {}",subtitlePlayback.canDownload());
                 if (subtitlePlayback.canDownload()) {
                   subtitlePlayback.downloadNextSegment();
                 }
@@ -319,6 +312,8 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
           }
         }
       } catch (Exception e) {
+        e.printStackTrace();
+      } catch (PlaylistDownloadException e) {
         e.printStackTrace();
       }
     } else {
@@ -404,31 +399,34 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     return httpClient.sample(url, method, areFollowingRedirect, frameDepth);
   }
 
-  private MPD downloadManifest(String url) throws Exception {
-    URI manifestUri = URI.create(url);
-    HTTPSampleResult result = uriSampler.apply(manifestUri);
+  private DashPlaylist downloadManifest(String url) throws PlaylistDownloadException, IOException {
+    Instant downloadTimestamp = timeMachine.now();
 
-    if (!result.isSuccessful()) {
-      throw new Exception("Need to create the Error Parsing Manifest Exception");
+    URI manifestUri = URI.create(url);
+    HTTPSampleResult manifestResult = uriSampler.apply(manifestUri);
+
+    if (!manifestResult.isSuccessful()) {
+
+      notifySampleResult("Manifest", manifestResult);
+      throw new PlaylistDownloadException("Manifest", manifestUri);
     }
 
     // we update uri in case the request was redirected
     try {
-      manifestUri = result.getURL().toURI();
+      manifestUri = manifestResult.getURL().toURI();
     } catch (URISyntaxException e) {
       LOG.warn("Problem updating uri from downloaded manifest {}. Continue with original uri {}",
-          result.getURL(), manifestUri, e);
+          manifestResult.getURL(), manifestUri, e);
     }
 
     try {
-      MPD manifest = new MPDParser().parse(result.getResponseDataAsString());
-      notifySampleResult("Manifest", result);
-      return manifest;
-    } catch (IOException e) {
-      LOG.error("Error parsing the manifest from url {}. Error log: {}", url, e.getMessage());
+      DashPlaylist videoPlaylist = DashPlaylist.fromUriAndManifest(VIDEO_TYPE_NAME, manifestResult.getResponseDataAsString(), downloadTimestamp);
+      notifySampleResult("Manifest", manifestResult);
+      return videoPlaylist;
+    } catch (IOException e) { //TODO: Change this to "Playlist parsing exception"
+      notifySampleResult("Manifest", errorResult(e, manifestResult));
+      throw e;
     }
-
-    return null;
   }
 
   private SampleResult buildErrorParsingManifestResult(String url) {
@@ -477,7 +475,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
     private void downloadNextSegment() {
 
-      AdaptationSet adaptationSetUsed = representation.getAdaptationSetUsed();
+      AdaptationSet adaptationSetUsed = representation.getAdaptationSet();
       SegmentTemplate template = adaptationSetUsed.getSegmentTemplate();
       String adaptationBaseURL = adaptationSetUsed.getBaseURLs().get(0).getValue();
 
@@ -490,7 +488,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       }
 
       if (lastSegmentNumber < 2) {
-        String initializeURL = baseURL + adaptationBaseURL + buildMediaFormula(template
+        String initializeURL = representation.getBaseURL() + adaptationBaseURL + buildMediaFormula(template
             .getInitialization());
         LOG.info("Downloading {}", initializeURL);
         HTTPSampleResult initializeResult = uriSampler.apply(URI.create(initializeURL));
@@ -504,7 +502,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       }
 
       String segmentURL =
-          baseURL + adaptationBaseURL + buildMediaFormula(template.getMedia());
+          representation.getBaseURL() + adaptationBaseURL + buildMediaFormula(template.getMedia());
       LOG.info("Downloading {}", segmentURL);
 
       HTTPSampleResult downloadSegmentResult = uriSampler.apply(URI.create(segmentURL));
@@ -526,13 +524,13 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     private String buildMediaFormula(String formula) {
 
       //TODO: Review the case when multiple SegmentTimeline and how to match them
-      //formula = formula.replace("$Time$", Long.toString(representation.getAdaptationSetUsed()
+      //formula = formula.replace("$Time$", Long.toString(representation.getAdaptationSet()
       // .getSegmentTemplate().getSegmentTimeline().get(0).getT()))
 
       formula = formula
-          .replace("$RepresentationID$", representation.getSelectedRepresentation().getId());
+          .replace("$RepresentationID$", representation.getRepresentation().getId());
       formula = formula.replace("$Bandwidth$",
-          Long.toString(representation.getSelectedRepresentation().getBandwidth()));
+          Long.toString(representation.getRepresentation().getBandwidth()));
 
       Pattern pattern = Pattern.compile("(?<=\\$Number)(.*?)(?=\\$)");
       Matcher matcher = pattern.matcher(formula);
@@ -553,7 +551,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     }
 
     private boolean hasReachedEnd() {
-      return lastSegmentNumber >= representation.getAdaptationSetUsed().getSegmentTemplate()
+      return lastSegmentNumber >= representation.getAdaptationSet().getSegmentTemplate()
           .getDuration();
     }
 
