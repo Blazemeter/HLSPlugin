@@ -19,7 +19,7 @@ public class DashPlaylist {
   private static final Logger LOG = LoggerFactory.getLogger(DashPlaylist.class);
   private final Instant downloadTimestamp;
   private final MPD manifest;
-  private Period lastPeriod;
+  private String lastPeriodId;
   private final String type;
 
   public DashPlaylist(String type, MPD manifest, Instant downloadTimestamp) {
@@ -28,21 +28,22 @@ public class DashPlaylist {
     this.type = type;
   }
 
-  public static DashPlaylist fromUriAndManifest(String type, String manifestAsStrng, Instant downloadTimestamp)
+  public static DashPlaylist fromUriAndManifest(String type, String manifestAsStrng,
+      Instant downloadTimestamp)
       throws IOException {
     MPD manifest = new MPDParser().parse(manifestAsStrng);
     return new DashPlaylist(type, manifest, downloadTimestamp);
   }
 
-  public Period updatePeriod() {
+  public Period getNextPeriod() {
     List<Period> periods = manifest.getPeriods();
     boolean foundLast = false;
-    for (Period p: periods) {
-      if (p.getId().equals(lastPeriod.getId())) {
-
-      }
+    for (Period p : periods) {
       if (foundLast) {
         return p;
+      }
+      if (p.getId().equals(lastPeriodId)) {
+        foundLast = true;
       }
     }
 
@@ -87,7 +88,7 @@ public class DashPlaylist {
         .stream()
         .filter(adaptationSet ->
             adaptationSet.getMimeType().contains(type))
-            .collect(Collectors.toList());
+        .collect(Collectors.toList());
 
     if (adaptationSetByTypes.size() > 0) {
       if (type.equals(VIDEO_TYPE_NAME)) {

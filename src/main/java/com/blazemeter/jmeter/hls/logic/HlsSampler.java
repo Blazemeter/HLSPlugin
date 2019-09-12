@@ -1,8 +1,6 @@
 package com.blazemeter.jmeter.hls.logic;
 
-import io.lindstrom.mpd.MPDParser;
 import io.lindstrom.mpd.data.AdaptationSet;
-import io.lindstrom.mpd.data.MPD;
 import io.lindstrom.mpd.data.SegmentTemplate;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -258,63 +256,63 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
         DashPlaylist mediaPlaylist = downloadManifest(url);
 
         if (!interrupted && mediaPlaylist.getManifest() != null) {
-          try {
+          DashPlaylist audioPlaylist = new DashPlaylist(AUDIO_TYPE_NAME,
+              mediaPlaylist.getManifest(),
+              timeMachine.now());
+          DashPlaylist subtitlesPlaylist = new DashPlaylist(SUBTITLES_TYPE_NAME,
+              mediaPlaylist.getManifest(),
+              timeMachine.now());
 
-            DashPlaylist audioPlaylist = new DashPlaylist(AUDIO_TYPE_NAME, mediaPlaylist.getManifest(),
-                timeMachine.now());
-            DashPlaylist subtitlePlaylist = new DashPlaylist(SUBTITLES_TYPE_NAME, mediaPlaylist.getManifest(),
-                timeMachine.now());
+          MediaRepresentation mediaRepresentation = mediaPlaylist
+              .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), url, null);
+          MediaRepresentation audioRepresentation = audioPlaylist
+              .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), url,
+                  getAudioLanguage());
+          MediaRepresentation subtitlesRepresentation = subtitlesPlaylist
+              .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), url,
+                  getSubtitleLanguage());
 
-            MediaRepresentation mediaRepresentation = mediaPlaylist
-                .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), url, null);
-            MediaRepresentation audioRepresentation = audioPlaylist
-                .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), url,
-                    getAudioLanguage());
-            MediaRepresentation subtitleRepresentation = subtitlePlaylist
-                .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), url,
-                    getSubtitleLanguage());
+          if (!interrupted
+              && ((mediaRepresentation != null && mediaRepresentation.exists())
+              || (audioRepresentation != null && audioRepresentation.exists())
+              || (audioRepresentation != null && subtitlesRepresentation.exists()))
+          ) {
+            int playSeconds = getPlaySecondsOrWarn();
 
-            if (!interrupted
-                && ((mediaRepresentation != null && mediaRepresentation.exists())
-                    || (audioRepresentation != null && audioRepresentation.exists())
-                    || (audioRepresentation != null && subtitleRepresentation.exists()))
-            ) {
-              int playSeconds = getPlaySecondsOrWarn();
+            DashMediaPlayback mediaPlayback = new DashMediaPlayback(mediaRepresentation,
+                lastVideoSegmentNumber, playSeconds, MEDIA_TYPE_NAME);
+            DashMediaPlayback audioPlayback = new DashMediaPlayback(audioRepresentation,
+                lastAudioSegmentNumber, playSeconds, AUDIO_TYPE_NAME);
+            DashMediaPlayback subtitlesPlayback = new DashMediaPlayback(subtitlesRepresentation,
+                lastSubtitleSegmentNumber, playSeconds, SUBTITLES_TYPE_NAME);
 
-              DashMediaPlayback mediaPlayback = new DashMediaPlayback(mediaRepresentation,
-                  lastVideoSegmentNumber, playSeconds, MEDIA_TYPE_NAME);
-              DashMediaPlayback audioPlayback = new DashMediaPlayback(audioRepresentation,
-                  lastAudioSegmentNumber, playSeconds, AUDIO_TYPE_NAME);
-              DashMediaPlayback subtitlePlayback = new DashMediaPlayback(subtitleRepresentation,
-                  lastSubtitleSegmentNumber, playSeconds, SUBTITLES_TYPE_NAME);
+            while (!interrupted && (!mediaPlayback.hasEnded() || !audioPlayback.hasEnded()
+                || !subtitlesPlayback.hasEnded())) {
 
-              while (!interrupted && (!mediaPlayback.hasEnded() || !audioPlayback.hasEnded()
-                  || !subtitlePlayback.hasEnded())) {
+              LOG.info("Media can download {}", mediaPlayback.canDownload());
+              if (mediaPlayback.canDownload()) {
+                mediaPlayback.downloadNextSegment();
 
-                LOG.info("Media can download {}",mediaPlayback.canDownload());
-                if (mediaPlayback.canDownload()) {
-                  mediaPlayback.downloadNextSegment();
-                }
+              }
 
-                LOG.info("Audio can download {}",audioPlayback.canDownload());
-                if (audioPlayback.canDownload()) {
-                  audioPlayback.downloadNextSegment();
-                }
+              LOG.info("Audio can download {}", audioPlayback.canDownload());
+              if (audioPlayback.canDownload()) {
+                audioPlayback.downloadNextSegment();
+              }
 
-                LOG.info("Subtitle can download {}",subtitlePlayback.canDownload());
-                if (subtitlePlayback.canDownload()) {
-                  subtitlePlayback.downloadNextSegment();
-                }
+              LOG.info("Subtitles can download {}", subtitlesPlayback.canDownload());
+              if (subtitlesPlayback.canDownload()) {
+                subtitlesPlayback.downloadNextSegment();
               }
             }
-          } catch (Exception e) {
-            e.printStackTrace();
+            lastVideoSegmentNumber = mediaPlayback.lastSegmentNumber;
+            lastSubtitleSegmentNumber = subtitlesPlayback.lastSegmentNumber;
+            lastAudioSegmentNumber = audioPlayback.lastSegmentNumber;
           }
         }
-      } catch (Exception e) {
-        e.printStackTrace();
-      } catch (PlaylistDownloadException e) {
-        e.printStackTrace();
+      } catch (IOException | PlaylistDownloadException e) {
+        LOG.warn("Problem downloading manifest from {}", url, e);
+        Thread.currentThread().interrupt();
       }
     } else {
       try {
@@ -420,23 +418,15 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     }
 
     try {
-      DashPlaylist videoPlaylist = DashPlaylist.fromUriAndManifest(VIDEO_TYPE_NAME, manifestResult.getResponseDataAsString(), downloadTimestamp);
+      DashPlaylist videoPlaylist = DashPlaylist
+          .fromUriAndManifest(VIDEO_TYPE_NAME, manifestResult.getResponseDataAsString(),
+              downloadTimestamp);
       notifySampleResult("Manifest", manifestResult);
       return videoPlaylist;
     } catch (IOException e) { //TODO: Change this to "Playlist parsing exception"
       notifySampleResult("Manifest", errorResult(e, manifestResult));
       throw e;
     }
-  }
-
-  private SampleResult buildErrorParsingManifestResult(String url) {
-    SampleResult res = new SampleResult();
-    res.setSampleLabel(getName() + " - Manifest");
-    res.setResponseCode("Non HTTP response code: ProblemParsingManifest");
-    res.setResponseMessage("Non HTTP response message: Invalid Manifest at url " + url);
-    res.setSuccessful(false);
-    return res;
-
   }
 
   public class DashMediaPlayback {
@@ -488,8 +478,9 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       }
 
       if (lastSegmentNumber < 2) {
-        String initializeURL = representation.getBaseURL() + adaptationBaseURL + buildMediaFormula(template
-            .getInitialization());
+        String initializeURL =
+            representation.getBaseURL() + adaptationBaseURL + buildMediaFormula(template
+                .getInitialization());
         LOG.info("Downloading {}", initializeURL);
         HTTPSampleResult initializeResult = uriSampler.apply(URI.create(initializeURL));
         if (!initializeResult.isSuccessful()) {
