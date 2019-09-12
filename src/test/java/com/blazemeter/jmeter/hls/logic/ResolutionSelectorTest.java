@@ -18,7 +18,7 @@ public class ResolutionSelectorTest {
   private static String selectResolution(ResolutionSelector selector) {
     String lastMatch = null;
     for (String resolution : new String[]{MAX_RESOLUTION, MIN_RESOLUTION, MID_RESOLUTION}) {
-      if (selector.matches(resolution, lastMatch)) {
+      if (selector.test(resolution, lastMatch)) {
         lastMatch = resolution;
       }
     }

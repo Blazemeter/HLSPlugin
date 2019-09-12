@@ -21,20 +21,20 @@ public class HlsSamplerPanel extends JPanel {
   private JRadioButton playVideoDurationOption;
   private JTextField playSecondsField;
 
-  private JRadioButton customResolutionOption;
-  private JTextField customResolutionField;
-  private JRadioButton maxResolutionOption;
-  private JRadioButton minResolutionOption;
-
-  private JCheckBox resumeDownloadOption;
+  private JTextField audioField;
+  private JTextField subtitleField;
 
   private JRadioButton customBandwidthOption;
   private JTextField customBandwidthField;
   private JRadioButton maxBandwidthOption;
   private JRadioButton minBandwidthOption;
 
-  private JTextField subtitleField;
-  private JTextField audioField;
+  private JRadioButton customResolutionOption;
+  private JTextField customResolutionField;
+  private JRadioButton maxResolutionOption;
+  private JRadioButton minResolutionOption;
+
+  private JCheckBox resumeDownloadOption;
 
   public HlsSamplerPanel() {
     initComponents();
@@ -43,10 +43,10 @@ public class HlsSamplerPanel extends JPanel {
   private void initComponents() {
     JPanel urlPanel = buildUrlPanel();
     JPanel durationPanel = buildDurationPanel();
-    JPanel resolutionPanel = buildResolutionPanel();
-    JPanel bandwidthPanel = buildBandwidthPanel();
-    JPanel resumeDownloadPanel = buildResumeDownloadPanel();
     JPanel trackPanel = buildTracksPanel();
+    JPanel bandwidthPanel = buildBandwidthPanel();
+    JPanel resolutionPanel = buildResolutionPanel();
+    JPanel resumeDownloadPanel = buildResumeDownloadPanel();
 
     BlazeMeterLabsLogo blazeMeterLabsLogo = new BlazeMeterLabsLogo();
     GroupLayout layout = new GroupLayout(this);
@@ -56,11 +56,11 @@ public class HlsSamplerPanel extends JPanel {
     layout.setHorizontalGroup(layout.createParallelGroup()
         .addComponent(urlPanel)
         .addGroup(layout.createSequentialGroup()
-          .addComponent(durationPanel)
-          .addComponent(trackPanel))
+            .addComponent(durationPanel)
+            .addComponent(trackPanel))
         .addGroup(layout.createSequentialGroup()
-            .addComponent(resolutionPanel)
-            .addComponent(bandwidthPanel))
+            .addComponent(bandwidthPanel)
+            .addComponent(resolutionPanel))
         .addComponent(resumeDownloadPanel)
         .addComponent(blazeMeterLabsLogo, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
             Short.MAX_VALUE)
@@ -74,9 +74,9 @@ public class HlsSamplerPanel extends JPanel {
             .addComponent(trackPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
                 GroupLayout.PREFERRED_SIZE))
         .addGroup(layout.createParallelGroup()
-            .addComponent(resolutionPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
-                GroupLayout.PREFERRED_SIZE)
             .addComponent(bandwidthPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
+                GroupLayout.PREFERRED_SIZE)
+            .addComponent(resolutionPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
                 GroupLayout.PREFERRED_SIZE))
         .addComponent(resumeDownloadPanel)
         .addComponent(blazeMeterLabsLogo)
@@ -115,11 +115,12 @@ public class HlsSamplerPanel extends JPanel {
     JLabel subtitleLabel = new JLabel("Subtitle (e.g.: sp): ");
     JLabel audioLabel = new JLabel("Audio (e.g.: sp): ");
 
-    subtitleField = namedComponent("subtitleField", new JTextField());
     audioField = namedComponent("audioField", new JTextField());
+    subtitleField = namedComponent("subtitleField", new JTextField());
 
     GroupLayout layout = new GroupLayout(panel);
     layout.setAutoCreateContainerGaps(true);
+    layout.setAutoCreateGaps(true);
     panel.setLayout(layout);
     layout.setHorizontalGroup(layout.createParallelGroup()
         .addGroup(layout.createSequentialGroup()
@@ -179,55 +180,6 @@ public class HlsSamplerPanel extends JPanel {
             .addComponent(playVideoDurationOption)
             .addComponent(playSecondsField)));
     return panel;
-
-  }
-
-  private JPanel buildResolutionPanel() {
-    JPanel panel = new JPanel();
-    panel.setBorder(BorderFactory.createTitledBorder("Resolution"));
-
-    maxResolutionOption = namedComponent("maxResolutionOption",
-        new JRadioButton("Max resolution available"));
-    minResolutionOption = namedComponent("minResolutionOption",
-        new JRadioButton("Min resolution available", true));
-    customResolutionOption = namedComponent("customResolutionOption",
-        new JRadioButton("Custom resolution (e.g.: 640x480): "));
-    customResolutionField = namedComponent("customResolutionField",
-        new JTextField());
-
-    ButtonGroup resolutionRadiosGroup = new ButtonGroup();
-    resolutionRadiosGroup.add(customResolutionOption);
-    resolutionRadiosGroup.add(maxResolutionOption);
-    resolutionRadiosGroup.add(minResolutionOption);
-
-    customResolutionField.setEnabled(false);
-    customResolutionOption.addItemListener(e -> {
-      if (e.getStateChange() == ItemEvent.SELECTED) {
-        customResolutionField.setEnabled(true);
-      } else if (e.getStateChange() == ItemEvent.DESELECTED) {
-        customResolutionField.setText("");
-        customResolutionField.setEnabled(false);
-      }
-      validate();
-      repaint();
-    });
-
-    GroupLayout layout = new GroupLayout(panel);
-    layout.setAutoCreateContainerGaps(true);
-    panel.setLayout(layout);
-    layout.setHorizontalGroup(layout.createParallelGroup()
-        .addGroup(layout.createSequentialGroup()
-            .addComponent(customResolutionOption)
-            .addComponent(customResolutionField))
-        .addComponent(minResolutionOption)
-        .addComponent(maxResolutionOption));
-    layout.setVerticalGroup(layout.createSequentialGroup()
-        .addGroup(layout.createParallelGroup()
-            .addComponent(customResolutionOption)
-            .addComponent(customResolutionField))
-        .addComponent(minResolutionOption)
-        .addComponent(maxResolutionOption));
-    return panel;
   }
 
   private JPanel buildBandwidthPanel() {
@@ -278,6 +230,54 @@ public class HlsSamplerPanel extends JPanel {
     return panel;
   }
 
+  private JPanel buildResolutionPanel() {
+    JPanel panel = new JPanel();
+    panel.setBorder(BorderFactory.createTitledBorder("Resolution"));
+
+    maxResolutionOption = namedComponent("maxResolutionOption",
+        new JRadioButton("Max resolution available"));
+    minResolutionOption = namedComponent("minResolutionOption",
+        new JRadioButton("Min resolution available", true));
+    customResolutionOption = namedComponent("customResolutionOption",
+        new JRadioButton("Custom resolution (e.g.: 640x480): "));
+    customResolutionField = namedComponent("customResolutionField",
+        new JTextField());
+
+    ButtonGroup resolutionRadiosGroup = new ButtonGroup();
+    resolutionRadiosGroup.add(customResolutionOption);
+    resolutionRadiosGroup.add(maxResolutionOption);
+    resolutionRadiosGroup.add(minResolutionOption);
+
+    customResolutionField.setEnabled(false);
+    customResolutionOption.addItemListener(e -> {
+      if (e.getStateChange() == ItemEvent.SELECTED) {
+        customResolutionField.setEnabled(true);
+      } else if (e.getStateChange() == ItemEvent.DESELECTED) {
+        customResolutionField.setText("");
+        customResolutionField.setEnabled(false);
+      }
+      validate();
+      repaint();
+    });
+
+    GroupLayout layout = new GroupLayout(panel);
+    layout.setAutoCreateContainerGaps(true);
+    panel.setLayout(layout);
+    layout.setHorizontalGroup(layout.createParallelGroup()
+        .addGroup(layout.createSequentialGroup()
+            .addComponent(customResolutionOption)
+            .addComponent(customResolutionField))
+        .addComponent(minResolutionOption)
+        .addComponent(maxResolutionOption));
+    layout.setVerticalGroup(layout.createSequentialGroup()
+        .addGroup(layout.createParallelGroup()
+            .addComponent(customResolutionOption)
+            .addComponent(customResolutionField))
+        .addComponent(minResolutionOption)
+        .addComponent(maxResolutionOption));
+    return panel;
+  }
+
   private JPanel buildResumeDownloadPanel() {
     JPanel panel = new JPanel();
     panel.setBorder(BorderFactory.createTitledBorder("Other"));
@@ -319,34 +319,20 @@ public class HlsSamplerPanel extends JPanel {
     playSecondsField.setText(seconds);
   }
 
-  public boolean getResumeVideoStatus() {
-    return resumeDownloadOption.isSelected();
+  public String getAudioLanguage() {
+    return audioField.getText();
   }
 
-  public void setResumeStatus(boolean check) {
-    resumeDownloadOption.setSelected(check);
+  public void setAudioLanguage(String audioLanguage) {
+    this.audioField.setText(audioLanguage);
   }
 
-  public ResolutionSelector getResolutionSelector() {
-    if (customResolutionOption.isSelected()) {
-      return new ResolutionSelector.CustomResolutionSelector(customResolutionField.getText());
-    } else if (minResolutionOption.isSelected()) {
-      return ResolutionSelector.MIN;
-    } else {
-      return ResolutionSelector.MAX;
-    }
+  public String getSubtitleLanguage() {
+    return subtitleField.getText();
   }
 
-  public void setResolutionSelector(ResolutionSelector option) {
-    if (option == ResolutionSelector.MIN) {
-      minResolutionOption.setSelected(true);
-    } else if (option == ResolutionSelector.MAX) {
-      maxResolutionOption.setSelected(true);
-    } else {
-      customResolutionOption.setSelected(true);
-      String customResolution = option.getCustomResolution();
-      customResolutionField.setText(customResolution == null ? "" : customResolution);
-    }
+  public void setSubtitleLanguage(String subtitleLanguage) {
+    this.subtitleField.setText(subtitleLanguage);
   }
 
   public BandwidthSelector getBandwidthSelector() {
@@ -373,19 +359,34 @@ public class HlsSamplerPanel extends JPanel {
     }
   }
 
-  public String getSubtitleLanguage() {
-    return subtitleField.getText();
+  public ResolutionSelector getResolutionSelector() {
+    if (customResolutionOption.isSelected()) {
+      return new ResolutionSelector.CustomResolutionSelector(customResolutionField.getText());
+    } else if (minResolutionOption.isSelected()) {
+      return ResolutionSelector.MIN;
+    } else {
+      return ResolutionSelector.MAX;
+    }
   }
 
-  public void setSubtitleLanguage(String subtitleLanguage) {
-    this.subtitleField.setText(subtitleLanguage);
+  public void setResolutionSelector(ResolutionSelector option) {
+    if (option == ResolutionSelector.MIN) {
+      minResolutionOption.setSelected(true);
+    } else if (option == ResolutionSelector.MAX) {
+      maxResolutionOption.setSelected(true);
+    } else {
+      customResolutionOption.setSelected(true);
+      String customResolution = option.getCustomResolution();
+      customResolutionField.setText(customResolution == null ? "" : customResolution);
+    }
   }
 
-  public String getAudioLanguage() {
-    return audioField.getText();
+  public boolean getResumeVideoStatus() {
+    return resumeDownloadOption.isSelected();
   }
 
-  public void setAudioLanguage(String audioLanguage) {
-    this.audioField.setText(audioLanguage);
+  public void setResumeStatus(boolean check) {
+    resumeDownloadOption.setSelected(check);
   }
+
 }

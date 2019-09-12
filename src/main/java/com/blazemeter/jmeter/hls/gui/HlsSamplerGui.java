@@ -49,11 +49,11 @@ public class HlsSamplerGui extends AbstractSamplerGui {
     hlsSamplerPanel.setMasterUrl(sampler.getMasterUrl());
     hlsSamplerPanel.setPlayVideoDuration(sampler.isPlayVideoDuration());
     hlsSamplerPanel.setPlaySeconds(sampler.getPlaySeconds());
-    hlsSamplerPanel.setResumeStatus(sampler.getResumeVideoStatus());
-    hlsSamplerPanel.setResolutionSelector(sampler.getResolutionSelector());
-    hlsSamplerPanel.setBandwidthSelector(sampler.getBandwidthSelector());
     hlsSamplerPanel.setAudioLanguage(sampler.getAudioLanguage());
     hlsSamplerPanel.setSubtitleLanguage(sampler.getSubtitleLanguage());
+    hlsSamplerPanel.setBandwidthSelector(sampler.getBandwidthSelector());
+    hlsSamplerPanel.setResolutionSelector(sampler.getResolutionSelector());
+    hlsSamplerPanel.setResumeStatus(sampler.getResumeVideoStatus());
   }
 
   @Override
@@ -64,11 +64,11 @@ public class HlsSamplerGui extends AbstractSamplerGui {
       sampler.setMasterUrl(hlsSamplerPanel.getMasterUrl());
       sampler.setPlayVideoDuration(hlsSamplerPanel.isPlayVideoDuration());
       sampler.setPlaySeconds(hlsSamplerPanel.getPlaySeconds());
-      sampler.setResumeVideoStatus(hlsSamplerPanel.getResumeVideoStatus());
-      sampler.setResolutionSelector(hlsSamplerPanel.getResolutionSelector());
-      sampler.setBandwidthSelector(hlsSamplerPanel.getBandwidthSelector());
       sampler.setAudioLanguage(hlsSamplerPanel.getAudioLanguage());
       sampler.setSubtitleLanguage(hlsSamplerPanel.getSubtitleLanguage());
+      sampler.setBandwidthSelector(hlsSamplerPanel.getBandwidthSelector());
+      sampler.setResolutionSelector(hlsSamplerPanel.getResolutionSelector());
+      sampler.setResumeVideoStatus(hlsSamplerPanel.getResumeVideoStatus());
     }
   }
 
@@ -76,11 +76,13 @@ public class HlsSamplerGui extends AbstractSamplerGui {
   public void clearGui() {
     super.clearGui();
     hlsSamplerPanel.setMasterUrl("");
-    hlsSamplerPanel.setResumeStatus(false);
     hlsSamplerPanel.setPlayVideoDuration(false);
     hlsSamplerPanel.setPlaySeconds("");
-    hlsSamplerPanel.setResolutionSelector(ResolutionSelector.MIN);
+    hlsSamplerPanel.setAudioLanguage("");
+    hlsSamplerPanel.setSubtitleLanguage("");
     hlsSamplerPanel.setBandwidthSelector(BandwidthSelector.MIN);
+    hlsSamplerPanel.setResolutionSelector(ResolutionSelector.MIN);
+    hlsSamplerPanel.setResumeStatus(false);
   }
 
 }
