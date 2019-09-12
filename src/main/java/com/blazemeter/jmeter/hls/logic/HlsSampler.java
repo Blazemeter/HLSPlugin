@@ -116,7 +116,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   }
 
   private void initHttpSampler() {
-    setName("HLS Sampler");
+    setName("Video Streaming Sampler");
     setFollowRedirects(true);
     setUseKeepAlive(true);
     httpClient = new HlsHttpClient(this);
@@ -258,18 +258,18 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
         if (!interrupted && mediaPlaylist.getManifest() != null) {
           DashPlaylist audioPlaylist = new DashPlaylist(AUDIO_TYPE_NAME,
               mediaPlaylist.getManifest(),
-              timeMachine.now());
+              timeMachine.now(), url);
           DashPlaylist subtitlesPlaylist = new DashPlaylist(SUBTITLES_TYPE_NAME,
               mediaPlaylist.getManifest(),
-              timeMachine.now());
+              timeMachine.now(), url);
 
           MediaRepresentation mediaRepresentation = mediaPlaylist
-              .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), url, null);
+              .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), null);
           MediaRepresentation audioRepresentation = audioPlaylist
-              .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), url,
+              .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(),
                   getAudioLanguage());
           MediaRepresentation subtitlesRepresentation = subtitlesPlaylist
-              .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), url,
+              .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(),
                   getSubtitleLanguage());
 
           if (!interrupted
@@ -279,27 +279,32 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
           ) {
             int playSeconds = getPlaySecondsOrWarn();
 
-            DashMediaPlayback mediaPlayback = new DashMediaPlayback(mediaRepresentation,
-                lastVideoSegmentNumber, playSeconds, MEDIA_TYPE_NAME);
-            DashMediaPlayback audioPlayback = new DashMediaPlayback(audioRepresentation,
-                lastAudioSegmentNumber, playSeconds, AUDIO_TYPE_NAME);
-            DashMediaPlayback subtitlesPlayback = new DashMediaPlayback(subtitlesRepresentation,
-                lastSubtitleSegmentNumber, playSeconds, SUBTITLES_TYPE_NAME);
+            DashMediaPlayback mediaPlayback = new DashMediaPlayback(mediaPlaylist,
+                mediaRepresentation,
+                lastVideoSegmentNumber, playSeconds, MEDIA_TYPE_NAME, null);
+            DashMediaPlayback audioPlayback = new DashMediaPlayback(audioPlaylist,
+                audioRepresentation,
+                lastAudioSegmentNumber, playSeconds, AUDIO_TYPE_NAME, getAudioLanguage());
+            DashMediaPlayback subtitlesPlayback = new DashMediaPlayback(subtitlesPlaylist,
+                subtitlesRepresentation,
+                lastSubtitleSegmentNumber, playSeconds, SUBTITLES_TYPE_NAME, getSubtitleLanguage());
 
             while (!interrupted && (!mediaPlayback.hasEnded() || !audioPlayback.hasEnded()
                 || !subtitlesPlayback.hasEnded())) {
 
               if (mediaPlayback.canDownload()) {
                 mediaPlayback.downloadNextSegment();
-
+                mediaPlayback.updatePeriod();
               }
 
               if (audioPlayback.canDownload()) {
                 audioPlayback.downloadNextSegment();
+                audioPlayback.updatePeriod();
               }
 
               if (subtitlesPlayback.canDownload()) {
                 subtitlesPlayback.downloadNextSegment();
+                subtitlesPlayback.updatePeriod();
               }
             }
             lastVideoSegmentNumber = mediaPlayback.lastSegmentNumber;
@@ -417,7 +422,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     try {
       DashPlaylist videoPlaylist = DashPlaylist
           .fromUriAndManifest(VIDEO_TYPE_NAME, manifestResult.getResponseDataAsString(),
-              downloadTimestamp);
+              downloadTimestamp, url);
       notifySampleResult("Manifest", manifestResult);
       return videoPlaylist;
     } catch (IOException e) { //TODO: Change this to "Playlist parsing exception"
@@ -429,18 +434,23 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   public class DashMediaPlayback {
 
     private MediaRepresentation representation;
+    private DashPlaylist playlist;
     private long lastSegmentNumber;
-    private int playSeconds;
     private float consumedSeconds;
+    private int playSeconds;
+    private String selector;
     private String type;
 
-    private DashMediaPlayback(MediaRepresentation representation, long lastSegmentNumber,
-        int playSeconds, String type) {
+    private DashMediaPlayback(DashPlaylist playlist, MediaRepresentation representation,
+        long lastSegmentNumber,
+        int playSeconds, String type, String selector) {
+      this.playlist = playlist;
       this.representation = representation;
       this.lastSegmentNumber = lastSegmentNumber;
       this.playSeconds = playSeconds;
       this.consumedSeconds = 0f;
       this.type = type;
+      this.selector = selector;
     }
 
     private boolean canDownload() {
@@ -500,13 +510,14 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
         notifySampleResult(type + " segment", downloadSegmentResult);
       }
 
-      long secondsPassed = 1;
-      if (template.getTimescale() != null && template.getTimescale() != 0) {
-        secondsPassed = template.getTimescale() / 1000;
-      }
-
-      consumedSeconds += secondsPassed;
       lastSegmentNumber++;
+      if (template.getTimescale() != null && template.getTimescale() != 0) {
+        consumedSeconds =
+            (float) (template.getDuration() / template.getTimescale()) * lastSegmentNumber;
+      } else {
+        consumedSeconds++;
+      }
+      LOG.info("Consumed seconds for {} updated to {}", type, consumedSeconds);
     }
 
     private String buildMediaFormula(String formula) {
@@ -530,6 +541,14 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       return formula;
     }
 
+    private void updatePeriod() {
+      if (hasReachedEnd() && !playedRequestedTime()) {
+        playlist.updatePeriod();
+        this.setRepresentation(playlist
+            .solveMediaRepresentation(getResolutionSelector(), getBandwidthSelector(), selector));
+      }
+    }
+
     private boolean hasEnded() {
       return (representation == null || playedRequestedTime() || hasReachedEnd());
     }
@@ -539,8 +558,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     }
 
     private boolean hasReachedEnd() {
-      return lastSegmentNumber >= representation.getAdaptationSet().getSegmentTemplate()
-          .getDuration();
+      return playlist.getActualPeriodIndex() == -1;
     }
 
     public MediaRepresentation getRepresentation() {

@@ -2,6 +2,7 @@ package com.blazemeter.jmeter.hls.logic;
 
 import io.lindstrom.mpd.MPDParser;
 import io.lindstrom.mpd.data.AdaptationSet;
+import io.lindstrom.mpd.data.BaseURL;
 import io.lindstrom.mpd.data.MPD;
 import io.lindstrom.mpd.data.Period;
 import io.lindstrom.mpd.data.Representation;
@@ -19,43 +20,38 @@ public class DashPlaylist {
   private static final Logger LOG = LoggerFactory.getLogger(DashPlaylist.class);
   private final Instant downloadTimestamp;
   private final MPD manifest;
-  private String lastPeriodId;
   private final String type;
+  private int actualPeriodIndex;
+  private String manifestURL;
 
-  public DashPlaylist(String type, MPD manifest, Instant downloadTimestamp) {
+  public DashPlaylist(String type, MPD manifest, Instant downloadTimestamp, String manifestURL) {
     this.manifest = manifest;
     this.downloadTimestamp = downloadTimestamp;
     this.type = type;
+    this.actualPeriodIndex = 0;
+    this.manifestURL = manifestURL;
   }
 
   public static DashPlaylist fromUriAndManifest(String type, String manifestAsStrng,
-      Instant downloadTimestamp)
+      Instant downloadTimestamp, String manifestURL)
       throws IOException {
     MPD manifest = new MPDParser().parse(manifestAsStrng);
-    return new DashPlaylist(type, manifest, downloadTimestamp);
+    return new DashPlaylist(type, manifest, downloadTimestamp, manifestURL);
   }
 
-  public Period getNextPeriod() {
-    List<Period> periods = manifest.getPeriods();
-    boolean foundLast = false;
-    for (Period p : periods) {
-      if (foundLast) {
-        lastPeriodId = p.getId();
-        return p;
-      }
-      if (p.getId().equals(lastPeriodId)) {
-        foundLast = true;
-      }
+  public void updatePeriod() {
+    if (actualPeriodIndex + 1 <= manifest.getPeriods().size() - 1) {
+      actualPeriodIndex++;
+    } else {
+      actualPeriodIndex = -1;
     }
-
-    return null;
   }
 
   public MediaRepresentation solveMediaRepresentation(ResolutionSelector resolutionSelector,
-      BandwidthSelector bandwidthSelector, String baseURL, String languageSelector) {
+      BandwidthSelector bandwidthSelector, String languageSelector) {
 
     //TODO: Need to make the logic for multiple Periods.
-    Period period = manifest.getPeriods().get(0);
+    Period period = manifest.getPeriods().get(actualPeriodIndex);
 
     AdaptationSet adaptationSet = getAdaptationSetByType(type, period, languageSelector);
     if (adaptationSet != null) {
@@ -63,7 +59,16 @@ public class DashPlaylist {
           resolutionSelector, bandwidthSelector);
       if (representation != null) {
         LOG.info("Representation found, using {}", representation.getId());
-        return new MediaRepresentation(representation, adaptationSet, solveBaseURL(baseURL));
+
+        if (manifest.getBaseURLs().size() > 0) {
+          LOG.info("Manifest has {} Base URLs. Using the first", manifest.getBaseURLs().size());
+        } else {
+          LOG.info("Manifest has no Base URL tag. Using {} instead.", manifestURL);
+        }
+
+        return new MediaRepresentation(representation, adaptationSet,
+            solveBaseURL(manifest.getBaseURLs().size() > 0 ? manifest.getBaseURLs().get(0).getValue()
+                : manifestURL));
       }
     }
 
@@ -87,8 +92,8 @@ public class DashPlaylist {
 
     List<AdaptationSet> adaptationSetByTypes = period.getAdaptationSets()
         .stream()
-        .filter(adaptationSet ->
-            adaptationSet.getMimeType().contains(type))
+        .filter(adaptationSet -> adaptationSet.getMimeType()
+            .contains(type))
         .collect(Collectors.toList());
 
     if (adaptationSetByTypes.size() > 0) {
@@ -97,7 +102,10 @@ public class DashPlaylist {
       }
 
       return adaptationSetByTypes.stream().filter(adaptationSet ->
-          adaptationSet.getLang().contains(typeLanguageSelector)).findAny().orElse(null);
+          adaptationSet.getLang()
+              .contains(typeLanguageSelector))
+          .findAny()
+          .orElse(null);
     }
 
     return null;
@@ -135,4 +143,9 @@ public class DashPlaylist {
   public MPD getManifest() {
     return manifest;
   }
+
+  public int getActualPeriodIndex() {
+    return actualPeriodIndex;
+  }
+
 }
