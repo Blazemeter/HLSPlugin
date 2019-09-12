@@ -40,6 +40,7 @@ public class DashPlaylist {
     boolean foundLast = false;
     for (Period p : periods) {
       if (foundLast) {
+        lastPeriodId = p.getId();
         return p;
       }
       if (p.getId().equals(lastPeriodId)) {

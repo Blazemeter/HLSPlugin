@@ -289,18 +289,15 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
             while (!interrupted && (!mediaPlayback.hasEnded() || !audioPlayback.hasEnded()
                 || !subtitlesPlayback.hasEnded())) {
 
-              LOG.info("Media can download {}", mediaPlayback.canDownload());
               if (mediaPlayback.canDownload()) {
                 mediaPlayback.downloadNextSegment();
 
               }
 
-              LOG.info("Audio can download {}", audioPlayback.canDownload());
               if (audioPlayback.canDownload()) {
                 audioPlayback.downloadNextSegment();
               }
 
-              LOG.info("Subtitles can download {}", subtitlesPlayback.canDownload());
               if (subtitlesPlayback.canDownload()) {
                 subtitlesPlayback.downloadNextSegment();
               }
