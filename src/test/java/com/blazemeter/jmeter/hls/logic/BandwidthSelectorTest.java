@@ -18,7 +18,7 @@ public class BandwidthSelectorTest {
   private static Long selectBandwidth(BandwidthSelector selector) {
     Long lastMatch = null;
     for (long bandwidth : new long[]{MAX_BANDWIDTH, MIN_BANDWIDTH, MID_BANDWIDTH}) {
-      if (selector.matches(bandwidth, lastMatch)) {
+      if (selector.test(bandwidth, lastMatch)) {
         lastMatch = bandwidth;
       }
     }

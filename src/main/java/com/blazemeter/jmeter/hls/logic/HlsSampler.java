@@ -45,11 +45,11 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private static final String CUSTOM_BANDWIDTH_PROPERTY_NAME = "HLS.NET_DATA";
   private static final String PLAY_SECONDS_PROPERTY_NAME = "HLS.SECONDS_DATA";
   private static final String PLAY_VIDEO_DURATION_PROPERTY_NAME = "HLS.DURATION";
-  private static final String RESOLUTION_TYPE_PROPERTY_NAME = "HLS.RESOLUTION_TYPE";
-  private static final String BANDWIDTH_TYPE_PROPERTY_NAME = "HLS.BANDWIDTH_TYPE";
-  private static final String RESUME_DOWNLOAD_PROPERTY_NAME = "HLS.RESUME_DOWNLOAD";
   private static final String AUDIO_LANGUAGE_PROPERTY_NAME = "HLS.AUDIO_LANGUAGE";
   private static final String SUBTITLE_LANGUAGE_PROPERTY_NAME = "HLS.SUBTITLE_LANGUAGE";
+  private static final String BANDWIDTH_TYPE_PROPERTY_NAME = "HLS.BANDWIDTH_TYPE";
+  private static final String RESOLUTION_TYPE_PROPERTY_NAME = "HLS.RESOLUTION_TYPE";
+  private static final String RESUME_DOWNLOAD_PROPERTY_NAME = "HLS.RESUME_DOWNLOAD";
 
   private static final String HEADER_MANAGER = "HLSRequest.header_manager";
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
@@ -156,23 +156,20 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     this.setProperty(PLAY_SECONDS_PROPERTY_NAME, seconds);
   }
 
-  public boolean getResumeVideoStatus() {
-    return this.getPropertyAsBoolean(RESUME_DOWNLOAD_PROPERTY_NAME);
+  public String getAudioLanguage() {
+    return this.getPropertyAsString(AUDIO_LANGUAGE_PROPERTY_NAME).trim();
   }
 
-  public void setResumeVideoStatus(boolean res) {
-    this.setProperty(RESUME_DOWNLOAD_PROPERTY_NAME, res);
+  public void setAudioLanguage(String language) {
+    this.setProperty(AUDIO_LANGUAGE_PROPERTY_NAME, language);
   }
 
-  public ResolutionSelector getResolutionSelector() {
-    return ResolutionSelector
-        .fromStringAndCustomResolution(getPropertyAsString(RESOLUTION_TYPE_PROPERTY_NAME),
-            getPropertyAsString(CUSTOM_RESOLUTION_PROPERTY_NAME));
+  public String getSubtitleLanguage() {
+    return this.getPropertyAsString(SUBTITLE_LANGUAGE_PROPERTY_NAME).trim();
   }
 
-  public void setResolutionSelector(ResolutionSelector selector) {
-    setProperty(RESOLUTION_TYPE_PROPERTY_NAME, selector.getName());
-    setProperty(CUSTOM_RESOLUTION_PROPERTY_NAME, selector.getCustomResolution());
+  public void setSubtitleLanguage(String language) {
+    this.setProperty(SUBTITLE_LANGUAGE_PROPERTY_NAME, language);
   }
 
   public BandwidthSelector getBandwidthSelector() {
@@ -188,20 +185,23 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     setProperty(CUSTOM_BANDWIDTH_PROPERTY_NAME, bandwidth != null ? bandwidth.toString() : null);
   }
 
-  public String getAudioLanguage() {
-    return this.getPropertyAsString(AUDIO_LANGUAGE_PROPERTY_NAME).trim();
+  public ResolutionSelector getResolutionSelector() {
+    return ResolutionSelector
+        .fromStringAndCustomResolution(getPropertyAsString(RESOLUTION_TYPE_PROPERTY_NAME),
+            getPropertyAsString(CUSTOM_RESOLUTION_PROPERTY_NAME));
   }
 
-  public void setAudioLanguage(String language) {
-    this.setProperty(AUDIO_LANGUAGE_PROPERTY_NAME, language);
+  public void setResolutionSelector(ResolutionSelector selector) {
+    setProperty(RESOLUTION_TYPE_PROPERTY_NAME, selector.getName());
+    setProperty(CUSTOM_RESOLUTION_PROPERTY_NAME, selector.getCustomResolution());
   }
 
-  public String getSubtitleLanguage() {
-    return this.getPropertyAsString(SUBTITLE_LANGUAGE_PROPERTY_NAME).trim();
+  public boolean getResumeVideoStatus() {
+    return this.getPropertyAsBoolean(RESUME_DOWNLOAD_PROPERTY_NAME);
   }
 
-  public void setSubtitleLanguage(String language) {
-    this.setProperty(SUBTITLE_LANGUAGE_PROPERTY_NAME, language);
+  public void setResumeVideoStatus(boolean res) {
+    this.setProperty(RESUME_DOWNLOAD_PROPERTY_NAME, res);
   }
 
   // implemented for backwards compatibility
@@ -250,7 +250,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       if (masterPlaylist.isMasterPlaylist()) {
 
         MediaStream mediaStream = masterPlaylist
-            .solveMediaStream(getResolutionSelector(), getBandwidthSelector(),
+            .solveMediaStream(getBandwidthSelector(), getResolutionSelector(),
                 getAudioLanguage(), getSubtitleLanguage());
         if (mediaStream == null) {
           processSampleResult(buildPlaylistName(MEDIA_TYPE_NAME),
