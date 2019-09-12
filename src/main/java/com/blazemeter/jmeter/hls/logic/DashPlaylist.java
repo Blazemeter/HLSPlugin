@@ -2,7 +2,6 @@ package com.blazemeter.jmeter.hls.logic;
 
 import io.lindstrom.mpd.MPDParser;
 import io.lindstrom.mpd.data.AdaptationSet;
-import io.lindstrom.mpd.data.BaseURL;
 import io.lindstrom.mpd.data.MPD;
 import io.lindstrom.mpd.data.Period;
 import io.lindstrom.mpd.data.Representation;
@@ -67,8 +66,9 @@ public class DashPlaylist {
         }
 
         return new MediaRepresentation(representation, adaptationSet,
-            solveBaseURL(manifest.getBaseURLs().size() > 0 ? manifest.getBaseURLs().get(0).getValue()
-                : manifestURL));
+            solveBaseURL(
+                manifest.getBaseURLs().size() > 0 ? manifest.getBaseURLs().get(0).getValue()
+                    : manifestURL));
       }
     }
 
