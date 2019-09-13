@@ -43,7 +43,6 @@ Set the link to the master playlist file
 
 - URL
 
-
 ![](docs/video-url.png)
 
 #### Play options
@@ -78,7 +77,6 @@ After selecting the desired resolution you can select the bandwidth you want to 
 
 ![](docs/bandwidth.png)
 
-
 #### Resume video downloads
 
 When iterations are used, the sampler will (by default) start downloading video segments from the beginning of the video for each iteration. It is possible to make the sampler continue in each iteration downloading video segments from the last iteration by checking the "Resume video downloads between iterations" checkbox.
@@ -91,7 +89,20 @@ You can set listeners to evaluate the results of your tests. The View Results Tr
 
 ![](docs/sample-results.png)
 
-Assertions are supported for the master playlist and variant (child) playlist. Examples: Response Assertion and Duration Assertion. Select `Main sample only` in assertion to test the master playlist response and `Sub-samples only` to test the variant (child) playlist response.
+The sampler will automatically add an `X-MEDIA-SEGMENT-DURATION` HTTP response header which contains the media segment duration in seconds (in decimal representation). This value can later be used to perform analysis comparing it to the time taken in the associated sample. 
+
+## Assertions and Post Processors
+
+The plugin supports adding assertions and post processors on any of the potential types of sample results (master playlist, media playlist, media segment, audio playlist, audio segment, subtitles, subtitles playlist and subtitles segment).
+To add an assertion or post processor that matches a particular result just use as name suffix `-` plus the type of the sample result which it should assert or post process.
+
+Following is an example of an assertion that applies only to media segments:
+
+![](docs/assertion.png)
+
+If you want an assertion to apply to all generated sample results, then just use any name that does not include a sample result type suffix.
+
+**Note:** Assertions and post processors will not work for sub results (like redirection sub samples).
 
 ## Stop/Shutdown Buttons
 

@@ -1,14 +1,15 @@
 package com.blazemeter.jmeter.hls.logic;
 
 import java.util.Objects;
+import java.util.function.BiPredicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class ResolutionSelector {
+public abstract class ResolutionSelector implements BiPredicate<String, String> {
 
   public static final ResolutionSelector MIN = new ResolutionSelector("min", null) {
     @Override
-    public boolean matches(String resolution, String lastMatch) {
+    public boolean test(String resolution, String lastMatch) {
       return lastMatch == null
           || resolution != null && resolutionCompare(resolution, lastMatch) <= 0;
     }
@@ -16,7 +17,7 @@ public abstract class ResolutionSelector {
 
   public static final ResolutionSelector MAX = new ResolutionSelector("max", null) {
     @Override
-    public boolean matches(String resolution, String lastMatch) {
+    public boolean test(String resolution, String lastMatch) {
       return lastMatch == null
           || resolution != null && resolutionCompare(resolution, lastMatch) >= 0;
     }
@@ -49,7 +50,7 @@ public abstract class ResolutionSelector {
     }
 
     @Override
-    public boolean matches(String resolution, String lastMatch) {
+    public boolean test(String resolution, String lastMatch) {
       if (customResolution == null) {
         LOG.error("selection mode is {}, but no custom resolution set", this);
         return false;
@@ -75,8 +76,6 @@ public abstract class ResolutionSelector {
       return new ResolutionSelector.CustomResolutionSelector(customResolution);
     }
   }
-
-  public abstract boolean matches(String resolution, String lastMatch);
 
   protected int resolutionCompare(String r1, String r2) {
     return Long.compare(getResolutionPixels(r1), getResolutionPixels(r2));

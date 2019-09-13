@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiPredicate;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,78 +54,86 @@ public class Playlist {
     return uri;
   }
 
-  private StreamInf solveStream(ResolutionSelector resolutionSelector,
-      BandwidthSelector bandwidthSelector) {
-
-    Long lastMatchedBandwidth = null;
-    String lastMatchedResolution = null;
-
-    StreamInf lastMatchStreamInf = null;
-
-    MasterPlaylist masterplaylist = (MasterPlaylist) playlist;
-
-    for (StreamInf variant : masterplaylist.getVariantStreams()) {
-      long streamBandwidth = variant.getBandwidth();
-      String streamResolution = variant.getResolution();
-      if (bandwidthSelector.matches(streamBandwidth, lastMatchedBandwidth)) {
-        lastMatchedBandwidth = streamBandwidth;
-        if (resolutionSelector.matches(streamResolution, lastMatchedResolution)) {
-          lastMatchedResolution = streamResolution;
-          lastMatchStreamInf = variant;
-        }
-      }
-    }
-
-    return lastMatchStreamInf;
-  }
-
-  public MediaStream solveMediaStream(ResolutionSelector resolutionSelector,
-      BandwidthSelector bandwidthSelector, String audioLanguageSelector,
+  public MediaStream solveMediaStream(BandwidthSelector bandwidthSelector,
+      ResolutionSelector resolutionSelector,
+      String audioLanguageSelector,
       String subtitleLanguageSelector) {
 
-    StreamInf mediaStream = solveStream(resolutionSelector, bandwidthSelector);
-
+    StreamInf mediaStream = solveStream(bandwidthSelector, resolutionSelector);
     if (mediaStream == null) {
       return null;
     }
-
     String audioPlayListUri = getRenditionUri("AUDIO", mediaStream.getAudio(),
         audioLanguageSelector);
-
     /*
     Because of a bug in the library, the mediaStream.getSubtitle() method wont return
     the subtitlesGroupId but null. Because of it, we are use getTag instead.
     */
     String subtitlesGroupId = mediaStream.getTag().getAttributes().get("SUBTITLES");
-
     String subtitlePlayListUri = getRenditionUri("SUBTITLES", subtitlesGroupId,
         subtitleLanguageSelector);
-
     return new MediaStream(buildAbsoluteUri(mediaStream.getURI()),
         (audioPlayListUri != null ? buildAbsoluteUri(audioPlayListUri) : null),
         (subtitlePlayListUri != null ? buildAbsoluteUri(subtitlePlayListUri) : null));
   }
 
-  private String getRenditionUri(String type, String groupId, String selector) {
+  private StreamInf solveStream(BandwidthSelector bandwidthSelector,
+      ResolutionSelector resolutionSelector) {
+    List<StreamInf> variants = ((MasterPlaylist) playlist).getVariantStreams();
+    Function<StreamInf, Long> bandwidthAccessor = v -> (long) v.getBandwidth();
+    if (bandwidthSelector.getCustomBandwidth() == null
+        && resolutionSelector.getCustomResolution() != null) {
+      return findSelectedVariant(StreamInf::getResolution, resolutionSelector, bandwidthAccessor,
+          bandwidthSelector, variants);
+    } else {
+      return findSelectedVariant(bandwidthAccessor, bandwidthSelector, StreamInf::getResolution,
+          resolutionSelector, variants);
+    }
+  }
 
+  private <T, U> StreamInf findSelectedVariant(Function<StreamInf, T> firstAttribute,
+      BiPredicate<T, T> firstAttributeSelector, Function<StreamInf, U> secondAttribute,
+      BiPredicate<U, U> secondAttributeSelector, List<StreamInf> variants) {
+    StreamInf matchedVariant = findVariantPerAttribute(firstAttribute, firstAttributeSelector,
+        variants);
+    if (matchedVariant == null) {
+      return null;
+    }
+    T selectedAttribute = firstAttribute.apply(matchedVariant);
+    List<StreamInf> matchingVariants = variants.stream()
+        .filter(v -> firstAttribute.apply(v).equals(selectedAttribute))
+        .collect(Collectors.toList());
+    return findVariantPerAttribute(secondAttribute, secondAttributeSelector, matchingVariants);
+  }
+
+  private <T> StreamInf findVariantPerAttribute(Function<StreamInf, T> attribute,
+      BiPredicate<T, T> attributeSelector, List<StreamInf> variants) {
+    T lastMatchAttribute = null;
+    StreamInf lastMatchVariant = null;
+    for (StreamInf variant : variants) {
+      T attr = attribute.apply(variant);
+      if (attributeSelector.test(attr, lastMatchAttribute)) {
+        lastMatchAttribute = attr;
+        lastMatchVariant = variant;
+      }
+    }
+    return lastMatchVariant;
+  }
+
+  private String getRenditionUri(String type, String groupId, String selector) {
     if (groupId == null) {
       return null;
     }
-
     MasterPlaylist masterPlaylist = (MasterPlaylist) this.playlist;
-
     Media defaultRendition = null;
 
     for (Media rendition : masterPlaylist.getAlternateRenditions()) {
       String renditionType = rendition.getType();
       String renditionGroupId = rendition.getGroupId();
-
       if (renditionType.equals(type) && renditionGroupId.equals(groupId)) {
-
         if (rendition.getDefault()) {
           defaultRendition = rendition;
         }
-
         if (rendition.getName().toLowerCase().trim().equals(selector.toLowerCase())
             || rendition.getLanguage().toLowerCase().trim().equals(selector.toLowerCase())) {
           return rendition.getURI();
@@ -135,7 +145,6 @@ public class Playlist {
       LOG.warn("No {} was found for the selected param provided '{}', using default if exists.",
           type, selector);
     }
-
     return (defaultRendition != null ? defaultRendition.getURI() : null);
   }
 
@@ -179,7 +188,6 @@ public class Playlist {
         return playlistType.getType();
       }
     }
-
     return null;
   }
 
@@ -221,4 +229,5 @@ public class Playlist {
   public boolean isMasterPlaylist() {
     return playlist.isMasterPlaylist();
   }
+
 }

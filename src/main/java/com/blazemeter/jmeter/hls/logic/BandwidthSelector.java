@@ -1,20 +1,21 @@
 package com.blazemeter.jmeter.hls.logic;
 
 import java.util.Objects;
+import java.util.function.BiPredicate;
 
-public abstract class BandwidthSelector {
+public abstract class BandwidthSelector implements BiPredicate<Long, Long> {
 
   public static final BandwidthSelector MIN = new BandwidthSelector("min", null) {
     @Override
-    public boolean matches(long bandwidth, Long lastMatch) {
-      return lastMatch == null || bandwidth <= lastMatch;
+    public boolean test(Long bandwidth, Long lastMatch) {
+      return lastMatch == null || bandwidth.compareTo(lastMatch) <= 0;
     }
   };
 
   public static final BandwidthSelector MAX = new BandwidthSelector("max", null) {
     @Override
-    public boolean matches(long bandwidth, Long lastMatch) {
-      return lastMatch == null || bandwidth >= lastMatch;
+    public boolean test(Long bandwidth, Long lastMatch) {
+      return lastMatch == null || bandwidth.compareTo(lastMatch) >= 0;
     }
   };
 
@@ -43,8 +44,8 @@ public abstract class BandwidthSelector {
     }
 
     @Override
-    public boolean matches(long bandwidth, Long lastMatch) {
-      return bandwidth == customBandwidth;
+    public boolean test(Long bandwidth, Long lastMatch) {
+      return bandwidth.equals(customBandwidth);
     }
 
     @Override
@@ -63,8 +64,6 @@ public abstract class BandwidthSelector {
       return new CustomBandwidthSelector(customBandwidth);
     }
   }
-
-  public abstract boolean matches(long bandwidth, Long lastMatch);
 
   @Override
   public String toString() {

@@ -3,8 +3,8 @@
 #EXT-X-TARGETDURATION:10
 #EXT-X-VERSION:3
 #EXTINF:5.00,
-http://media.example.com/001.ts
+001.ts
 #EXTINF:5.00,
-http://media.example.com/002.ts
+002.ts
 #EXTINF:5.00,
-http://media.example.com/003.ts
+003.ts

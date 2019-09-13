@@ -1,5 +1,7 @@
 package com.blazemeter.jmeter.hls.logic;
 
+import com.comcast.viper.hlsparserj.MasterPlaylist;
+import com.comcast.viper.hlsparserj.tags.master.StreamInf;
 import io.lindstrom.mpd.MPDParser;
 import io.lindstrom.mpd.data.AdaptationSet;
 import io.lindstrom.mpd.data.MPD;
@@ -8,6 +10,8 @@ import io.lindstrom.mpd.data.Representation;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.function.BiPredicate;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -111,6 +115,9 @@ public class DashPlaylist {
     return null;
   }
 
+
+
+
   private Representation solveRepresentation(String type, AdaptationSet adaptationSet,
       ResolutionSelector resolutionSelector, BandwidthSelector bandwidthSelector) {
 
@@ -118,27 +125,46 @@ public class DashPlaylist {
       return null;
     }
 
-    String lastMatchedResolution = null;
-    Long lastMatchedBandwidth = null;
-    Representation lastMatchedRepresentation = null;
+    Function<Representation, Long> bandwidthAccessor = v -> (long) v.getBandwidth();
+    if (bandwidthSelector.getCustomBandwidth() == null
+        && resolutionSelector.getCustomResolution() != null) {
+      return findSelectedVariant(Representation::getResolution, resolutionSelector, bandwidthAccessor,
+          bandwidthSelector, adaptationSet.getRepresentations());
+    } else {
+      return findSelectedVariant(bandwidthAccessor, bandwidthSelector, Representation::getResolution,
+          resolutionSelector, adaptationSet.getRepresentations());
+    }
+  }
 
-    for (Representation representation : adaptationSet.getRepresentations()) {
-      if (bandwidthSelector.matches(representation.getBandwidth(), lastMatchedBandwidth)) {
-        lastMatchedBandwidth = representation.getBandwidth();
-        if (type.equals(VIDEO_TYPE_NAME)) {
-          if (resolutionSelector.matches(representation.getWidth() + "x" +
-              representation.getHeight(), lastMatchedResolution)) {
-            lastMatchedResolution = representation.getWidth() + "x" + representation.getHeight();
-            lastMatchedRepresentation = representation;
-          }
-        } else {
-          lastMatchedRepresentation = representation;
-        }
+  private <T, U> Representation findSelectedVariant(Function<Representation, T> firstAttribute,
+      BiPredicate<T, T> firstAttributeSelector, Function<Representation, U> secondAttribute,
+      BiPredicate<U, U> secondAttributeSelector, List<Representation> variants) {
+    Representation matchedVariant = findVariantPerAttribute(firstAttribute, firstAttributeSelector,
+        variants);
+    if (matchedVariant == null) {
+      return null;
+    }
+    T selectedAttribute = firstAttribute.apply(matchedVariant);
+    List<Representation> matchingVariants = variants.stream()
+        .filter(v -> firstAttribute.apply(v).equals(selectedAttribute))
+        .collect(Collectors.toList());
+    return findVariantPerAttribute(secondAttribute, secondAttributeSelector, matchingVariants);
+  }
+
+  private <T> Representation findVariantPerAttribute(Function<Representation, T> attribute,
+      BiPredicate<T, T> attributeSelector, List<Representation> variants) {
+    T lastMatchAttribute = null;
+    Representation lastMatchVariant = null;
+    for (Representation variant : variants) {
+      T attr = attribute.apply(variant);
+      if (attributeSelector.test(attr, lastMatchAttribute)) {
+        lastMatchAttribute = attr;
+        lastMatchVariant = variant;
       }
     }
-
-    return lastMatchedRepresentation;
+    return lastMatchVariant;
   }
+
 
   public MPD getManifest() {
     return manifest;
