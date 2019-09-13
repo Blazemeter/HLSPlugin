@@ -14,7 +14,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-//TODO: update the adaptation set when multiple Periods
 public class DashPlaylist {
 
   private static final String VIDEO_TYPE_NAME = "video";
@@ -170,7 +169,6 @@ public class DashPlaylist {
     }
     return lastMatchRepresentation;
   }
-
 
   public MPD getManifest() {
     return manifest;
