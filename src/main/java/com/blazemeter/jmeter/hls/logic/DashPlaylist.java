@@ -1,7 +1,5 @@
 package com.blazemeter.jmeter.hls.logic;
 
-import com.comcast.viper.hlsparserj.MasterPlaylist;
-import com.comcast.viper.hlsparserj.tags.master.StreamInf;
 import io.lindstrom.mpd.MPDParser;
 import io.lindstrom.mpd.data.AdaptationSet;
 import io.lindstrom.mpd.data.MPD;
@@ -115,9 +113,6 @@ public class DashPlaylist {
     return null;
   }
 
-
-
-
   private Representation solveRepresentation(String type, AdaptationSet adaptationSet,
       ResolutionSelector resolutionSelector, BandwidthSelector bandwidthSelector) {
 
@@ -125,44 +120,55 @@ public class DashPlaylist {
       return null;
     }
 
-    Function<Representation, Long> bandwidthAccessor = v -> (long) v.getBandwidth();
+    Function<Representation, Long> bandwidthAccessor = r -> (long) r.getBandwidth();
+    Function<Representation, String> resolutionAccessor = r -> r.getWidth() + "x" + r.getHeight();
+
     if (bandwidthSelector.getCustomBandwidth() == null
-        && resolutionSelector.getCustomResolution() != null) {
-      return findSelectedVariant(Representation::getResolution, resolutionSelector, bandwidthAccessor,
+        && resolutionSelector.getCustomResolution() != null && type.equals(VIDEO_TYPE_NAME)) {
+      return findSelectedRepresentation(resolutionAccessor, resolutionSelector, bandwidthAccessor,
           bandwidthSelector, adaptationSet.getRepresentations());
     } else {
-      return findSelectedVariant(bandwidthAccessor, bandwidthSelector, Representation::getResolution,
+      return findSelectedRepresentation(bandwidthAccessor, bandwidthSelector, resolutionAccessor,
           resolutionSelector, adaptationSet.getRepresentations());
     }
   }
 
-  private <T, U> Representation findSelectedVariant(Function<Representation, T> firstAttribute,
+  private <T, U> Representation findSelectedRepresentation(
+      Function<Representation, T> firstAttribute,
       BiPredicate<T, T> firstAttributeSelector, Function<Representation, U> secondAttribute,
       BiPredicate<U, U> secondAttributeSelector, List<Representation> variants) {
-    Representation matchedVariant = findVariantPerAttribute(firstAttribute, firstAttributeSelector,
+
+    Representation matchedRepresentation = findRepresentationPerAttribute(firstAttribute,
+        firstAttributeSelector,
         variants);
-    if (matchedVariant == null) {
+    if (matchedRepresentation == null) {
       return null;
     }
-    T selectedAttribute = firstAttribute.apply(matchedVariant);
-    List<Representation> matchingVariants = variants.stream()
-        .filter(v -> firstAttribute.apply(v).equals(selectedAttribute))
-        .collect(Collectors.toList());
-    return findVariantPerAttribute(secondAttribute, secondAttributeSelector, matchingVariants);
+
+    if (type.equals(VIDEO_TYPE_NAME)) {
+      T selectedAttribute = firstAttribute.apply(matchedRepresentation);
+      List<Representation> matchingVariants = variants.stream()
+          .filter(v -> firstAttribute.apply(v).equals(selectedAttribute))
+          .collect(Collectors.toList());
+      return findRepresentationPerAttribute(secondAttribute, secondAttributeSelector,
+          matchingVariants);
+    }
+
+    return matchedRepresentation;
   }
 
-  private <T> Representation findVariantPerAttribute(Function<Representation, T> attribute,
-      BiPredicate<T, T> attributeSelector, List<Representation> variants) {
+  private <T> Representation findRepresentationPerAttribute(Function<Representation, T> attribute,
+      BiPredicate<T, T> attributeSelector, List<Representation> representations) {
     T lastMatchAttribute = null;
-    Representation lastMatchVariant = null;
-    for (Representation variant : variants) {
-      T attr = attribute.apply(variant);
+    Representation lastMatchRepresentation = null;
+    for (Representation representation : representations) {
+      T attr = attribute.apply(representation);
       if (attributeSelector.test(attr, lastMatchAttribute)) {
         lastMatchAttribute = attr;
-        lastMatchVariant = variant;
+        lastMatchRepresentation = representation;
       }
     }
-    return lastMatchVariant;
+    return lastMatchRepresentation;
   }
 
 

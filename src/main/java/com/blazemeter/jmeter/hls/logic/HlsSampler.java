@@ -706,6 +706,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   }
 
   private class DashMediaPlayback {
+
     private MediaRepresentation representation;
     private DashPlaylist playlist;
     private long lastSegmentNumber;
