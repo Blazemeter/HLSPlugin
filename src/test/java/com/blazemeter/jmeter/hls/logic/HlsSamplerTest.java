@@ -1001,7 +1001,7 @@ public class HlsSamplerTest {
   @Test
   public void shouldGetNotMatchMediaPlaylistWhenNoMediaFound() throws IOException {
     setUpSamplerForRenditions(FRENCH_LANGUAGE_SELECTOR, "");
-    BandwidthSelector bandwidthSelector = new CustomBandwidthSelector(1234567L);
+    BandwidthSelector bandwidthSelector = new CustomBandwidthSelector("1234567");
     sampler.setBandwidthSelector(bandwidthSelector);
 
     String masterPlaylist = getPlaylist("masterPlaylistWithoutMedia.m3u8");
