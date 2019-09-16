@@ -32,13 +32,14 @@ public class BandwidthSelectorTest {
 
   @Test
   public void shouldSelectMatchingBandwidthWhenCustomSelector() {
-    assertThat(selectBandwidth(new BandwidthSelector.CustomBandwidthSelector(MID_BANDWIDTH)))
+    assertThat(selectBandwidth(
+        new BandwidthSelector.CustomBandwidthSelector(String.valueOf(MID_BANDWIDTH))))
         .isEqualTo(MID_BANDWIDTH);
   }
 
   @Test
   public void shouldNoMatchWhenCustomSelectorNotMatchingAny() {
-    assertThat(selectBandwidth(new BandwidthSelector.CustomBandwidthSelector(10L)))
+    assertThat(selectBandwidth(new BandwidthSelector.CustomBandwidthSelector("10")))
         .isNull();
   }
 
@@ -56,25 +57,27 @@ public class BandwidthSelectorTest {
 
   @Test
   public void shouldBuildCustomSelectorWhenFromCustomString() {
-    assertThat(BandwidthSelector.fromStringAndCustomBandwidth("customBandwidth", MID_BANDWIDTH))
-        .isEqualTo(new BandwidthSelector.CustomBandwidthSelector(MID_BANDWIDTH));
+    String bandwidth = String.valueOf(MID_BANDWIDTH);
+    assertThat(BandwidthSelector.fromStringAndCustomBandwidth("customBandwidth", bandwidth))
+        .isEqualTo(new BandwidthSelector.CustomBandwidthSelector(bandwidth));
   }
 
   @Test
   public void shouldBuildCustomSelectorWhenFromOtherString() {
-    assertThat(BandwidthSelector.fromStringAndCustomBandwidth("test", MID_BANDWIDTH))
-        .isEqualTo(new BandwidthSelector.CustomBandwidthSelector(MID_BANDWIDTH));
+    String bandwidth = String.valueOf(MID_BANDWIDTH);
+    assertThat(BandwidthSelector.fromStringAndCustomBandwidth("test", bandwidth))
+        .isEqualTo(new BandwidthSelector.CustomBandwidthSelector(bandwidth));
   }
 
   @Test
   public void shouldBuildMinSelectorWhenFromEmptyString() {
-    assertThat(BandwidthSelector.fromStringAndCustomBandwidth("", MID_BANDWIDTH))
+    assertThat(BandwidthSelector.fromStringAndCustomBandwidth("", String.valueOf(MID_BANDWIDTH)))
         .isEqualTo(BandwidthSelector.MIN);
   }
 
   @Test
   public void shouldBuildMinSelectorWhenFromNullString() {
-    assertThat(BandwidthSelector.fromStringAndCustomBandwidth(null, MID_BANDWIDTH))
+    assertThat(BandwidthSelector.fromStringAndCustomBandwidth(null, String.valueOf(MID_BANDWIDTH)))
         .isEqualTo(BandwidthSelector.MIN);
   }
 

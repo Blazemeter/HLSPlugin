@@ -337,9 +337,7 @@ public class HlsSamplerPanel extends JPanel {
 
   public BandwidthSelector getBandwidthSelector() {
     if (customBandwidthOption.isSelected()) {
-      String bandwidth = customBandwidthField.getText();
-      return new BandwidthSelector.CustomBandwidthSelector(
-          !bandwidth.isEmpty() ? Long.valueOf(bandwidth) : null);
+      return new BandwidthSelector.CustomBandwidthSelector(customBandwidthField.getText());
     } else if (minBandwidthOption.isSelected()) {
       return BandwidthSelector.MIN;
     } else {
@@ -354,8 +352,7 @@ public class HlsSamplerPanel extends JPanel {
       maxBandwidthOption.setSelected(true);
     } else {
       customBandwidthOption.setSelected(true);
-      Long customBandwidth = option.getCustomBandwidth();
-      customBandwidthField.setText(customBandwidth == null ? "" : customBandwidth.toString());
+      customBandwidthField.setText(option.getCustomBandwidth());
     }
   }
 
@@ -376,8 +373,7 @@ public class HlsSamplerPanel extends JPanel {
       maxResolutionOption.setSelected(true);
     } else {
       customResolutionOption.setSelected(true);
-      String customResolution = option.getCustomResolution();
-      customResolutionField.setText(customResolution == null ? "" : customResolution);
+      customResolutionField.setText(option.getCustomResolution());
     }
   }
 

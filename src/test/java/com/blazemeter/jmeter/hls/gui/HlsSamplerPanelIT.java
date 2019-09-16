@@ -18,7 +18,7 @@ public class HlsSamplerPanelIT {
 
   private static final String MASTER_URL = "http://test/test.m3u8";
   public static final String PLAY_SECONDS = "30";
-  public static final long CUSTOM_BANDWIDTH = 12000;
+  public static final String CUSTOM_BANDWIDTH = "12000";
   public static final String CUSTOM_RESOLUTION = "640x460";
 
   @Rule
@@ -47,7 +47,7 @@ public class HlsSamplerPanelIT {
     getCustomResolutionOption().check();
     getCustomResolutionField().setText(CUSTOM_RESOLUTION);
     getCustomBandwidthOption().check();
-    getCustomBandwidthField().setText(String.valueOf(CUSTOM_BANDWIDTH));
+    getCustomBandwidthField().setText(CUSTOM_BANDWIDTH);
 
     softly.assertThat(panel.getMasterUrl()).isEqualTo(MASTER_URL);
     softly.assertThat(panel.isPlayVideoDuration()).isEqualTo(true);
@@ -107,7 +107,7 @@ public class HlsSamplerPanelIT {
     softly.assertThat(getCustomResolutionOption().target().isSelected()).isEqualTo(true);
     softly.assertThat(getCustomResolutionField().text()).isEqualTo(CUSTOM_RESOLUTION);
     softly.assertThat(getCustomBandwidthOption().target().isSelected()).isEqualTo(true);
-    softly.assertThat(getCustomBandwidthField().text()).isEqualTo(String.valueOf(CUSTOM_BANDWIDTH));
+    softly.assertThat(getCustomBandwidthField().text()).isEqualTo(CUSTOM_BANDWIDTH);
   }
 
   @Test
@@ -169,7 +169,7 @@ public class HlsSamplerPanelIT {
   public void shouldDisableAndClearCustomBandwidthFieldWhenSelectNonCustomBandwidthOption() {
     getCustomBandwidthOption().check();
     JTextComponentFixture customBandwidthField = getCustomBandwidthField();
-    customBandwidthField.setText(String.valueOf(CUSTOM_BANDWIDTH));
+    customBandwidthField.setText(CUSTOM_BANDWIDTH);
     getMinBandwidthOption().check();
     customBandwidthField.requireDisabled();
     customBandwidthField.requireText("");
