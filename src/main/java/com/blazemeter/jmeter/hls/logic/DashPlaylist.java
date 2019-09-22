@@ -18,7 +18,6 @@ public class DashPlaylist {
 
   private static final String VIDEO_TYPE_NAME = "video";
   private static final Logger LOG = LoggerFactory.getLogger(DashPlaylist.class);
-  private final Instant downloadTimestamp;
   private final MPD manifest;
   private final String type;
   private int actualPeriodIndex;
@@ -26,7 +25,6 @@ public class DashPlaylist {
 
   public DashPlaylist(String type, MPD manifest, Instant downloadTimestamp, String manifestURL) {
     this.manifest = manifest;
-    this.downloadTimestamp = downloadTimestamp;
     this.type = type;
     this.actualPeriodIndex = 0;
     this.manifestURL = manifestURL;
@@ -50,16 +48,16 @@ public class DashPlaylist {
   public MediaRepresentation solveMediaRepresentation(ResolutionSelector resolutionSelector,
       BandwidthSelector bandwidthSelector, String languageSelector) {
 
-    //TODO: Need to make the logic for multiple Periods.
     Period period = manifest.getPeriods().get(actualPeriodIndex);
 
-    AdaptationSet adaptationSet = getAdaptationSetByType(type, period, languageSelector);
+    AdaptationSet adaptationSet = solveAdaptationSet(type, period, languageSelector);
     if (adaptationSet != null) {
       Representation representation = solveRepresentation(type, adaptationSet,
           resolutionSelector, bandwidthSelector);
       if (representation != null) {
-        LOG.info("Representation found, using {}", representation.getId());
+        LOG.info("Representation found, using id={}", representation.getId());
 
+        //DEBUG
         if (manifest.getBaseURLs().size() > 0) {
           LOG.info("Manifest has {} Base URLs. Using the first", manifest.getBaseURLs().size());
         } else {
@@ -71,6 +69,8 @@ public class DashPlaylist {
                 manifest.getBaseURLs().size() > 0 ? manifest.getBaseURLs().get(0).getValue()
                     : manifestURL));
       }
+      LOG.warn("No representation was found for type {} with bandwidth {} and custom resolution {}",
+          type, bandwidthSelector.customBandwidth, resolutionSelector.customResolution);
     }
 
     return null;
@@ -88,7 +88,7 @@ public class DashPlaylist {
     return baseURL;
   }
 
-  private AdaptationSet getAdaptationSetByType(String type, Period period,
+  private AdaptationSet solveAdaptationSet(String type, Period period,
       String typeLanguageSelector) {
 
     List<AdaptationSet> adaptationSetByTypes = period.getAdaptationSets()
@@ -102,22 +102,28 @@ public class DashPlaylist {
         return adaptationSetByTypes.get(0);
       }
 
-      return adaptationSetByTypes.stream().filter(adaptationSet ->
-          adaptationSet.getLang()
-              .contains(typeLanguageSelector))
-          .findAny()
-          .orElse(null);
+      AdaptationSet adaptationSet = adaptationSetByTypes.stream()
+          .filter(a -> a.getLang() != null)
+          .filter(a -> a.getLang().contains(typeLanguageSelector))
+          .findAny().orElse(null);
+
+      if (adaptationSet == null) {
+        LOG.warn(
+            "No adaptation set of type {} was found for the language {}. "
+                + "Using the first one in the list, instead.",
+            type, typeLanguageSelector);
+        return adaptationSetByTypes.get(0);
+      }
+
+      return adaptationSet;
     }
 
+    LOG.warn("No adaptation set found for type {}.", type);
     return null;
   }
 
   private Representation solveRepresentation(String type, AdaptationSet adaptationSet,
       ResolutionSelector resolutionSelector, BandwidthSelector bandwidthSelector) {
-
-    if (adaptationSet == null) {
-      return null;
-    }
 
     Function<Representation, Long> bandwidthAccessor = r -> (long) r.getBandwidth();
     Function<Representation, String> resolutionAccessor = r -> r.getWidth() + "x" + r.getHeight();

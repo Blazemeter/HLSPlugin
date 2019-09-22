@@ -2,6 +2,7 @@ package com.blazemeter.jmeter.hls.logic;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.lindstrom.mpd.data.AdaptationSet;
+import io.lindstrom.mpd.data.Segment;
 import io.lindstrom.mpd.data.SegmentTemplate;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -65,6 +66,11 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private static final String AUDIO_TYPE_NAME = "audio";
   private static final String VIDEO_TYPE_NAME = "video";
   private static final Set<String> SAMPLE_TYPE_NAMES = buildSampleTypesSet();
+  private static final String INITIALIZATION_SEGMENT = "Initialization";
+  private static final String REPRESENTATIONID_FORMULA_REPLACE = "$RepresentationID$";
+  private static final String BANDWIDTH_FORMULA_REPLACE = "$Bandwidth$";
+  private static final String TIME_FORMULA_REPLACE = "$Time$";
+  private static final String NUMBER_FORMULA_PATTERN = "(?<=\\$Number)(.*?)(?=\\$)";
 
   private final transient HlsHttpClient httpClient;
   private final transient TimeMachine timeMachine;
@@ -462,6 +468,16 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     return res;
   }
 
+  @VisibleForTesting
+  public static HTTPSampleResult buildErrorWhileDownloadingMediaSegmentResult(String type) {
+    HTTPSampleResult res = new HTTPSampleResult();
+    res.setResponseCode("Non HTTP response code: ErrorWhileDownloading" + type);
+    res.setResponseMessage("Non HTTP response message: There was an error while downloading " + type
+        + " segment. Please check the logs for more information");
+    res.setSuccessful(false);
+    return res;
+  }
+
   private class MediaPlayback {
 
     private Playlist playlist;
@@ -714,6 +730,8 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     private int playSeconds;
     private String selector;
     private String type;
+    private int lastSegmentTimelineNumber;
+    private SegmentTimelinePlayback segmentTimelinePlayback;
 
     private DashMediaPlayback(DashPlaylist playlist, MediaRepresentation representation,
         long lastSegmentNumber,
@@ -725,30 +743,22 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       this.consumedSeconds = 0f;
       this.type = type;
       this.selector = selector;
+      this.lastSegmentTimelineNumber = 0;
+      segmentTimelinePlayback = null;
     }
 
     private boolean canDownload() {
       return representation != null;
     }
 
-    /*
-     * TODO: DELETEME (This is just to avoid going to the document)
-     * The formula fits the format described in Table 16 — Identifiers for URL templates
-     * $RepresentationID$ : This identifier is substituted with the value of the attribute
-     *  Representation@id of the containing Representation.
-     * $Number$ : This identifier is substituted with the number of the corresponding Segment.
-     * $Bandwidth$ : This identifier is substituted with the value of Representation@bandwidth
-     *  attribute value.
-     * $Time$ : This identifier is substituted with the value of the SegmentTimeline@t attribute
-     *  for the Segment being accessed. Either $Number$ or $Time$ may be used but not both at
-     * the same time.
-     * */
-
     private void downloadNextSegment() {
 
       AdaptationSet adaptationSetUsed = representation.getAdaptationSet();
       SegmentTemplate template = adaptationSetUsed.getSegmentTemplate();
-      String adaptationBaseURL = adaptationSetUsed.getBaseURLs().get(0).getValue();
+
+      String adaptationBaseURL = (
+          adaptationSetUsed.getBaseURLs() != null && adaptationSetUsed.getBaseURLs().size() > 0
+              ? adaptationSetUsed.getBaseURLs().get(0).getValue() : "");
 
       if (lastSegmentNumber < 1) {
         if (template.getStartNumber() != null) {
@@ -760,59 +770,81 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
       if (lastSegmentNumber < 2) {
         String initializeURL =
-            representation.getBaseURL() + adaptationBaseURL + buildMediaFormula(template
-                .getInitialization());
-        LOG.info("Downloading {}", initializeURL);
+            representation.getBaseURL() + adaptationBaseURL + buildFormula(template,
+                INITIALIZATION_SEGMENT);
+        LOG.info("Downloading initialization for type {} from url {}", type, initializeURL);
+
         HTTPSampleResult initializeResult = downloadUri(URI.create(initializeURL));
         if (!initializeResult.isSuccessful()) {
-          SampleResult failInitresult = buildNotMatchingMediaPlaylistResult();
-          processSampleResult("Init " + type, failInitresult);
-          //TODO: Create/Throw exception here
+          SampleResult failResult = buildNotMatchingMediaPlaylistResult();
+          processSampleResult("Init " + type, failResult);
         } else {
           processSampleResult("Init " + type, initializeResult);
         }
       }
 
-      String segmentURL =
-          representation.getBaseURL() + adaptationBaseURL + buildMediaFormula(template.getMedia());
-      LOG.info("Downloading {}", segmentURL);
+      if (!interrupted) {
+        String segmentURL =
+            representation.getBaseURL() + adaptationBaseURL + buildFormula(template, "Media");
+        LOG.info("Downloading {}", segmentURL);
 
-      HTTPSampleResult downloadSegmentResult = downloadUri(URI.create(segmentURL));
-      if (!downloadSegmentResult.isSuccessful()) {
-        processSampleResult(type + " segment", downloadSegmentResult);
-      } else {
-        processSampleResult(type + " segment", downloadSegmentResult);
-      }
+        HTTPSampleResult downloadSegmentResult = downloadUri(URI.create(segmentURL));
+        if (!downloadSegmentResult.isSuccessful()) {
+          HTTPSampleResult failDownloadResult = buildErrorWhileDownloadingMediaSegmentResult(type);
+          processSampleResult(type + " segment", failDownloadResult);
+          LOG.warn("There was an error while downloading {} segment from {}. Code: {}. Message: {}",
+              type,
+              segmentURL, downloadSegmentResult.getResponseCode(),
+              downloadSegmentResult.getResponseMessage());
+        } else {
+          processSampleResult(type + " segment", downloadSegmentResult);
+        }
 
-      lastSegmentNumber++;
-      if (template.getTimescale() != null && template.getTimescale() != 0) {
-        consumedSeconds =
-            (float) (template.getDuration() / template.getTimescale()) * lastSegmentNumber;
-      } else {
-        consumedSeconds++;
+        lastSegmentNumber++;
+        if (template.getTimescale() != null && template.getTimescale() != 0 && isLiveStream()) {
+          consumedSeconds = segmentTimelinePlayback.getTotalDuration() / template.getTimescale();
+        } else {
+          consumedSeconds++;
+        }
+        LOG.info("Consumed seconds for {} updated to {}", type, consumedSeconds);
       }
-      LOG.info("Consumed seconds for {} updated to {}", type, consumedSeconds);
     }
 
-    private String buildMediaFormula(String formula) {
+    private String buildFormula(SegmentTemplate template, String formulaType) {
 
-      //TODO: Review the case when multiple SegmentTimeline and how to match them
-      //formula = formula.replace("$Time$", Long.toString(representation.getAdaptationSet()
-      // .getSegmentTemplate().getSegmentTimeline().get(0).getT()))
+      String formula = (formulaType.equals(INITIALIZATION_SEGMENT) ? template.getInitialization()
+          : template.getMedia());
 
       formula = formula
-          .replace("$RepresentationID$", representation.getRepresentation().getId());
-      formula = formula.replace("$Bandwidth$",
+          .replace(REPRESENTATIONID_FORMULA_REPLACE, representation.getRepresentation().getId());
+      formula = formula.replace(BANDWIDTH_FORMULA_REPLACE,
           Long.toString(representation.getRepresentation().getBandwidth()));
 
-      Pattern pattern = Pattern.compile("(?<=\\$Number)(.*?)(?=\\$)");
+      Pattern pattern = Pattern.compile(NUMBER_FORMULA_PATTERN);
       Matcher matcher = pattern.matcher(formula);
       if (matcher.find()) {
         String lastSegmentFormatted = String.format(matcher.group(1), lastSegmentNumber);
         formula = formula.replaceAll("(?<=\\$)(.*?)(?=\\$)", lastSegmentFormatted).replace("$", "");
       }
 
+      if (formula.contains(TIME_FORMULA_REPLACE)) {
+        if (segmentTimelinePlayback == null) {
+          Segment segment = template.getSegmentTimeline().get(lastSegmentTimelineNumber);
+          segmentTimelinePlayback = new SegmentTimelinePlayback(segment.getT(), segment.getD(),
+              (segment.getR() != null ? segment.getR() : 1));
+        }
+
+        formula = formula
+            .replace(TIME_FORMULA_REPLACE,
+                Long.toString(segmentTimelinePlayback.getNextTimeline()));
+        segmentTimelinePlayback.updateSegmentTimelinePlayback(template);
+      }
+
       return formula;
+    }
+
+    private boolean isLiveStream() {
+      return segmentTimelinePlayback != null;
     }
 
     private void updatePeriod() {
@@ -842,6 +874,68 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     public void setRepresentation(MediaRepresentation representation) {
       this.representation = representation;
     }
+
+    private class SegmentTimelinePlayback {
+
+      private long time;
+      private long duration;
+      private long repeat;
+      private long totalDuration;
+
+      private SegmentTimelinePlayback(long time, long duration, long repeat) {
+        this.time = time;
+        this.duration = duration;
+        this.repeat = repeat;
+        this.totalDuration = 0;
+      }
+
+      public long getTime() {
+        return time;
+      }
+
+      public void setTime(long time) {
+        this.time = time;
+      }
+
+      public long getDuration() {
+        return duration;
+      }
+
+      public void setDuration(long duration) {
+        this.duration = duration;
+      }
+
+      public long getRepeat() {
+        return repeat;
+      }
+
+      private long getTotalDuration() {
+        return totalDuration;
+      }
+
+      public void setRepeat(long repeat) {
+        this.repeat = repeat;
+      }
+
+      private long getNextTimeline() {
+        long nextTimeline = time + duration;
+        time = nextTimeline;
+        totalDuration += duration;
+        repeat--;
+        return nextTimeline;
+      }
+
+      private void updateSegmentTimelinePlayback(SegmentTemplate template) {
+        if (repeat <= 0) {
+          lastSegmentTimelineNumber++;
+          Segment segment = template.getSegmentTimeline().get(lastSegmentTimelineNumber);
+          time = segment.getT() != null ? segment.getT() : time;
+          repeat = segment.getR() != null ? segment.getR() : 1;
+          duration = segment.getD();
+        }
+      }
+    }
+
   }
 
   private int getPlaySecondsOrWarn() {
