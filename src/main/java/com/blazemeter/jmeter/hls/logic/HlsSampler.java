@@ -1,451 +1,599 @@
 package com.blazemeter.jmeter.hls.logic;
 
 import com.google.common.annotations.VisibleForTesting;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.time.Instant;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.jmeter.assertions.Assertion;
+import org.apache.jmeter.assertions.AssertionResult;
+import org.apache.jmeter.engine.event.LoopIterationEvent;
+import org.apache.jmeter.processor.PostProcessor;
 import org.apache.jmeter.protocol.http.control.CacheManager;
 import org.apache.jmeter.protocol.http.control.CookieManager;
 import org.apache.jmeter.protocol.http.control.HeaderManager;
-import org.apache.jmeter.protocol.http.util.HTTPConstants;
-import org.apache.jmeter.samplers.AbstractSampler;
-import org.apache.jmeter.samplers.Entry;
+import org.apache.jmeter.protocol.http.sampler.HTTPHC4Impl;
+import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
+import org.apache.jmeter.protocol.http.sampler.HTTPSamplerBase;
+import org.apache.jmeter.samplers.Interruptible;
+import org.apache.jmeter.samplers.SampleEvent;
+import org.apache.jmeter.samplers.SampleListener;
 import org.apache.jmeter.samplers.SampleResult;
+import org.apache.jmeter.testbeans.TestBeanHelper;
 import org.apache.jmeter.testelement.TestElement;
-import org.apache.jmeter.testelement.property.CollectionProperty;
-import org.apache.jmeter.testelement.property.JMeterProperty;
-import org.apache.jmeter.testelement.property.TestElementProperty;
+import org.apache.jmeter.threads.JMeterContext;
+import org.apache.jmeter.threads.JMeterContextService;
+import org.apache.jmeter.threads.JMeterThread;
+import org.apache.jmeter.threads.SamplePackage;
+import org.apache.jorphan.util.JMeterError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
+public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
+  private static final Logger LOG = LoggerFactory.getLogger(HlsSampler.class);
 
-public class HlsSampler extends AbstractSampler {
+  private static final String MASTER_URL_PROPERTY_NAME = "HLS.URL_DATA";
+  private static final String CUSTOM_RESOLUTION_PROPERTY_NAME = "HLS.RES_DATA";
+  private static final String CUSTOM_BANDWIDTH_PROPERTY_NAME = "HLS.NET_DATA";
+  private static final String PLAY_SECONDS_PROPERTY_NAME = "HLS.SECONDS_DATA";
+  private static final String PLAY_VIDEO_DURATION_PROPERTY_NAME = "HLS.DURATION";
+  private static final String AUDIO_LANGUAGE_PROPERTY_NAME = "HLS.AUDIO_LANGUAGE";
+  private static final String SUBTITLE_LANGUAGE_PROPERTY_NAME = "HLS.SUBTITLE_LANGUAGE";
+  private static final String BANDWIDTH_TYPE_PROPERTY_NAME = "HLS.BANDWIDTH_TYPE";
+  private static final String RESOLUTION_TYPE_PROPERTY_NAME = "HLS.RESOLUTION_TYPE";
+  private static final String RESUME_DOWNLOAD_PROPERTY_NAME = "HLS.RESUME_DOWNLOAD";
 
-    private static final Logger LOG = LoggerFactory.getLogger(HlsSampler.class);
+  private static final String HEADER_MANAGER = "HLSRequest.header_manager";
+  private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
+  private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
+  private static final String MASTER_TYPE_NAME = "master";
+  private static final String SUBTITLES_TYPE_NAME = "subtitles";
+  private static final String MEDIA_TYPE_NAME = "media";
+  private static final String AUDIO_TYPE_NAME = "audio";
+  private static final Set<String> SAMPLE_TYPE_NAMES = buildSampleTypesSet();
 
-    private static final String URL_DATA_PROPERTY_NAME = "HLS.URL_DATA";
-    private static final String RES_DATA_PROPERTY_NAME = "HLS.RES_DATA";
-    private static final String NET_DATA_PROPERTY_NAME = "HLS.NET_DATA";
-    private static final String SECONDS_DATA_PROPERTY_NAME = "HLS.SECONDS_DATA";
-    private static final String DURATION_PROPERTY_NAME = "HLS.DURATION";
-    private static final String VIDEO_TYPE_PROPERTY_NAME = "HLS.VIDEOTYPE";
-    private static final String RESOLUTION_TYPE_PROPERTY_NAME = "HLS.RESOLUTION_TYPE";
-    private static final String BANDWIDTH_TYPE_PROPERTY_NAME = "HLS.BANDWIDTH_TYPE";
-    private static final String PROTOCOL_PROPERTY_NAME = "HLS.PROTOCOL";
+  private final transient HlsHttpClient httpClient;
+  private final transient TimeMachine timeMachine;
 
-    private static final String HEADER_MANAGER = "HLSRequest.header_manager";
-    private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
-    private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
+  private transient long lastVideoSegmentNumber = -1;
+  private transient long lastAudioSegmentNumber = -1;
+  private transient long lastSubtitleSegmentNumber = -1;
+  private transient volatile boolean notifyFirstSampleAfterLoopRestart;
+  private transient volatile boolean interrupted = false;
 
-    private ArrayList<String> fragmentsDownloaded = new ArrayList<>();
-    private Parser parser;
-    private String playlist;
+  /*
+  we use this class to be able to access some methods on super class and because we can't extend
+  HTTPProxySampler class
+   */
+  public static class HlsHttpClient extends HTTPHC4Impl {
 
-    public HlsSampler() {
-        setName("HLS Sampler");
-        parser = new Parser();
-    }
-
-    @VisibleForTesting
-    public void setParser(Parser p) {
-        parser = p;
-    }
-
-    public String getURLData() {
-        return this.getPropertyAsString(URL_DATA_PROPERTY_NAME);
-    }
-
-    public void setURLData(String url) {
-        this.setProperty(URL_DATA_PROPERTY_NAME, url);
-    }
-
-    public String getResData() {
-        return this.getPropertyAsString(RES_DATA_PROPERTY_NAME);
-    }
-
-    public void setResData(String res) {
-        this.setProperty(RES_DATA_PROPERTY_NAME, res);
-    }
-
-    public String getNetwordData() {
-        return this.getPropertyAsString(NET_DATA_PROPERTY_NAME);
-    }
-
-    public void setNetworkData(String net) {
-        this.setProperty(NET_DATA_PROPERTY_NAME, net);
-    }
-
-    public String getPlaySecondsData() {
-        return this.getPropertyAsString(SECONDS_DATA_PROPERTY_NAME);
-    }
-
-    public void setPlaySecondsData(String seconds) {
-        this.setProperty(SECONDS_DATA_PROPERTY_NAME, seconds);
-    }
-
-    public boolean getVideoDuration() {
-        return this.getPropertyAsBoolean(DURATION_PROPERTY_NAME);
-    }
-
-    public void setVideoDuration(boolean res) {
-        this.setProperty(DURATION_PROPERTY_NAME, res);
-    }
-
-    public VideoType getVideoType() {
-        return VideoType.fromString(this.getPropertyAsString(VIDEO_TYPE_PROPERTY_NAME));
-    }
-
-    public void setVideoType(VideoType type) {
-        this.setProperty(VIDEO_TYPE_PROPERTY_NAME, type.toString());
-    }
-
-    public ResolutionOption getResolutionType() {
-        return ResolutionOption.fromString(this.getPropertyAsString(RESOLUTION_TYPE_PROPERTY_NAME));
-    }
-
-    public void setResolutionType(ResolutionOption type) {
-        this.setProperty(RESOLUTION_TYPE_PROPERTY_NAME, type.toString());
-    }
-
-    public BandwidthOption getBandwidthType() {
-        return BandwidthOption.fromString(this.getPropertyAsString(BANDWIDTH_TYPE_PROPERTY_NAME));
-    }
-
-    public void setBandwidthType(BandwidthOption type) {
-        this.setProperty(BANDWIDTH_TYPE_PROPERTY_NAME, type.toString());
-    }
-
-    public String getProtocol() {
-        return this.getPropertyAsString(PROTOCOL_PROPERTY_NAME);
-    }
-
-    public void setProtocol(String protocolValue) {
-        this.setProperty(PROTOCOL_PROPERTY_NAME, protocolValue);
+    private HlsHttpClient(HTTPSamplerBase testElement) {
+      super(testElement);
     }
 
     @Override
-    public SampleResult sample(Entry e) {
-        SampleResult masterResult = new SampleResult();
-        float currenTimeseconds = 0;
-        boolean isVod = getVideoType() == VideoType.VOD;
-        boolean out = false;
-        boolean firstTime = true;
-        boolean containNewFragments = false;
-        List<String> list = new ArrayList<>();
+    protected HTTPSampleResult sample(java.net.URL url, String method, boolean areFollowingRedirect,
+        int frameDepth) {
+      return super.sample(url, method, areFollowingRedirect, frameDepth);
+    }
 
+    @Override
+    protected void notifyFirstSampleAfterLoopRestart() {
+      super.notifyFirstSampleAfterLoopRestart();
+    }
+
+    @Override
+    protected void threadFinished() {
+      super.threadFinished();
+    }
+
+  }
+
+  public HlsSampler() {
+    initHttpSampler();
+    httpClient = new HlsHttpClient(this);
+    timeMachine = TimeMachine.SYSTEM;
+  }
+
+  public HlsSampler(HlsHttpClient httpClient, TimeMachine timeMachine) {
+    initHttpSampler();
+    this.httpClient = httpClient;
+    this.timeMachine = timeMachine;
+  }
+
+  private void initHttpSampler() {
+    setName("HLS Sampler");
+    setFollowRedirects(true);
+    setUseKeepAlive(true);
+  }
+
+  private static Set<String> buildSampleTypesSet() {
+    Set<String> sampleTypes = Stream.of(SUBTITLES_TYPE_NAME, MEDIA_TYPE_NAME, AUDIO_TYPE_NAME)
+        .flatMap(t -> Stream.of(buildPlaylistName(t), buildSegmentName(t)))
+        .collect(Collectors.toSet());
+    sampleTypes.add(buildPlaylistName(MASTER_TYPE_NAME));
+    sampleTypes.add(SUBTITLES_TYPE_NAME);
+    return sampleTypes;
+  }
+
+  private static String buildPlaylistName(String playlistType) {
+    return playlistType + " playlist";
+  }
+
+  private static String buildSegmentName(String segmentType) {
+    return segmentType + " segment";
+  }
+
+  public String getMasterUrl() {
+    return this.getPropertyAsString(MASTER_URL_PROPERTY_NAME);
+  }
+
+  public void setMasterUrl(String url) {
+    this.setProperty(MASTER_URL_PROPERTY_NAME, url);
+  }
+
+  public boolean isPlayVideoDuration() {
+    return this.getPropertyAsBoolean(PLAY_VIDEO_DURATION_PROPERTY_NAME);
+  }
+
+  public void setPlayVideoDuration(boolean res) {
+    this.setProperty(PLAY_VIDEO_DURATION_PROPERTY_NAME, res);
+  }
+
+  public String getPlaySeconds() {
+    return this.getPropertyAsString(PLAY_SECONDS_PROPERTY_NAME);
+  }
+
+  public void setPlaySeconds(String seconds) {
+    this.setProperty(PLAY_SECONDS_PROPERTY_NAME, seconds);
+  }
+
+  public String getAudioLanguage() {
+    return this.getPropertyAsString(AUDIO_LANGUAGE_PROPERTY_NAME).trim();
+  }
+
+  public void setAudioLanguage(String language) {
+    this.setProperty(AUDIO_LANGUAGE_PROPERTY_NAME, language);
+  }
+
+  public String getSubtitleLanguage() {
+    return this.getPropertyAsString(SUBTITLE_LANGUAGE_PROPERTY_NAME).trim();
+  }
+
+  public void setSubtitleLanguage(String language) {
+    this.setProperty(SUBTITLE_LANGUAGE_PROPERTY_NAME, language);
+  }
+
+  public BandwidthSelector getBandwidthSelector() {
+    String bandwidth = getPropertyAsString(CUSTOM_BANDWIDTH_PROPERTY_NAME);
+    return BandwidthSelector
+        .fromStringAndCustomBandwidth(getPropertyAsString(BANDWIDTH_TYPE_PROPERTY_NAME), bandwidth);
+  }
+
+  public void setBandwidthSelector(BandwidthSelector selector) {
+    setProperty(BANDWIDTH_TYPE_PROPERTY_NAME, selector.getName());
+    setProperty(CUSTOM_BANDWIDTH_PROPERTY_NAME, selector.getCustomBandwidth());
+  }
+
+  public ResolutionSelector getResolutionSelector() {
+    return ResolutionSelector
+        .fromStringAndCustomResolution(getPropertyAsString(RESOLUTION_TYPE_PROPERTY_NAME),
+            getPropertyAsString(CUSTOM_RESOLUTION_PROPERTY_NAME));
+  }
+
+  public void setResolutionSelector(ResolutionSelector selector) {
+    setProperty(RESOLUTION_TYPE_PROPERTY_NAME, selector.getName());
+    setProperty(CUSTOM_RESOLUTION_PROPERTY_NAME, selector.getCustomResolution());
+  }
+
+  public boolean getResumeVideoStatus() {
+    return this.getPropertyAsBoolean(RESUME_DOWNLOAD_PROPERTY_NAME);
+  }
+
+  public void setResumeVideoStatus(boolean res) {
+    this.setProperty(RESUME_DOWNLOAD_PROPERTY_NAME, res);
+  }
+
+  // implemented for backwards compatibility
+  @Override
+  public CookieManager getCookieManager() {
+    CookieManager ret = (CookieManager) getProperty(COOKIE_MANAGER).getObjectValue();
+    return ret != null ? ret : super.getCookieManager();
+  }
+
+  // implemented for backwards compatibility
+  @Override
+  public HeaderManager getHeaderManager() {
+    HeaderManager ret = (HeaderManager) getProperty(HEADER_MANAGER).getObjectValue();
+    return ret != null ? ret : super.getHeaderManager();
+  }
+
+  // implemented for backwards compatibility
+  @Override
+  public CacheManager getCacheManager() {
+    CacheManager ret = (CacheManager) getProperty(CACHE_MANAGER).getObjectValue();
+    return ret != null ? ret : super.getCacheManager();
+  }
+
+  @Override
+  public SampleResult sample() {
+
+    if (!this.getResumeVideoStatus()) {
+      lastVideoSegmentNumber = -1;
+      lastAudioSegmentNumber = -1;
+      lastSubtitleSegmentNumber = -1;
+    }
+
+    if (notifyFirstSampleAfterLoopRestart) {
+      httpClient.notifyFirstSampleAfterLoopRestart();
+      notifyFirstSampleAfterLoopRestart = false;
+    }
+
+    try {
+      URI masterUri = URI.create(getMasterUrl());
+      Playlist masterPlaylist = downloadMasterPlaylist(masterUri);
+
+      Playlist mediaPlaylist;
+      Playlist audioPlaylist = null;
+      Playlist subtitlesPlaylist = null;
+
+      if (masterPlaylist.isMasterPlaylist()) {
+
+        MediaStream mediaStream = masterPlaylist
+            .solveMediaStream(getBandwidthSelector(), getResolutionSelector(),
+                getAudioLanguage(), getSubtitleLanguage());
+        if (mediaStream == null) {
+          processSampleResult(buildPlaylistName(MEDIA_TYPE_NAME),
+              buildNotMatchingMediaPlaylistResult());
+          return null;
+        }
+
+        mediaPlaylist = downloadPlaylist(mediaStream.getMediaPlaylistUri(), MEDIA_TYPE_NAME);
+        audioPlaylist = tryDownloadPlaylist(mediaStream.getAudioUri(),
+            p -> buildPlaylistName(AUDIO_TYPE_NAME));
+        subtitlesPlaylist = tryDownloadPlaylist(mediaStream.getSubtitlesUri(),
+            p -> p != null ? buildPlaylistName(SUBTITLES_TYPE_NAME) : SUBTITLES_TYPE_NAME);
+      } else {
+        mediaPlaylist = masterPlaylist;
+      }
+
+      int playSeconds = 0;
+      if (isPlayVideoDuration() && !getPlaySeconds().isEmpty()) {
+        playSeconds = Integer.parseInt(getPlaySeconds());
+        if (playSeconds <= 0) {
+          LOG.warn("Provided play seconds ({}) is less than or equal to zero. The sampler will "
+              + "reproduce the whole video", playSeconds);
+        }
+      }
+
+      MediaPlayback mediaPlayback = new MediaPlayback(mediaPlaylist, lastVideoSegmentNumber,
+          playSeconds, MEDIA_TYPE_NAME);
+      MediaPlayback audioPlayback = new MediaPlayback(audioPlaylist, lastAudioSegmentNumber,
+          playSeconds, AUDIO_TYPE_NAME);
+      MediaPlayback subtitlesPlayback = new MediaPlayback(subtitlesPlaylist,
+          lastSubtitleSegmentNumber, playSeconds, SUBTITLES_TYPE_NAME);
+
+      try {
+        while (!mediaPlayback.hasEnded()) {
+          mediaPlayback.downloadNextSegment();
+          float playedSeconds = mediaPlayback.playedTimeSeconds();
+          if (playSeconds > 0 && playSeconds < playedSeconds) {
+            playedSeconds = playSeconds;
+          }
+          audioPlayback.downloadUntilTimeSecond(playedSeconds);
+          subtitlesPlayback.downloadUntilTimeSecond(playedSeconds);
+        }
+      } finally {
+        lastVideoSegmentNumber = mediaPlayback.lastSegmentNumber;
+        lastSubtitleSegmentNumber = subtitlesPlayback.lastSegmentNumber;
+        lastAudioSegmentNumber = audioPlayback.lastSegmentNumber;
+      }
+    } catch (SamplerInterruptedException e) {
+      LOG.debug("Sampler interrupted by JMeter", e);
+    } catch (InterruptedException e) {
+      LOG.warn("Sampler has been interrupted", e);
+      Thread.currentThread().interrupt();
+    } catch (PlaylistDownloadException | PlaylistParsingException e) {
+      LOG.warn("Problem downloading playlist", e);
+    }
+    return null;
+  }
+
+  @Override
+  protected HTTPSampleResult sample(URL url, String method, boolean areFollowingRedirect,
+      int frameDepth) {
+    return httpClient.sample(url, method, areFollowingRedirect, frameDepth);
+  }
+
+  private Playlist downloadMasterPlaylist(URI uri)
+      throws PlaylistDownloadException, PlaylistParsingException {
+    return downloadPlaylist(uri,
+        p -> p != null && !p.isMasterPlaylist() ? buildPlaylistName(MEDIA_TYPE_NAME)
+            : buildPlaylistName(MASTER_TYPE_NAME));
+  }
+
+  private Playlist downloadPlaylist(URI uri, String type)
+      throws PlaylistDownloadException, PlaylistParsingException {
+    return downloadPlaylist(uri, p -> buildPlaylistName(type));
+  }
+
+  private Playlist downloadPlaylist(URI uri, Function<Playlist, String> namer)
+      throws PlaylistParsingException, PlaylistDownloadException {
+    Instant downloadTimestamp = timeMachine.now();
+    HTTPSampleResult playlistResult = downloadUri(uri);
+    if (!playlistResult.isSuccessful()) {
+      String playlistName = namer.apply(null);
+      processSampleResult(playlistName, playlistResult);
+      throw new PlaylistDownloadException(playlistName, uri);
+    }
+
+    // we update uri in case the request was redirected
+    try {
+      uri = playlistResult.getURL().toURI();
+    } catch (URISyntaxException e) {
+      LOG.warn("Problem updating uri from downloaded playlist {}. Continue with original uri {}",
+          playlistResult.getURL(), uri, e);
+    }
+
+    if (!uri.toString().contains(".m3u8")) {
+      processSampleResult(namer.apply(null), playlistResult);
+      return null;
+    }
+
+    try {
+      Playlist playlist = Playlist
+          .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
+      processSampleResult(namer.apply(playlist), playlistResult);
+      return playlist;
+    } catch (PlaylistParsingException e) {
+      processSampleResult(namer.apply(null), errorResult(e, playlistResult));
+      throw e;
+    }
+  }
+
+  private HTTPSampleResult downloadUri(URI uri) {
+    if (interrupted) {
+      throw new SamplerInterruptedException();
+    }
+    try {
+      return sample(uri.toURL(), "GET", false, 0);
+    } catch (MalformedURLException e) {
+      throw new IllegalArgumentException(e);
+    }
+  }
+
+  // exception created to avoid polluting all the logic checking for interrupted flag
+  private static class SamplerInterruptedException extends RuntimeException {
+
+  }
+
+  @VisibleForTesting
+  public static HTTPSampleResult buildNotMatchingMediaPlaylistResult() {
+    HTTPSampleResult res = new HTTPSampleResult();
+    res.setResponseCode("Non HTTP response code: NoMatchingMediaPlaylist");
+    res.setResponseMessage("Non HTTP response message: No matching media "
+        + "playlist for provided resolution and bandwidth");
+    res.setSuccessful(false);
+    return res;
+  }
+
+  private class MediaPlayback {
+
+    private Playlist playlist;
+    private final int playSeconds;
+    private float consumedSeconds;
+    private long lastSegmentNumber;
+    private Iterator<MediaSegment> mediaSegments;
+    private final String type;
+
+    private MediaPlayback(Playlist playlist, long lastSegmentNumber, int playSeconds, String type) {
+      this.playlist = playlist;
+      this.lastSegmentNumber = lastSegmentNumber;
+      this.playSeconds = playSeconds;
+      this.type = type;
+
+      if (playlist != null) {
+        updateMediaSegments();
+      }
+    }
+
+    private void updateMediaSegments() {
+      this.mediaSegments = this.playlist.getMediaSegments().stream()
+          .filter(s -> s.getSequenceNumber() > lastSegmentNumber).iterator();
+    }
+
+    private void downloadNextSegment()
+        throws InterruptedException, PlaylistDownloadException, PlaylistParsingException {
+
+      if (!mediaSegments.hasNext()) {
+        updatePlaylist();
+      }
+
+      if (mediaSegments.hasNext()) {
+        MediaSegment segment = mediaSegments.next();
+        SampleResult result = downloadUri(segment.getUri());
+        result.setResponseHeaders(
+            result.getResponseHeaders() + "X-MEDIA-SEGMENT-DURATION: " + segment
+                .getDurationSeconds() + "\n");
+        processSampleResult(buildSegmentName(type), result);
+        lastSegmentNumber = segment.getSequenceNumber();
+        consumedSeconds += segment.getDurationSeconds();
+      }
+    }
+
+    private void updatePlaylist()
+        throws InterruptedException, PlaylistDownloadException, PlaylistParsingException {
+
+      timeMachine.awaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1,
+          timeMachine.now()));
+      Playlist updatedPlaylist = downloadPlaylist(playlist.getUri(), this.type);
+
+      while (updatedPlaylist.equals(playlist)) {
+        long millis = updatedPlaylist
+            .getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now());
+
+        timeMachine.awaitMillis(millis);
+        updatedPlaylist = downloadPlaylist(playlist.getUri(), this.type);
+      }
+
+      this.playlist = updatedPlaylist;
+      updateMediaSegments();
+    }
+
+    private boolean hasEnded() {
+      return playedRequestedTime() || (!mediaSegments.hasNext() && playlist.hasEnd());
+    }
+
+    private boolean playedRequestedTime() {
+      return playSeconds > 0 && playSeconds <= this.consumedSeconds;
+    }
+
+    private float playedTimeSeconds() {
+      return this.consumedSeconds;
+    }
+
+    private void downloadUntilTimeSecond(float untilTimeSecond) throws InterruptedException {
+      if (playlist == null) {
+        return;
+      }
+
+      try {
+        while (consumedSeconds <= untilTimeSecond) {
+          downloadNextSegment();
+        }
+      } catch (PlaylistParsingException | PlaylistDownloadException e) {
+        LOG.warn("Problem downloading playlist {}", type, e);
+      }
+    }
+  }
+
+  private Playlist tryDownloadPlaylist(URI uri, Function<Playlist, String> namer) {
+    try {
+      if (uri != null) {
+        return downloadPlaylist(uri, namer);
+      }
+    } catch (PlaylistDownloadException | PlaylistParsingException e) {
+      LOG.warn("Problem downloading {}", namer.apply(null), e);
+    }
+    return null;
+  }
+
+  private void processSampleResult(String name, SampleResult result) {
+    result.setSampleLabel(getName() + " - " + name);
+    JMeterContext threadContext = getThreadContext();
+    updateSampleResultThreadsInfo(result, threadContext);
+    getThreadContext().setPreviousResult(result);
+    SamplePackage pack = (SamplePackage) threadContext.getVariables()
+        .getObject(JMeterThread.PACKAGE_OBJECT);
+    runPostProcessors(result, pack.getPostProcessors());
+    checkAssertions(result, pack.getAssertions());
+    threadContext.getVariables()
+        .put(JMeterThread.LAST_SAMPLE_OK, Boolean.toString(result.isSuccessful()));
+    notifySampleListeners(result, pack.getSampleListeners());
+  }
+
+  private void updateSampleResultThreadsInfo(SampleResult result, JMeterContext threadContext) {
+    int totalActiveThreads = JMeterContextService.getNumberOfThreads();
+    String threadName = threadContext.getThread().getThreadName();
+    int activeThreadsInGroup = threadContext.getThreadGroup().getNumberOfThreads();
+    result.setAllThreads(totalActiveThreads);
+    result.setThreadName(threadName);
+    result.setGroupThreads(activeThreadsInGroup);
+    SampleResult[] subResults = result.getSubResults();
+    if (subResults != null) {
+      for (SampleResult subResult : subResults) {
+        subResult.setGroupThreads(activeThreadsInGroup);
+        subResult.setAllThreads(totalActiveThreads);
+        subResult.setThreadName(threadName);
+      }
+    }
+  }
+
+  private void runPostProcessors(SampleResult result, List<PostProcessor> extractors) {
+    for (PostProcessor ex : extractors) {
+      TestBeanHelper.prepare((TestElement) ex);
+      if (doesTestElementApplyToSampleResult(result, (TestElement) ex)) {
+        ex.process();
+      }
+    }
+  }
+
+  private void checkAssertions(SampleResult result, List<Assertion> assertions) {
+    for (Assertion assertion : assertions) {
+      TestElement testElem = (TestElement) assertion;
+      TestBeanHelper.prepare(testElem);
+      if (doesTestElementApplyToSampleResult(result, testElem)) {
+        AssertionResult assertionResult;
         try {
-
-            DataRequest respond = getMasterList(masterResult, parser);
-            String auxPath = getPlaylistPath(respond, parser);
-
-            int playSeconds = 0;
-            if (!getPlaySecondsData().isEmpty())
-                playSeconds = Integer.parseInt(getPlaySecondsData());
-
-
-            while ((playSeconds >= currenTimeseconds) && !out) {
-
-                SampleResult playListResult = new SampleResult();
-                DataRequest subRespond = getPlayList(playListResult, parser);
-
-                List<DataFragment> videoUri = parser.extractVideoUrl(subRespond.getResponse());
-                List<DataFragment> fragmentToDownload = new ArrayList<>();
-
-                if (firstTime) {
-                    if ((getVideoType() == VideoType.LIVE && (parser.isLive(subRespond.getResponse())))
-                            || (isVod && !parser.isLive(subRespond.getResponse()))
-                            || (getVideoType() == VideoType.EVENT && parser.isLive(subRespond.getResponse()))) {
-                        firstTime = false;
-                        out = isVod;
-                    }
-                }
-
-                while ((!videoUri.isEmpty()) && (playSeconds >= currenTimeseconds)) {
-                    DataFragment frag = videoUri.remove(0);
-
-                    boolean isPresent = false;
-                    int length = fragmentsDownloaded.size();
-
-                    if (length != 0) {
-                        isPresent = fragmentsDownloaded.contains(frag.getTsUri().trim());
-                    }
-
-                    if (!isPresent) {
-                        fragmentToDownload.add(frag);
-                        fragmentsDownloaded.add(frag.getTsUri().trim());
-                        containNewFragments = true;
-                        if (getVideoDuration()) {
-                            currenTimeseconds += Float.parseFloat(frag.getDuration());
-                        }
-                    }
-                }
-
-                List<SampleResult> videoFragment = getFragments(parser, fragmentToDownload, auxPath);
-                for (SampleResult sam : videoFragment) {
-                    playListResult.addSubResult(sam);
-                }
-
-                if (!list.contains(playListResult.getSampleLabel()) || containNewFragments) {
-                    masterResult.addSubResult(playListResult);
-                    list.add(playListResult.getSampleLabel());
-                    containNewFragments = false;
-                }
-
-            }
-
-        } catch (IOException e1) {
-            LOG.error("Problem while getting video from {}", getURLData(), e1);
-            masterResult.sampleEnd();
-            masterResult.setSuccessful(false);
-            masterResult.setResponseMessage("Exception: " + e1);
+          assertionResult = assertion.getResult(result);
+        } catch (AssertionError e) {
+          LOG.debug("Error processing Assertion.", e);
+          assertionResult = new AssertionResult(
+              "Assertion failed! See log file (debug level, only).");
+          assertionResult.setFailure(true);
+          assertionResult.setFailureMessage(e.toString());
+        } catch (JMeterError e) {
+          LOG.error("Error processing Assertion.", e);
+          assertionResult = new AssertionResult("Assertion failed! See log file.");
+          assertionResult.setError(true);
+          assertionResult.setFailureMessage(e.toString());
+        } catch (Exception e) {
+          LOG.error("Exception processing Assertion.", e);
+          assertionResult = new AssertionResult("Assertion failed! See log file.");
+          assertionResult.setError(true);
+          assertionResult.setFailureMessage(e.toString());
         }
-        return masterResult;
+        result.setSuccessful(
+            result.isSuccessful() && !(assertionResult.isError() || assertionResult.isFailure()));
+        result.addAssertionResult(assertionResult);
+      }
     }
+  }
 
+  private boolean doesTestElementApplyToSampleResult(SampleResult result, TestElement assertion) {
+    String assertionType = extractLabelType(assertion.getName());
+    String sampleType = extractLabelType(result.getSampleLabel());
+    return sampleType.equals(assertionType) || !SAMPLE_TYPE_NAMES.contains(assertionType);
+  }
 
-    private DataRequest getMasterList(SampleResult masterResult, Parser parser) throws IOException {
+  private String extractLabelType(String label) {
+    int typeSeparatorIndex = label.lastIndexOf('-');
+    return typeSeparatorIndex >= 0 ? label.substring(typeSeparatorIndex + 1).trim().toLowerCase()
+        : "";
+  }
 
-        masterResult.sampleStart();
-        DataRequest respond = parser.getBaseUrl(new URL(getURLData()), masterResult, true);
-        masterResult.sampleEnd();
+  private void notifySampleListeners(SampleResult sampleResult,
+      List<SampleListener> sampleListeners) {
+    JMeterContext threadContext = getThreadContext();
+    SampleEvent event = new SampleEvent(sampleResult, getThreadName(), threadContext.getVariables(),
+        false);
+    threadContext.getThread().getNotifier().notifyListeners(event, sampleListeners);
+  }
 
-        masterResult.setRequestHeaders(respond.getRequestHeaders() + "\n\n" + getCookieHeader(getURLData()) + "\n\n"
-                + getRequestHeader(this.getHeaderManager()));
-        masterResult.setSuccessful(respond.isSuccess());
-        masterResult.setResponseMessage(respond.getResponseMessage());
-        masterResult.setSampleLabel(this.getName());
-        masterResult.setResponseHeaders(respond.getHeadersAsString());
-        masterResult.setResponseData(respond.getResponse().getBytes());
-        masterResult.setResponseCode(respond.getResponseCode());
-        masterResult.setContentType(respond.getContentType());
-        masterResult.setBytes(masterResult.getBytesAsLong() + (long) masterResult.getRequestHeaders().length());
-        masterResult.setHeadersSize(getHeaderBytes(masterResult, respond));
-        masterResult.setSentBytes(respond.getSentBytes());
-        masterResult.setDataEncoding(respond.getContentEncoding());
+  @Override
+  public boolean interrupt() {
+    interrupted = true;
+    timeMachine.interrupt();
+    httpClient.interrupt();
+    return interrupted;
+  }
 
-        return respond;
+  @Override
+  public void threadFinished() {
+    httpClient.threadFinished();
+  }
 
-    }
-
-    private int getHeaderBytes(SampleResult masterResult, DataRequest respond) {
-        return masterResult.getResponseHeaders().length() // condensed length (without \r)
-                + respond.getHeaders().size() // Add \r for each header
-                + 1 // Add \r for initial header
-                + 2; // final \r\n before data
-    }
-
-    private String getCookieHeader(String urlData) throws MalformedURLException {
-        URL url = new URL(urlData);
-        // Extracts all the required cookies for that particular URL request
-        if (getCookieManager() != null) {
-            String cookieHeader = getCookieManager().getCookieHeaderForURL(url);
-            if (cookieHeader != null) {
-                return HTTPConstants.HEADER_COOKIE + ": " + cookieHeader + "\n";
-            }
-        }
-        return "";
-    }
-
-    private CookieManager getCookieManager() {
-        return (CookieManager) getProperty(COOKIE_MANAGER).getObjectValue();
-    }
-
-    private HeaderManager getHeaderManager() {
-        return (HeaderManager) getProperty(HlsSampler.HEADER_MANAGER).getObjectValue();
-    }
-
-    private String getRequestHeader(org.apache.jmeter.protocol.http.control.HeaderManager headerManager) {
-        StringBuilder headerString = new StringBuilder();
-
-        if (headerManager != null) {
-            CollectionProperty headers = headerManager.getHeaders();
-            if (headers != null) {
-                for (JMeterProperty jMeterProperty : headers) {
-                    org.apache.jmeter.protocol.http.control.Header header = (org.apache.jmeter.protocol.http.control.Header) jMeterProperty
-                            .getObjectValue();
-                    String n = header.getName();
-                    if (!HTTPConstants.HEADER_CONTENT_LENGTH.equalsIgnoreCase(n)) {
-                        String v = header.getValue();
-                        v = v.replaceFirst(":\\d+$", "");
-                        headerString.append(n).append(": ").append(v).append("\n");
-                    }
-                }
-            }
-        }
-
-        return headerString.toString();
-    }
-
-    private String getPlaylistPath(DataRequest respond, Parser parser) throws MalformedURLException {
-        URL masterURL = new URL(getURLData());
-        String customBandwidth = this.getNetwordData();
-        String playlistUri = parser.extractMediaUrl(respond.getResponse(), this.getResData(),
-                customBandwidth != null && !customBandwidth.isEmpty() ? Integer.valueOf(customBandwidth) : null,
-                this.getBandwidthType(), this.getResolutionType());
-        String auxPath = masterURL.getPath().substring(0, masterURL.getPath().lastIndexOf('/') + 1);
-
-        if (playlistUri == null)
-            playlistUri = getURLData();
-
-        if (playlistUri.startsWith("http")) {
-            playlist = playlistUri;
-        } else if (playlistUri.indexOf('/') == 0) {
-            playlist = getBaseUrl(masterURL) + playlistUri;// "https://"
-        } else {
-            playlist = getBaseUrl(masterURL) + auxPath + playlistUri;
-        }
-
-        auxPath = getBaseUrl(masterURL) + auxPath;
-
-        return auxPath;
-
-    }
-
-    private String getBaseUrl(URL masterURL) {
-        return getProtocol() + "://" + masterURL.getHost() + (masterURL.getPort() > 0 ? ":" + masterURL.getPort() : "");
-    }
-
-    private DataRequest getPlayList(SampleResult playListResult, Parser parser) throws IOException {
-
-        String lastPath;
-        playListResult.sampleStart();
-        DataRequest subRespond = parser.getBaseUrl(new URL(playlist), playListResult, true);
-        playListResult.sampleEnd();
-
-        String[] urlArray = playlist.split("/");
-        lastPath = urlArray[urlArray.length - 1];
-
-        playListResult.setRequestHeaders(subRespond.getRequestHeaders() + "\n\n" + getCookieHeader(playlist) + "\n\n"
-                + getRequestHeader(this.getHeaderManager()));
-        playListResult.setSuccessful(subRespond.isSuccess());
-        playListResult.setResponseMessage(subRespond.getResponseMessage());
-        playListResult.setSampleLabel(lastPath);
-        playListResult.setResponseHeaders(subRespond.getHeadersAsString());
-        playListResult.setResponseData(subRespond.getResponse().getBytes());
-        playListResult.setResponseCode(subRespond.getResponseCode());
-        playListResult.setContentType(subRespond.getContentType());
-        playListResult.setBytes(playListResult.getBytesAsLong() + (long) playListResult.getRequestHeaders().length());
-        playListResult.setHeadersSize(getHeaderBytes(playListResult, subRespond));
-        playListResult.setSentBytes(subRespond.getSentBytes());
-        playListResult.setDataEncoding(subRespond.getContentEncoding());
-
-        return subRespond;
-    }
-
-    private List<SampleResult> getFragments(Parser parser, List<DataFragment> uris, String url) {
-        List<SampleResult> res = new ArrayList<>();
-
-        if (!uris.isEmpty()) {
-            SampleResult result = new SampleResult();
-            String uriString = uris.get(0).getTsUri();
-            if ((url != null) && (!uriString.startsWith("http"))) {
-                uriString = url + uriString;
-            }
-
-            result.sampleStart();
-
-            try {
-
-                DataRequest respond = parser.getBaseUrl(new URL(uriString), result, false);
-
-                result.sampleEnd();
-
-                String[] urlArray = uriString.split("/");
-                String lastPath = urlArray[urlArray.length - 1];
-
-                result.setRequestHeaders(respond.getRequestHeaders() + "\n\n" + getCookieHeader(uriString) + "\n\n"
-                        + getRequestHeader(this.getHeaderManager()));
-                result.setSuccessful(respond.isSuccess());
-                result.setResponseMessage(respond.getResponseMessage());
-                result.setSampleLabel(lastPath);
-                result.setResponseHeaders("URL: " + uriString + "\n" + respond.getHeadersAsString());
-                result.setResponseCode(respond.getResponseCode());
-                result.setContentType(respond.getContentType());
-                result.setBytes(result.getBytesAsLong() + (long) result.getRequestHeaders().length());
-                result.setHeadersSize(getHeaderBytes(result, respond));
-                result.setSentBytes(respond.getSentBytes());
-                result.setDataEncoding(respond.getContentEncoding());
-
-                res.add(result);
-
-            } catch (IOException e1) {
-                LOG.error("Problem while getting fragments from {}", url, e1);
-                result.sampleEnd();
-                result.setSuccessful(false);
-                result.setResponseMessage("Exception: " + e1);
-                res.add(result);
-            }
-
-            uris.remove(0);
-            List<SampleResult> aux = getFragments(parser, uris, url);
-            for (SampleResult s : aux) {
-                if (!res.contains(s))
-                    res.add(s);
-            }
-        }
-        return res;
-    }
-
-    @Override
-    public void addTestElement(TestElement el) {
-        if (el instanceof HeaderManager) {
-            setHeaderManager((HeaderManager) el);
-        } else if (el instanceof CookieManager) {
-            setCookieManager((CookieManager) el);
-        } else if (el instanceof CacheManager) {
-            setCacheManager((CacheManager) el);
-        } else {
-            super.addTestElement(el);
-        }
-    }
-
-    private void setHeaderManager(HeaderManager value) {
-        HeaderManager mgr = getHeaderManager();
-        if (mgr != null) {
-            value = mgr.merge(value, true);
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("Existing HeaderManager '{}' merged with '{}'", mgr.getName(), value.getName());
-                for (int i = 0; i < value.getHeaders().size(); i++) {
-                    LOG.debug("    {}={}", value.getHeader(i).getName(), value.getHeader(i).getValue());
-                }
-            }
-        }
-        setProperty(new TestElementProperty(HEADER_MANAGER, value));
-    }
-
-    private void setCookieManager(CookieManager value) {
-        CookieManager mgr = getCookieManager();
-        if (mgr != null) {
-            LOG.warn("Existing CookieManager {} superseded by {}", mgr.getName(), value.getName());
-        }
-        setCookieManagerProperty(value);
-    }
-
-    // private method to allow AsyncSample to reset the value without performing
-    // checks
-    private void setCookieManagerProperty(CookieManager value) {
-        setProperty(new TestElementProperty(COOKIE_MANAGER, value));
-    }
-
-    private void setCacheManager(CacheManager value) {
-        CacheManager mgr = getCacheManager();
-        if (mgr != null) {
-            LOG.warn("Existing CacheManager {} superseded by {}", mgr.getName(), value.getName());
-        }
-        setCacheManagerProperty(value);
-    }
-
-    private CacheManager getCacheManager() {
-        return (CacheManager) getProperty(CACHE_MANAGER).getObjectValue();
-    }
-
-    // private method to allow AsyncSample to reset the value without performing
-    // checks
-    private void setCacheManagerProperty(CacheManager value) {
-        setProperty(new TestElementProperty(CACHE_MANAGER, value));
-    }
+  @Override
+  public void testIterationStart(LoopIterationEvent event) {
+    notifyFirstSampleAfterLoopRestart = true;
+  }
 
 }

@@ -1,0 +1,46 @@
+dist: xenial
+language: python
+jdk: oraclejdk8
+
+cache:
+  directories:
+    - $HOME/.jmeter/
+
+jobs:
+  include:
+    -
+      install:
+        - "sudo -H pip install -q -I bzt"
+        - "sudo -H pip install --upgrade six"
+        - "Xvfb :99 &"
+        - "export DISPLAY=:99"
+
+      script:
+        - "mvn clean install -q"
+        - "cd target/jmeter-test"
+        #Since this tests outputs too much text, travis throws 'exceeded the maximum log length' error
+        #We are using the travis_wait avoiding excessive logging.
+        - "travis_wait sudo sh testJmeterTravis.sh '3.3'"
+        - "travis_wait sudo sh testJmeterTravis.sh '4.0'"
+        - "travis_wait sudo sh testJmeterTravis.sh '5.0'"
+        - "travis_wait sudo sh testJmeterTravis.sh '5.1'"
+        - "travis_wait sudo sh testJmeterTravis.sh '5.1.1'"
+        - "travis_wait sudo sh testJmeterTravis.sh '5.0' ${BZ_TOKEN}"
+        - "cd ../.."
+      stage: "JMeter Compatibility"
+
+      before_deploy:
+        - "mvn --batch-mode versions:set -DnewVersion=$(T=${TRAVIS_TAG%%-lib}; echo ${T:1})"
+      deploy:
+        api_key: "${GH_TOKEN}"
+        file_glob: true
+        provider: releases
+        skip_cleanup: true
+        file: target/jmeter-bzm-hls-*.jar
+        name: "HLSPlugin"
+        on:
+          repo: Blazemeter/HLSPlugin
+          tags: true
+      script:
+        - "mvn clean install -q -DskipTests"
+      stage: "GitHub Release"
