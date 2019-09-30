@@ -97,8 +97,6 @@
             <artifactId>mpd-parser</artifactId>
             <version>0.6</version>
         </dependency>
-
-
     </dependencies>
 
     <build>

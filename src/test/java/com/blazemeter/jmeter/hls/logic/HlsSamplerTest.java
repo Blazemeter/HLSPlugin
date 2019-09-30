@@ -16,6 +16,7 @@ import com.blazemeter.jmeter.hls.logic.BandwidthSelector.CustomBandwidthSelector
 import com.blazemeter.jmeter.hls.logic.HlsSampler.HlsHttpClient;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
+import io.lindstrom.mpd.data.MPD;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -64,6 +65,7 @@ public class HlsSamplerTest {
 
   private static final String BASE_URI = "http://test";
   private static final URI MASTER_URI = URI.create(BASE_URI + "/master.m3u8");
+  private static final URI MANIFEST_URI = URI.create(BASE_URI + "/manifest.mpd");
   private static final String SEGMENT_CONTENT_TYPE = "video/MP2T";
   private static final String SAMPLER_NAME = "HLS";
   private static final String MASTER_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - master playlist";
@@ -108,6 +110,8 @@ public class HlsSamplerTest {
   public static final double MEDIA_SEGMENT_DURATION = 5.0;
   public static final double AUDIO_SEGMENT_DURATION = 2.0;
   public static final double SUBTITLES_SEGMENT_DURATION = 60.0;
+
+  public static final String MANIFEST_NAME = "HLS - Manifest";
 
   // we use static context and listener due to issue
   private static JMeterContext context;
@@ -240,7 +244,7 @@ public class HlsSamplerTest {
     setPlaySeconds(MEDIA_SEGMENT_DURATION);
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildMediaSegmentSampleResult(1)));
   }
 
@@ -271,13 +275,13 @@ public class HlsSamplerTest {
   private void setupUriSamplerPlaylist(URI uri, String... playlists) {
     HTTPSampleResult[] rest = new HTTPSampleResult[playlists.length - 1];
     for (int i = 1; i < playlists.length; i++) {
-      rest[i - 1] = buildPlaylistSampleResult(SAMPLER_NAME, uri, playlists[i]);
+      rest[i - 1] = buildBaseSampleResult(SAMPLER_NAME, uri, playlists[i]);
     }
     when(uriSampler.mock.apply(uri))
-        .thenReturn(buildPlaylistSampleResult(SAMPLER_NAME, uri, playlists[0]), rest);
+        .thenReturn(buildBaseSampleResult(SAMPLER_NAME, uri, playlists[0]), rest);
   }
 
-  private HTTPSampleResult buildPlaylistSampleResult(String name, URI uri, String body) {
+  private HTTPSampleResult buildBaseSampleResult(String name, URI uri, String body) {
     HTTPSampleResult ret = buildSampleResult(uri, "application/x-mpegURL", body);
     ret.setSampleLabel(name);
     return ret;
@@ -327,8 +331,8 @@ public class HlsSamplerTest {
     setPlaySeconds(MEDIA_SEGMENT_DURATION);
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, masterPlaylist),
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
+        buildBaseSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, masterPlaylist),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
         buildMediaSegmentSampleResult(1)));
   }
 
@@ -339,7 +343,7 @@ public class HlsSamplerTest {
     sampler.sample();
     int sequenceNumber = 1;
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildMediaSegmentSampleResult(sequenceNumber++),
         buildMediaSegmentSampleResult(sequenceNumber++),
         buildMediaSegmentSampleResult(sequenceNumber)));
@@ -354,11 +358,11 @@ public class HlsSamplerTest {
     sampler.sample();
     int sequenceNumber = 1;
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
         buildMediaSegmentSampleResult(sequenceNumber++),
         buildMediaSegmentSampleResult(sequenceNumber++),
         buildMediaSegmentSampleResult(sequenceNumber++),
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist2),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist2),
         buildMediaSegmentSampleResult(sequenceNumber++),
         buildMediaSegmentSampleResult(sequenceNumber)));
   }
@@ -373,9 +377,9 @@ public class HlsSamplerTest {
     sampler.sample();
     int sequenceNumber = 1;
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildMediaSegmentSampleResult(sequenceNumber++),
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildMediaSegmentSampleResult(sequenceNumber)));
   }
 
@@ -388,9 +392,9 @@ public class HlsSamplerTest {
     sampler.sample();
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildMediaSegmentSampleResult(1),
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildMediaSegmentSampleResult(1)));
   }
 
@@ -403,7 +407,7 @@ public class HlsSamplerTest {
     sampler.sample();
     int sequenceNumber = 1;
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildMediaSegmentSampleResult(sequenceNumber++),
         buildMediaSegmentSampleResult(sequenceNumber)));
   }
@@ -418,11 +422,11 @@ public class HlsSamplerTest {
     sampler.sample();
     int sequenceNumber = 1;
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
         buildMediaSegmentSampleResult(sequenceNumber++),
         buildMediaSegmentSampleResult(sequenceNumber++),
         buildMediaSegmentSampleResult(sequenceNumber++),
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist2),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist2),
         buildMediaSegmentSampleResult(sequenceNumber)));
   }
 
@@ -436,11 +440,11 @@ public class HlsSamplerTest {
     sampler.sample();
     int sequenceNumber = 1;
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
         buildMediaSegmentSampleResult(sequenceNumber++),
         buildMediaSegmentSampleResult(sequenceNumber++),
         buildMediaSegmentSampleResult(sequenceNumber++),
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist2),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist2),
         buildMediaSegmentSampleResult(sequenceNumber)));
   }
 
@@ -479,7 +483,7 @@ public class HlsSamplerTest {
     setupUriSamplerErrorResult(MEDIA_PLAYLIST_URI);
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, masterPlaylist),
+        buildBaseSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, masterPlaylist),
         buildErrorSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI)));
   }
 
@@ -487,12 +491,12 @@ public class HlsSamplerTest {
   public void shouldStopDownloadingSegmentsWhenMediaPlaylistReloadFails() throws Exception {
     String mediaPlaylist1 = getPlaylist(EVENT_MEDIA_PLAYLIST_PART_1_NAME);
     when(uriSampler.mock.apply(MASTER_URI))
-        .thenReturn(buildPlaylistSampleResult(SAMPLER_NAME, MASTER_URI, mediaPlaylist1),
+        .thenReturn(buildBaseSampleResult(SAMPLER_NAME, MASTER_URI, mediaPlaylist1),
             buildErrorSampleResult(SAMPLER_NAME, MASTER_URI));
     sampler.sample();
     int sequenceNumber = 1;
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
         buildMediaSegmentSampleResult(sequenceNumber++),
         buildMediaSegmentSampleResult(sequenceNumber++),
         buildMediaSegmentSampleResult(sequenceNumber),
@@ -507,7 +511,7 @@ public class HlsSamplerTest {
     setupUriSamplerErrorResult(failingSegmentUri);
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildMediaSegmentSampleResult(1),
         buildErrorMediaSegmentSampleResult(failingSegmentUri),
         buildMediaSegmentSampleResult(3)));
@@ -604,7 +608,7 @@ public class HlsSamplerTest {
       return null;
     });
     verifyNotifiedSampleResults(Collections.singletonList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist)));
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist)));
   }
 
   private void runWithAsyncSample(Callable<Void> run) throws Exception {
@@ -685,7 +689,7 @@ public class HlsSamplerTest {
     });
 
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildMediaSegmentSampleResult(1)));
   }
 
@@ -702,7 +706,7 @@ public class HlsSamplerTest {
     });
 
     verifyNotifiedSampleResults(Collections.singletonList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, masterPlaylist)));
+        buildBaseSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, masterPlaylist)));
   }
 
   @Test(timeout = TEST_TIMEOUT)
@@ -722,7 +726,7 @@ public class HlsSamplerTest {
 
     int sequenceNumber = 1;
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylistPart1),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylistPart1),
         buildMediaSegmentSampleResult(sequenceNumber++),
         buildMediaSegmentSampleResult(sequenceNumber++),
         buildMediaSegmentSampleResult(sequenceNumber)));
@@ -746,11 +750,11 @@ public class HlsSamplerTest {
 
     int sequenceNumber = 1;
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylistPart1),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylistPart1),
         buildMediaSegmentSampleResult(sequenceNumber++),
         buildMediaSegmentSampleResult(sequenceNumber++),
         buildMediaSegmentSampleResult(sequenceNumber),
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylistPart1)));
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylistPart1)));
   }
 
   @Test
@@ -771,12 +775,12 @@ public class HlsSamplerTest {
 
     int audioSegmentIndex = 1;
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
+        buildBaseSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
             masterPlaylist),
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
-        buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
+        buildBaseSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
             audioPlaylist),
-        buildPlaylistSampleResult(SUBTITLE_PLAYLIST_SAMPLE_NAME,
+        buildBaseSampleResult(SUBTITLE_PLAYLIST_SAMPLE_NAME,
             SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
             defaultSubtitlePlaylist),
         buildMediaSegmentSampleResult(1),
@@ -820,12 +824,12 @@ public class HlsSamplerTest {
 
     int audioSegmentIndex = 1;
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
+        buildBaseSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
             masterPlaylist),
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
-        buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
+        buildBaseSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
             audioPlaylist),
-        buildPlaylistSampleResult(SUBTITLE_PLAYLIST_SAMPLE_NAME, FRENCH_SUBTITLES_PLAYLIST_URI,
+        buildBaseSampleResult(SUBTITLE_PLAYLIST_SAMPLE_NAME, FRENCH_SUBTITLES_PLAYLIST_URI,
             subtitlePlaylist),
         buildMediaSegmentSampleResult(1),
         buildAudioSegmentSampleResult(audioSegmentIndex++),
@@ -851,12 +855,12 @@ public class HlsSamplerTest {
 
     int audioSegmentIndex = 1;
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
+        buildBaseSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
             masterPlaylist),
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
-        buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
+        buildBaseSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
             audioPlaylist),
-        buildPlaylistSampleResult(SUBTITLE_PLAYLIST_SAMPLE_NAME,
+        buildBaseSampleResult(SUBTITLE_PLAYLIST_SAMPLE_NAME,
             SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
             subtitlePlaylist),
         buildMediaSegmentSampleResult(1),
@@ -887,10 +891,10 @@ public class HlsSamplerTest {
 
     int audioSegmentIndex = 1;
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
+        buildBaseSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
             masterPlaylist),
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
-        buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
+        buildBaseSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
             audioPlaylist),
         buildErrorSampleResult(SUBTITLE_SAMPLE_NAME, SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI),
         buildMediaSegmentSampleResult(1),
@@ -922,11 +926,11 @@ public class HlsSamplerTest {
     sampler.sample();
 
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
+        buildBaseSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
             masterPlaylist),
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
         buildErrorSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI),
-        buildPlaylistSampleResult(SUBTITLE_PLAYLIST_SAMPLE_NAME,
+        buildBaseSampleResult(SUBTITLE_PLAYLIST_SAMPLE_NAME,
             SUBTITLES_PLAYLIST_DEFAULT_ENGLISH_URI,
             subtitlePlaylistWithParsingException),
         buildMediaSegmentSampleResult(1),
@@ -952,12 +956,12 @@ public class HlsSamplerTest {
 
     int audioSegmentIndex = 1;
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
+        buildBaseSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
             masterPlaylist),
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
-        buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
+        buildBaseSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
             audioPlaylist),
-        buildPlaylistSampleResult(SUBTITLE_SAMPLE_NAME, subtitlesUri, subtitlePlaylist),
+        buildBaseSampleResult(SUBTITLE_SAMPLE_NAME, subtitlesUri, subtitlePlaylist),
         buildMediaSegmentSampleResult(1),
         buildAudioSegmentSampleResult(audioSegmentIndex++),
         buildAudioSegmentSampleResult(audioSegmentIndex)));
@@ -985,12 +989,12 @@ public class HlsSamplerTest {
 
     int audioSegmentIndex = 1;
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
+        buildBaseSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
             masterPlaylist),
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
-        buildPlaylistSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
+        buildBaseSampleResult(AUDIO_PLAYLIST_SAMPLE_NAME, AUDIO_PLAYLIST_DEFAULT_ENGLISH_URI,
             audioPlaylist),
-        buildPlaylistSampleResult(SUBTITLE_PLAYLIST_SAMPLE_NAME, FRENCH_SUBTITLES_PLAYLIST_URI,
+        buildBaseSampleResult(SUBTITLE_PLAYLIST_SAMPLE_NAME, FRENCH_SUBTITLES_PLAYLIST_URI,
             subtitlePlaylist),
         buildMediaSegmentSampleResult(1),
         buildAudioSegmentSampleResult(audioSegmentIndex++),
@@ -1010,7 +1014,7 @@ public class HlsSamplerTest {
     sampler.sample();
 
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
+        buildBaseSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_PLAYLIST_WITH_RENDITIONS_URI,
             masterPlaylist),
         buildNotMatchingPlaylistResult()));
   }
@@ -1029,7 +1033,7 @@ public class HlsSamplerTest {
     setPlaySeconds(MEDIA_SEGMENT_DURATION);
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildMediaSegmentSampleResult(1)));
   }
 
@@ -1050,7 +1054,7 @@ public class HlsSamplerTest {
     setPlaySeconds(MEDIA_SEGMENT_DURATION);
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildFailedAssertionResult(buildMediaSegmentSampleResult(1))));
   }
 
@@ -1073,7 +1077,7 @@ public class HlsSamplerTest {
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
         buildFailedAssertionResult(
-            buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist)),
+            buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist)),
         buildFailedAssertionResult(buildMediaSegmentSampleResult(1))));
   }
 
@@ -1085,7 +1089,7 @@ public class HlsSamplerTest {
     setPlaySeconds(MEDIA_SEGMENT_DURATION);
     sampler.sample();
     verifyNotifiedSampleResults(Arrays.asList(
-        buildPlaylistSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildMediaSegmentSampleResult(1)
     ));
   }
@@ -1136,4 +1140,313 @@ public class HlsSamplerTest {
     assertThat(getExtractedVariable()).isNotNull();
   }
 
+  @Test
+  public void shouldDownloadDefaultMediaFromManifest() throws IOException {
+    buildSamplerDash(uriSampler);
+    String manifest = getPlaylist("defaultManifest.mpd");
+    setupUriSamplerManifest(MANIFEST_URI, manifest);
+
+    String mediaAdaptationSetID = "minResolutionMinBandwidthVideo";
+    prepareInitializationURL(MEDIA_TYPE_NAME, mediaAdaptationSetID);
+    prepareMediaURLs(MEDIA_TYPE_NAME, mediaAdaptationSetID, 6);
+
+    String audioAdaptationSetID = "minBandwidthAudioEnglish";
+    prepareInitializationURL(AUDIO_TYPE_NAME, audioAdaptationSetID);
+    prepareMediaURLs(AUDIO_TYPE_NAME, audioAdaptationSetID, 6);
+
+    String subtitlesAdaptationSetID = "minBandwidthSubtitlesEnglish";
+    prepareInitializationURL(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID);
+    prepareMediaURLs(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 6);
+
+    setPlaySeconds(MEDIA_SEGMENT_DURATION);
+    sampler.sample();
+
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildBaseSampleResult(MANIFEST_NAME, MANIFEST_URI, manifest),
+        buildInitSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, false),
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, 1, false),
+
+        buildInitSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, false),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, 1, false),
+
+        buildInitSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, false),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 1, false),
+
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, 2, false),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, 2, false),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 2, false),
+
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, 3, false),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, 3, false),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 3, false),
+
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, 4, false),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, 4, false),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 4, false),
+
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, 5, false),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, 5, false),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 5, false)
+    ));
+  }
+
+  private HTTPSampleResult buildInitSampleResult(String type, String adaptationSetID,
+      boolean streaming) {
+
+    return buildSampleResult(String.format("HLS - Init %s", type),
+        URI.create(
+            BASE_URI + "/" + type + "/" + adaptationSetID + (streaming ? ".dash" : "/IS.m4s")),
+        "video/m4s");
+  }
+
+  private HTTPSampleResult buildSegmentSampleResult(String type, String adaptationSetID,
+      int sequenceNumber, boolean streaming) {
+    return buildSampleResult(String.format("HLS - %s segment", type), URI.create(
+        BASE_URI + "/" + type + "/" + adaptationSetID + (streaming ? "-" + sequenceNumber
+            + "000.dash"
+            : "/" + String.format("%06d.m4s", sequenceNumber))),
+        "video/m4s");
+  }
+
+  private void buildSamplerDash(Function<URI, HTTPSampleResult> uriSampler) {
+    HlsHttpClient httpClient = Mockito.mock(HlsHttpClient.class);
+    when(httpClient.sample(any(), any(), anyBoolean(), anyInt()))
+        .thenAnswer(a -> uriSampler.apply(a.getArgument(0, URL.class).toURI()));
+    sampler = new HlsSampler(httpClient, timeMachine);
+    sampler.setName(SAMPLER_NAME);
+    sampler.setMasterUrl(MANIFEST_URI.toString());
+  }
+
+  private void setupUriSamplerManifest(URI uri, String... playlists) {
+    HTTPSampleResult[] rest = new HTTPSampleResult[playlists.length - 1];
+    for (int i = 1; i < playlists.length; i++) {
+      rest[i - 1] = buildBaseSampleResult(SAMPLER_NAME, uri, playlists[i]);
+    }
+    when(uriSampler.mock.apply(uri))
+        .thenReturn(buildBaseSampleResult(SAMPLER_NAME, uri, playlists[0]), rest);
+  }
+
+  public String downloadManifest(String manifestFileName) throws IOException {
+    return Resources
+        .toString(Resources.getResource(MPD.class, manifestFileName),
+            Charsets.UTF_8);
+  }
+
+  public void prepareInitializationURL(String type, String adaptationSetID) {
+    URI initializationURI = URI
+        .create(String.format("%s/%s/%s/IS.m4s", BASE_URI, type, adaptationSetID));
+    when(uriSampler.mock.apply(initializationURI))
+        .thenReturn(buildSampleResult(SAMPLER_NAME, initializationURI, "video/m4s"));
+  }
+
+  public void prepareURL(String url) {
+    URI uri = URI.create(url);
+    when(uriSampler.mock.apply(uri))
+        .thenReturn(buildSampleResult(SAMPLER_NAME, uri, "video/m4s"));
+  }
+
+  private HTTPSampleResult buildSampleResult(String name, URI uri, String contentType) {
+    HTTPSampleResult ret = buildSampleResult(uri, contentType, "");
+    ret.setSampleLabel(name);
+    return ret;
+  }
+
+  private void prepareMediaURLs(String type, String adaptationSetID, int amount) {
+    for (int i = 1; i < amount; i++) {
+      URI mockedURI = URI.create(String
+          .format("%s/%s/%s/%s.m4s", BASE_URI, type, adaptationSetID, String.format("%06d", i)));
+      when(uriSampler.mock.apply(mockedURI))
+          .thenReturn(buildSampleResult(type, mockedURI, "video/m4s"));
+    }
+  }
+
+  @Test
+  public void shouldDownloadAlternativeAudioAndSubtitlesFromManifestWhenAvailable()
+      throws IOException {
+    buildSamplerDash(uriSampler);
+    setUpLanguageSelectors("fre", "spa");
+
+    String manifest = getPlaylist("defaultManifest.mpd");
+    setupUriSamplerManifest(MANIFEST_URI, manifest);
+
+    String mediaAdaptationSetID = "minResolutionMinBandwidthVideo";
+    prepareInitializationURL(MEDIA_TYPE_NAME, mediaAdaptationSetID);
+    prepareMediaURLs(MEDIA_TYPE_NAME, mediaAdaptationSetID, 6);
+
+    String audioAdaptationSetID = "minBandwidthAudioSpanish";
+    prepareInitializationURL(AUDIO_TYPE_NAME, audioAdaptationSetID);
+    prepareMediaURLs(AUDIO_TYPE_NAME, audioAdaptationSetID, 6);
+
+    String subtitlesAdaptationSetID = "minBandwidthSubtitlesEnglish";
+    prepareInitializationURL(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID);
+    prepareMediaURLs(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 6);
+
+    setPlaySeconds(MEDIA_SEGMENT_DURATION);
+    sampler.sample();
+
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildBaseSampleResult("HLS - Manifest", MANIFEST_URI, manifest),
+
+        buildInitSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, false),
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, 1, false),
+
+        buildInitSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, false),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, 1, false),
+
+        buildInitSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, false),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 1, false),
+
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, 2, false),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, 2, false),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 2, false),
+
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, 3, false),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, 3, false),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 3, false),
+
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, 4, false),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, 4, false),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 4, false),
+
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, 5, false),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, 5, false),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 5, false)
+
+    ));
+  }
+
+  private void setUpLanguageSelectors(String subtitleLanguage, String audioLanguage) {
+    sampler.setSubtitleLanguage(subtitleLanguage);
+    sampler.setAudioLanguage(audioLanguage);
+  }
+
+  @Test
+  public void shouldDownloadDefaultAudioWhenProvidedLanguageNotFound() throws IOException {
+    buildSamplerDash(uriSampler);
+    setUpLanguageSelectors("chi", "chi");
+
+    String manifest = getPlaylist("defaultManifest.mpd");
+    setupUriSamplerManifest(MANIFEST_URI, manifest);
+
+    String mediaAdaptationSetID = "minResolutionMinBandwidthVideo";
+    prepareInitializationURL(MEDIA_TYPE_NAME, mediaAdaptationSetID);
+    prepareMediaURLs(MEDIA_TYPE_NAME, mediaAdaptationSetID, 6);
+
+    String audioAdaptationSetID = "minBandwidthAudioEnglish";
+    prepareInitializationURL(AUDIO_TYPE_NAME, audioAdaptationSetID);
+    prepareMediaURLs(AUDIO_TYPE_NAME, audioAdaptationSetID, 6);
+
+    String subtitlesAdaptationSetID = "minBandwidthSubtitlesEnglish";
+    prepareInitializationURL(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID);
+    prepareMediaURLs(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 6);
+
+    setPlaySeconds(MEDIA_SEGMENT_DURATION);
+    sampler.sample();
+
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildBaseSampleResult("HLS - Manifest", MANIFEST_URI, manifest),
+
+        buildInitSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, false),
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, 1, false),
+
+        buildInitSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, false),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, 1, false),
+
+        buildInitSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, false),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 1, false),
+
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, 2, false),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, 2, false),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 2, false),
+
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, 3, false),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, 3, false),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 3, false),
+
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, 4, false),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, 4, false),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 4, false),
+
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, 5, false),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, 5, false),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 5, false)
+
+    ));
+  }
+
+  @Test
+  public void shouldDownloadLiveStreaming() throws IOException {
+    buildSamplerDash(uriSampler);
+    setUpLanguageSelectors("fre", "spa");
+
+    String manifest = getPlaylist("liveStreamingDashManifest.mpd");
+    setupUriSamplerManifest(MANIFEST_URI, manifest);
+
+    String videoLiveStreamingAdaptationSetID = "minBandwidthMinResolutionVideoEnglish";
+    prepareLiveStreamingInitializationURL(MEDIA_TYPE_NAME, videoLiveStreamingAdaptationSetID);
+    prepareLiveStreamingURLs(MEDIA_TYPE_NAME, videoLiveStreamingAdaptationSetID, 6);
+
+    String audioLiveStreamingAdaptationSetID = "minBandwidthAudioEnglish";
+    prepareLiveStreamingInitializationURL(AUDIO_TYPE_NAME, audioLiveStreamingAdaptationSetID);
+    prepareLiveStreamingURLs(AUDIO_TYPE_NAME, audioLiveStreamingAdaptationSetID, 6);
+
+    String subtitlesLiveStreamingAdaptationSetID = "minBandwidthSubtitlesEnglish";
+    prepareLiveStreamingInitializationURL(SUBTITLES_TYPE_NAME,
+        subtitlesLiveStreamingAdaptationSetID);
+    prepareLiveStreamingURLs(SUBTITLES_TYPE_NAME, subtitlesLiveStreamingAdaptationSetID, 6);
+
+    setPlaySeconds(MEDIA_SEGMENT_DURATION);
+    sampler.sample();
+
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildBaseSampleResult("HLS - Manifest", MANIFEST_URI, manifest),
+
+        buildInitSampleResult(MEDIA_TYPE_NAME, videoLiveStreamingAdaptationSetID, true),
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, videoLiveStreamingAdaptationSetID, 1, true),
+
+        buildInitSampleResult(AUDIO_TYPE_NAME, audioLiveStreamingAdaptationSetID, true),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioLiveStreamingAdaptationSetID, 1, true),
+
+        buildInitSampleResult(SUBTITLES_TYPE_NAME, subtitlesLiveStreamingAdaptationSetID, true),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesLiveStreamingAdaptationSetID, 1,
+            true),
+
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, videoLiveStreamingAdaptationSetID, 2, true),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioLiveStreamingAdaptationSetID, 2, true),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesLiveStreamingAdaptationSetID, 2,
+            true),
+
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, videoLiveStreamingAdaptationSetID, 3, true),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioLiveStreamingAdaptationSetID, 3, true),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesLiveStreamingAdaptationSetID, 3,
+            true),
+
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, videoLiveStreamingAdaptationSetID, 4, true),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioLiveStreamingAdaptationSetID, 4, true),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesLiveStreamingAdaptationSetID, 4,
+            true),
+
+        buildSegmentSampleResult(MEDIA_TYPE_NAME, videoLiveStreamingAdaptationSetID, 5, true),
+        buildSegmentSampleResult(AUDIO_TYPE_NAME, audioLiveStreamingAdaptationSetID, 5, true),
+        buildSegmentSampleResult(SUBTITLES_TYPE_NAME, subtitlesLiveStreamingAdaptationSetID, 5,
+            true)
+    ));
+  }
+
+  private void prepareLiveStreamingURLs(String type, String adaptationSetID, int amount) {
+    for (int i = 1; i < amount; i++) {
+      URI mockedURI = URI.create(String
+          .format("%s/%s/%s-%s.dash", BASE_URI, type, adaptationSetID, String.format("%s000", i)));
+      when(uriSampler.mock.apply(mockedURI))
+          .thenReturn(buildSampleResult(type, mockedURI, "video/m4s"));
+    }
+  }
+
+
+  public void prepareLiveStreamingInitializationURL(String type, String adaptationSetID) {
+    URI initializationURI = URI
+        .create(String.format("%s/%s/%s.dash", BASE_URI, type, adaptationSetID));
+    when(uriSampler.mock.apply(initializationURI))
+        .thenReturn(buildSampleResult(SAMPLER_NAME, initializationURI, "video/m4s"));
+  }
 }

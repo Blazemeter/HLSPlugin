@@ -748,7 +748,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     }
 
     private boolean canDownload() {
-      return representation != null;
+      return representation != null && playSeconds > consumedSeconds;
     }
 
     private void downloadNextSegment() {
@@ -761,14 +761,14 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
               ? adaptationSetUsed.getBaseURLs().get(0).getValue() : "");
 
       if (lastSegmentNumber < 1) {
-        if (template.getStartNumber() != null) {
+        if (template != null && template.getStartNumber() != null) {
           lastSegmentNumber = template.getStartNumber();
         } else {
           lastSegmentNumber = 1;
         }
       }
 
-      if (lastSegmentNumber < 2) {
+      if (lastSegmentNumber < 2 && representation.needManualInitialization()) {
         String initializeURL =
             representation.getBaseURL() + adaptationBaseURL + buildFormula(template,
                 INITIALIZATION_SEGMENT);
@@ -788,7 +788,8 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
             representation.getBaseURL() + adaptationBaseURL + buildFormula(template, "Media");
         LOG.info("Downloading {}", segmentURL);
 
-        HTTPSampleResult downloadSegmentResult = downloadUri(URI.create(segmentURL));
+        HTTPSampleResult downloadSegmentResult = downloadUri(
+            URI.create(segmentURL)); //http://test/media/minResolutionMinBandwidth/000001.m4s
         if (!downloadSegmentResult.isSuccessful()) {
           HTTPSampleResult failDownloadResult = buildErrorWhileDownloadingMediaSegmentResult(type);
           processSampleResult(type + " segment", failDownloadResult);
@@ -801,8 +802,10 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
         }
 
         lastSegmentNumber++;
-        if (template.getTimescale() != null && template.getTimescale() != 0 && isLiveStream()) {
+        if (isLiveStreamSet() && template != null) {
           consumedSeconds = segmentTimelinePlayback.getTotalDuration() / template.getTimescale();
+        } else if (representation.isOneDownloadOnly()) {
+          consumedSeconds += representation.getTotalDuration();
         } else {
           consumedSeconds++;
         }
@@ -811,6 +814,13 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     }
 
     private String buildFormula(SegmentTemplate template, String formulaType) {
+      /*
+       * There is some cases where the adaptation's BaseURL doesn't need a formula.
+       * In those cases SegmentTemplate don't appear.
+       */
+      if (template == null) {
+        return "";
+      }
 
       String formula = (formulaType.equals(INITIALIZATION_SEGMENT) ? template.getInitialization()
           : template.getMedia());
@@ -843,7 +853,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       return formula;
     }
 
-    private boolean isLiveStream() {
+    private boolean isLiveStreamSet() {
       return segmentTimelinePlayback != null;
     }
 

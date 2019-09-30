@@ -91,18 +91,26 @@ public class DashPlaylist {
   private AdaptationSet solveAdaptationSet(String type, Period period,
       String typeLanguageSelector) {
 
-    List<AdaptationSet> adaptationSetByTypes = period.getAdaptationSets()
+    List<AdaptationSet> adaptationSetForType = period.getAdaptationSets()
         .stream()
         .filter(adaptationSet -> adaptationSet.getMimeType()
             .contains(type))
         .collect(Collectors.toList());
 
-    if (adaptationSetByTypes.size() > 0) {
+    if (adaptationSetForType.size() == 0 && type.contains("subtitles")) {
+      adaptationSetForType = period.getAdaptationSets()
+          .stream()
+          .filter(adaptationSet -> adaptationSet.getMimeType()
+              .contains("application"))
+          .collect(Collectors.toList());
+    }
+
+    if (adaptationSetForType.size() > 0) {
       if (type.equals(VIDEO_TYPE_NAME)) {
-        return adaptationSetByTypes.get(0);
+        return adaptationSetForType.get(0);
       }
 
-      AdaptationSet adaptationSet = adaptationSetByTypes.stream()
+      AdaptationSet adaptationSet = adaptationSetForType.stream()
           .filter(a -> a.getLang() != null)
           .filter(a -> a.getLang().contains(typeLanguageSelector))
           .findAny().orElse(null);
@@ -112,7 +120,7 @@ public class DashPlaylist {
             "No adaptation set of type {} was found for the language {}. "
                 + "Using the first one in the list, instead.",
             type, typeLanguageSelector);
-        return adaptationSetByTypes.get(0);
+        return adaptationSetForType.get(0);
       }
 
       return adaptationSet;

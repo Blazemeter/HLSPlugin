@@ -31,4 +31,17 @@ public class MediaRepresentation {
   public String getBaseURL() {
     return baseURL;
   }
+
+  public boolean needManualInitialization() {
+    return adaptationSet.getSegmentTemplate() != null;
+  }
+
+  public boolean isOneDownloadOnly() {
+    return representation.getSegmentBase() != null;
+  }
+
+  public long getTotalDuration() {
+    return (long) Long.valueOf(representation.getSegmentBase().getPresentationDuration())
+        / representation.getSegmentBase().getTimescale();
+  }
 }
