@@ -20,7 +20,12 @@
         </developerConnection>
         <url>http://gitlab.abstracta.us/BZ/jmeter-hls-plugin</url>
     </scm>
-
+    <repositories>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+    </repositories>
     <dependencies>
         <dependency>
             <groupId>org.apache.jmeter</groupId>
@@ -92,10 +97,11 @@
             <version>3.8.0</version>
             <scope>test</scope>
         </dependency>
+
         <dependency>
-            <groupId>io.lindstrom</groupId>
-            <artifactId>mpd-parser</artifactId>
-            <version>0.6</version>
+            <groupId>com.github.rpoleo</groupId>
+            <artifactId>mpd-tools-remake</artifactId>
+            <version>7e4fedb</version>
         </dependency>
     </dependencies>
 
