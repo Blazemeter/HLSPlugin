@@ -24,7 +24,7 @@ public class HlsSamplerGuiTest {
 
   private static final String MASTER_URL = "http://test/test.m3u8";
   public static final String PLAY_SECONDS = "30";
-  public static final long CUSTOM_BANDWIDTH = 12000;
+  public static final String CUSTOM_BANDWIDTH = "12000";
   public static final String CUSTOM_RESOLUTION = "640x460";
 
   @Rule

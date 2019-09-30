@@ -5,6 +5,7 @@ The HLS protocol provides a reliable, cost-effective means of delivering continu
 For more information related to HLS, please refer to the  [wikipedia page](https://en.wikipedia.org/wiki/HTTP_Live_Streaming) or to the [RFC](https://tools.ietf.org/html/rfc8216).
 
 Currently the project uses the [HLSParserJ](https://github.com/Comcast/hlsparserj) library to parse the playlists.
+
 #### In a HTTP Live Streaming process:
 
 - The audio/video to be streamed is reproduced by a media encoder at different quality levels, bitrates and resolutions. Each version is called a variant.
@@ -33,59 +34,48 @@ Here is what the HLS Sampler looks like:
 
 After that you can add assertions, listeners, etc.
 
-### HLS Sampler Properties
+### HLS Sampler configuration
 
-The following properties can be set in the HLS Sampler. They should be tuned to simulate the real scenario you want to test.
-
-#### Video options
+#### Master playlist URL
 
 Set the link to the master playlist file
 
-- URL
-
 ![](docs/video-url.png)
 
-#### Play options
+#### Duration
 
-Set the playback time of the test:
-
-- Whole video
-- Video duration (seconds)
+Set the playback time to either the whole video or a certain amount of seconds.
 
 ![](docs/duration.png)
 
-#### Network options
+#### Audio & subtitles tracks
 
-Select the protocol of the playlist you want to test. You can identify it in the link to the master playlist file:
+You can specify if you want the plugin to download a specific alternative audio or subtitle track by either the language code or name (e.g. `fr` or `french`).
 
-- http
-- https
-
-#### Resolution
-
-Select a resolution to simulate your specific device.
-
-![](docs/resolution.png)
+![](docs/audio-and-subtitles.png)
 
 #### Bandwidth
 
-After selecting the desired resolution you can select the bandwidth you want to simulate in your test. If there is only one playlist for the selected bandwidth, the plugin will select the playlist based only on this criterion.
-
-- Custom Bandwidth (bits/s)
-- Min bandwidth available
-- Max bandwidth available
+Select the bandwidth criteria to be used to select a particular variant of the video.
 
 ![](docs/bandwidth.png)
 
+#### Resolution
+
+Select the resolution criteria to be used to select a particular variant of the video. The plugin will consider the bandwidth criteria more important, unless resolution is set to a custom value and bandwidth is not.
+
+![](docs/resolution.png)
+
+
 #### Resume video downloads
 
-When iterations are used, the sampler will (by default) start downloading video segments from the beginning of the video for each iteration. It is possible to make the sampler continue in each iteration downloading video segments from the last iteration by checking the "Resume video downloads between iterations" checkbox.
+Specify whether you want the playback to be resumed or not between. If you leave the default value, then the plugin will restart playback from the beginning of the stream on each iteration.
 
 ![](docs/resume-video.png)
 
 ## Results
 
-You can set listeners to evaluate the results of your tests. The View Results Tree Listener displays the resultant samples for the HLS samplers so, you can inspect how the requests and responses worked. It will display each one of the samples with the name of the type it downloaded (master playlist, media playlist or video segment) to identify them.
+You can set listeners to evaluate the results of your tests. The View Results Tree Listener displays the resultant samples for the HLS samplers so, you can inspect how the requests and responses worked. It will display each one of the samples with the associated type (master playlist, media playlist or video segment) to easily identify them.
 
 ![](docs/sample-results.png)
 
@@ -102,11 +92,10 @@ Following is an example of an assertion that applies only to media segments:
 
 If you want an assertion to apply to all generated sample results, then just use any name that does not include a sample result type suffix.
 
-**Note:** Assertions and post processors will not work for sub results (like redirection sub samples).
+**Note:** Assertions and post processors will not work for sub results (like redirection sub samples). And selection of samples to apply to (main/sub samples) on assertions and post processors will have no effect.
 
 ## Stop/Shutdown Buttons
 
-When you press "Shutdown" button, you may have to wait a relative long time before the test plan actually stops. This may happen since the behavior of such button is to wait for current samples to end (check [JMeter User guide for more details](https://jmeter.apache.org/usermanual/build-test-plan.html#stop)), and HLS sampler may take a relative long time to finish sampling a URL depending on the specified play time and the type of used playlist. For instance, if you set a livestream URL and specify to play the whole video, then it will never end, and doing a shutdown will not stop it.
+When you press "Shutdown" button, you may have to wait a relative long time before the test plan actually stops. This may happen due to the behavior of such button, which is to wait for current samples to end (check [JMeter User guide for more details](https://jmeter.apache.org/usermanual/build-test-plan.html#stop)), and HLS sampler may take a relative long time to finish sampling a URL depending on the specified play time and the type of used playlist. For instance, if you set a live stream URL and specify to play the whole video, then it will never end, and doing a shutdown will not stop it.
 
 On the contrary, when "Stop" is pressed, current sample is interrupted (and a failure sample result is be generated) and test plan stops immediately.
-

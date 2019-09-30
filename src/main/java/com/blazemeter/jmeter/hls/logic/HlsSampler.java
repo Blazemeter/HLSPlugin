@@ -187,14 +187,12 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   public BandwidthSelector getBandwidthSelector() {
     String bandwidth = getPropertyAsString(CUSTOM_BANDWIDTH_PROPERTY_NAME);
     return BandwidthSelector
-        .fromStringAndCustomBandwidth(getPropertyAsString(BANDWIDTH_TYPE_PROPERTY_NAME),
-            bandwidth != null && !bandwidth.isEmpty() ? Long.valueOf(bandwidth) : null);
+        .fromStringAndCustomBandwidth(getPropertyAsString(BANDWIDTH_TYPE_PROPERTY_NAME), bandwidth);
   }
 
   public void setBandwidthSelector(BandwidthSelector selector) {
     setProperty(BANDWIDTH_TYPE_PROPERTY_NAME, selector.getName());
-    Long bandwidth = selector.getCustomBandwidth();
-    setProperty(CUSTOM_BANDWIDTH_PROPERTY_NAME, bandwidth != null ? bandwidth.toString() : null);
+    setProperty(CUSTOM_BANDWIDTH_PROPERTY_NAME, selector.getCustomBandwidth());
   }
 
   public ResolutionSelector getResolutionSelector() {

@@ -21,10 +21,11 @@ public abstract class BandwidthSelector implements BiPredicate<Long, Long> {
 
   private static final String STRING_SUFFIX = "Bandwidth";
 
-  protected final Long customBandwidth;
+  //using string to allow saving variable references
+  protected final String customBandwidth;
   private final String name;
 
-  public BandwidthSelector(String name, Long customBandwidth) {
+  public BandwidthSelector(String name, String customBandwidth) {
     this.name = name;
     this.customBandwidth = customBandwidth;
   }
@@ -33,19 +34,24 @@ public abstract class BandwidthSelector implements BiPredicate<Long, Long> {
     return name + STRING_SUFFIX;
   }
 
-  public Long getCustomBandwidth() {
+  public String getCustomBandwidth() {
     return customBandwidth;
   }
 
   public static class CustomBandwidthSelector extends BandwidthSelector {
 
-    public CustomBandwidthSelector(Long customBandwidth) {
+    private Long parsedBandwidth;
+
+    public CustomBandwidthSelector(String customBandwidth) {
       super("custom", customBandwidth);
     }
 
     @Override
     public boolean test(Long bandwidth, Long lastMatch) {
-      return bandwidth.equals(customBandwidth);
+      if (parsedBandwidth == null) {
+        parsedBandwidth = Long.valueOf(customBandwidth);
+      }
+      return bandwidth.equals(parsedBandwidth);
     }
 
     @Override
@@ -55,7 +61,7 @@ public abstract class BandwidthSelector implements BiPredicate<Long, Long> {
   }
 
   public static BandwidthSelector fromStringAndCustomBandwidth(String str,
-      Long customBandwidth) {
+      String customBandwidth) {
     if (str == null || str.isEmpty() || str.equals(MIN.getName())) {
       return MIN;
     } else if (str.equals(MAX.getName())) {
