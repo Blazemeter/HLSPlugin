@@ -6,7 +6,6 @@ import io.lindstrom.mpd.data.MPD;
 import io.lindstrom.mpd.data.Period;
 import io.lindstrom.mpd.data.Representation;
 import java.io.IOException;
-import java.time.Instant;
 import java.util.List;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -16,37 +15,38 @@ import org.slf4j.LoggerFactory;
 
 public class DashPlaylist {
 
-  private static final String VIDEO_TYPE_NAME = "video";
   private static final Logger LOG = LoggerFactory.getLogger(DashPlaylist.class);
-  private final MPD manifest;
+  private static final String SUBTITLES_TYPE_NAME = "subtitles";
+  private static final String VIDEO_TYPE_NAME = "video";
+  private static final String DINAMYC_TYPE_NAME = "dinamyc";
+  private final String manifestURL;
   private final String type;
+  private final String languageSelector;
+  private MPD manifest;
   private int actualPeriodIndex;
-  private String manifestURL;
 
-  public DashPlaylist(String type, MPD manifest, Instant downloadTimestamp, String manifestURL) {
+  private DashPlaylist(String type, MPD manifest, String manifestURL, String languageSelector) {
     this.manifest = manifest;
     this.type = type;
     this.actualPeriodIndex = 0;
     this.manifestURL = manifestURL;
+    this.languageSelector = languageSelector;
   }
 
-  public static DashPlaylist fromUriAndManifest(String type, String manifestAsStrng,
-      Instant downloadTimestamp, String manifestURL)
+  public static DashPlaylist fromUriAndBody(String type, String body,
+      String manifestURL, String languageSelector)
       throws IOException {
-    MPD manifest = new MPDParser().parse(manifestAsStrng);
-    return new DashPlaylist(type, manifest, downloadTimestamp, manifestURL);
+    MPD manifest = new MPDParser().parse(body);
+    return new DashPlaylist(type, manifest, manifestURL, languageSelector);
   }
 
-  public void updatePeriod() {
-    if (actualPeriodIndex + 1 <= manifest.getPeriods().size() - 1) {
-      actualPeriodIndex++;
-    } else {
-      actualPeriodIndex = -1;
-    }
+  public static DashPlaylist fromUriAndManifest(String type, MPD manifest, String manifestURL,
+      String languageSelector) {
+    return new DashPlaylist(type, manifest, manifestURL, languageSelector);
   }
 
   public MediaRepresentation solveMediaRepresentation(ResolutionSelector resolutionSelector,
-      BandwidthSelector bandwidthSelector, String languageSelector) {
+      BandwidthSelector bandwidthSelector) {
 
     Period period = manifest.getPeriods().get(actualPeriodIndex);
 
@@ -57,7 +57,6 @@ public class DashPlaylist {
       if (representation != null) {
         LOG.info("Representation found, using id={}", representation.getId());
 
-        //DEBUG
         if (manifest.getBaseURLs().size() > 0) {
           LOG.info("Manifest has {} Base URLs. Using the first", manifest.getBaseURLs().size());
         } else {
@@ -97,7 +96,7 @@ public class DashPlaylist {
             .contains(type))
         .collect(Collectors.toList());
 
-    if (adaptationSetForType.size() == 0 && type.contains("subtitles")) {
+    if (adaptationSetForType.size() == 0 && type.contains(SUBTITLES_TYPE_NAME)) {
       adaptationSetForType = period.getAdaptationSets()
           .stream()
           .filter(adaptationSet -> adaptationSet.getMimeType()
@@ -192,4 +191,24 @@ public class DashPlaylist {
     return actualPeriodIndex;
   }
 
+  public void updatePeriod() {
+    if (actualPeriodIndex + 1 <= manifest.getPeriods().size() - 1) {
+      actualPeriodIndex++;
+    } else {
+      actualPeriodIndex = -1;
+    }
+  }
+
+  public void updateManifestFromBody(String body) throws IOException {
+    manifest = new MPDParser().parse(body);
+
+  }
+
+  public String getManifestURL() {
+    return manifestURL;
+  }
+
+  public boolean isDynamic() {
+    return manifest.getType().equals(DINAMYC_TYPE_NAME);
+  }
 }
