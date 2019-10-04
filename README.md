@@ -89,7 +89,11 @@ You can set listeners to evaluate the results of your tests. The View Results Tr
 
 ![](docs/sample-results.png)
 
-The sampler will automatically add an `X-MEDIA-SEGMENT-DURATION` HTTP response header which contains the media segment duration in seconds (in decimal representation). This value can later be used to perform analysis comparing it to the time taken in the associated sample. 
+The sampler will automatically add an `X-MEDIA-SEGMENT-DURATION` HTTP response header which contains the media segment duration in seconds (in decimal representation). This value can later be used to perform analysis comparing it to the time taken in the associated sample.
+
+![](docs/sample-mpeg-dash-results.png)
+
+In the case of MPEG DASH, the View Results Tree Listener displays the resultant samples with the associated type (manifest, inits and segments for media, audio and subtitles) to easily identify them as well.
 
 ## Assertions and Post Processors
 
