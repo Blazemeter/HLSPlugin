@@ -122,7 +122,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   }
 
   private void initHttpSampler() {
-    setName("HLS Sampler");
+    setName("Media Sampler");
     setFollowRedirects(true);
     setUseKeepAlive(true);
   }
@@ -708,7 +708,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     private void updateManifest() throws IOException {
       if (playlist.isDynamic() && timePassedSinceLastUpdate >= playlist.getManifest()
           .getTimeShiftBufferDepth()
-          .toMillis()) {
+          .toMillis() && playlist.liveStreamingContinues()){
         playlist.updateManifestFromBody(
             (downloadUri(URI.create(playlist.getManifestURL()))).getResponseDataAsString());
         representation = playlist
@@ -717,8 +717,12 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       }
     }
 
+    private boolean isWholeVideo() {
+      return playSeconds == 0;
+    }
+
     private boolean canDownload() {
-      return representation != null && playSeconds > consumedSeconds;
+      return representation != null && (isWholeVideo() || playSeconds > consumedSeconds);
     }
 
     private void downloadUntilTimeSecond(float untilTimeSecond) throws IOException {
