@@ -213,6 +213,8 @@ public class DashPlaylist {
   }
 
   public boolean liveStreamingContinues() {
-    return (manifest.getMinimumUpdatePeriod() != null && manifest.getMinimumUpdatePeriod().toMillis() != 0 && manifest.getType() != null && manifest.getType().equals(DINAMYC_TYPE_NAME));
-    }
+    return (manifest.getMinimumUpdatePeriod() != null
+        && manifest.getMinimumUpdatePeriod().toMillis() != 0 && manifest.getType() != null
+        && manifest.getType().equals(DINAMYC_TYPE_NAME));
+  }
 }

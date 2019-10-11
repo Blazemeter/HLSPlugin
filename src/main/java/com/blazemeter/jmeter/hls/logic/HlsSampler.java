@@ -708,7 +708,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     private void updateManifest() throws IOException {
       if (playlist.isDynamic() && timePassedSinceLastUpdate >= playlist.getManifest()
           .getTimeShiftBufferDepth()
-          .toMillis() && playlist.liveStreamingContinues()){
+          .toMillis() && playlist.liveStreamingContinues()) {
         playlist.updateManifestFromBody(
             (downloadUri(URI.create(playlist.getManifestURL()))).getResponseDataAsString());
         representation = playlist
