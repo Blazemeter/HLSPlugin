@@ -1449,4 +1449,80 @@ public class HlsSamplerTest {
     when(uriSampler.mock.apply(initializationURI))
         .thenReturn(buildSampleResult(SAMPLER_NAME, initializationURI, "video/m4s"));
   }
+
+  @Test
+  public void shouldParseNaturalNumberWhenNoExtraFormat() throws IOException {
+    buildSamplerDash(uriSampler);
+    String manifest = getPlaylist("manifestWithoutNumberFormatting.mpd");
+    setupUriSamplerManifest(MANIFEST_URI, manifest);
+
+    String mediaAdaptationSetID = "minResolutionMinBandwidthVideo";
+    prepareInitializationURL(MEDIA_TYPE_NAME, mediaAdaptationSetID);
+    prepareMediawithoutNumberFormattingURLs(MEDIA_TYPE_NAME, mediaAdaptationSetID, 6);
+
+    String audioAdaptationSetID = "minBandwidthAudioEnglish";
+    prepareInitializationURL(AUDIO_TYPE_NAME, audioAdaptationSetID);
+    prepareMediawithoutNumberFormattingURLs(AUDIO_TYPE_NAME, audioAdaptationSetID, 6);
+
+    String subtitlesAdaptationSetID = "minBandwidthSubtitlesEnglish";
+    prepareInitializationURL(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID);
+    prepareMediawithoutNumberFormattingURLs(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 6);
+
+    setPlaySeconds(MEDIA_SEGMENT_DURATION);
+    sampler.sample();
+
+    verifyNotifiedSampleResults(Arrays.asList(
+        buildBaseSampleResult(MANIFEST_NAME, MANIFEST_URI, manifest),
+        buildInitSampleResult(MEDIA_TYPE_NAME, mediaAdaptationSetID, false),
+        buildSegmentSampleResultWithoutFormat(MEDIA_TYPE_NAME, mediaAdaptationSetID, 1, false),
+
+        buildInitSampleResult(AUDIO_TYPE_NAME, audioAdaptationSetID, false),
+        buildSegmentSampleResultWithoutFormat(AUDIO_TYPE_NAME, audioAdaptationSetID, 1, false),
+
+        buildInitSampleResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, false),
+        buildSegmentSampleResultWithoutFormat(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 1,
+            false),
+
+        buildSegmentSampleResultWithoutFormat(MEDIA_TYPE_NAME, mediaAdaptationSetID, 2, false),
+        buildSegmentSampleResultWithoutFormat(AUDIO_TYPE_NAME, audioAdaptationSetID, 2, false),
+        buildSegmentSampleResultWithoutFormat(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 2,
+            false),
+
+        buildSegmentSampleResultWithoutFormat(MEDIA_TYPE_NAME, mediaAdaptationSetID, 3, false),
+        buildSegmentSampleResultWithoutFormat(AUDIO_TYPE_NAME, audioAdaptationSetID, 3, false),
+        buildSegmentSampleResultWithoutFormat(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 3,
+            false),
+
+        buildSegmentSampleResultWithoutFormat(MEDIA_TYPE_NAME, mediaAdaptationSetID, 4, false),
+        buildSegmentSampleResultWithoutFormat(AUDIO_TYPE_NAME, audioAdaptationSetID, 4, false),
+        buildSegmentSampleResultWithoutFormat(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 4,
+            false),
+
+        buildSegmentSampleResultWithoutFormat(MEDIA_TYPE_NAME, mediaAdaptationSetID, 5, false),
+        buildSegmentSampleResultWithoutFormat(AUDIO_TYPE_NAME, audioAdaptationSetID, 5, false),
+        buildSegmentSampleResultWithoutFormat(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetID, 5,
+            false)
+    ));
+  }
+
+  private void prepareMediawithoutNumberFormattingURLs(String type, String adaptationSetID,
+      int amount) {
+    for (int i = 1; i < amount; i++) {
+      URI mockedURI = URI.create(String
+          .format("%s/%s/%s/%s.m4s", BASE_URI, type, adaptationSetID, i));
+      when(uriSampler.mock.apply(mockedURI))
+          .thenReturn(buildSampleResult(type, mockedURI, "video/m4s"));
+    }
+  }
+
+  private HTTPSampleResult buildSegmentSampleResultWithoutFormat(String type,
+      String adaptationSetID,
+      int sequenceNumber, boolean streaming) {
+    return buildSampleResult(String.format("HLS - %s segment", type), URI.create(
+        BASE_URI + "/" + type + "/" + adaptationSetID + (streaming ? "-" + sequenceNumber
+            + "000.dash"
+            : "/" + sequenceNumber + ".m4s")),
+        "video/m4s");
+  }
+
 }

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MPD type="static" xmlns="urn:mpeg:dash:schema:mpd:2011" xmlns:dvb="urn:dvb:dash-extensions:2014-1"
+  profiles="urn:dvb:dash:profile:dvb-dash:2014,urn:dvb:dash:profile:dvb-dash:isoff-ext-live:2014"
+  minBufferTime="PT2.337S" maxSegmentDuration="PT10S" mediaPresentationDuration="PT10M31.960S">
+  <BaseURL serviceLocation="A" dvb:priority="1" dvb:weight="1">http://test/</BaseURL>
+  <Period duration="PT10M31.960S" start="PT0S">
+    <AdaptationSet startWithSAP="2" segmentAlignment="true" id="1" sar="1:1" frameRate="25"
+      contentType="video" mimeType="video/m4s">
+      <BaseURL>media/</BaseURL>
+      <SegmentTemplate timescale="1000" duration="3000" media="$RepresentationID$/$Number$.m4s"
+        initialization="$RepresentationID$/IS.m4s"/>
+      <Representation id="maxResolutionMaxBandwidthVideo" codecs="avc3.640028" height="1080"
+        width="1920" scanType="interlaced" bandwidth="9"/>
+      <Representation id="maxResolutionMinBandwidthVideo" codecs="avc3.640028" height="1080"
+        width="1920" scanType="interlaced" bandwidth="1"/>
+      <Representation id="minResolutionMaxBandwidthVideo" codecs="avc3.4d4015" height="288"
+        width="512" scanType="progressive" bandwidth="9"/>
+      <Representation id="minResolutionMinBandwidthVideo" codecs="avc3.4d4015" height="288"
+        width="512" scanType="progressive" bandwidth="1"/>
+    </AdaptationSet>
+    <AdaptationSet startWithSAP="2" segmentAlignment="true" id="2" audioSamplingRate="48000"
+      lang="eng" contentType="audio" mimeType="audio/m4s">
+      <BaseURL>audio/</BaseURL>
+      <SegmentTemplate startNumber="1" timescale="1000" duration="3840"
+        media="$RepresentationID$/$Number$.m4s" initialization="$RepresentationID$/IS.m4s"/>
+      <Representation id="maxBandwidthAudioEnglish" bandwidth="9"/>
+      <Representation id="minBandwidthAudioEnglish" bandwidth="1"/>
+    </AdaptationSet>
+    <AdaptationSet startWithSAP="2" segmentAlignment="true" id="3" audioSamplingRate="48000"
+      lang="spa" contentType="audio" mimeType="audio/m4s">
+      <BaseURL>audio/</BaseURL>
+      <SegmentTemplate startNumber="1" timescale="1000" duration="3840"
+        media="$RepresentationID$/$Number$.m4s" initialization="$RepresentationID$/IS.m4s"/>
+      <Representation id="maxBandwidthAudioSpanish" bandwidth="9"/>
+      <Representation id="minBandwidthAudioSpanish" bandwidth="1"/>
+    </AdaptationSet>
+    <AdaptationSet startWithSAP="2" segmentAlignment="true" id="4" audioSamplingRate="48000"
+      lang="fre" contentType="audio" mimeType="audio/m4s">
+      <BaseURL>audio/</BaseURL>
+      <SegmentTemplate startNumber="1" timescale="1000" duration="3840"
+        media="$RepresentationID$/$Number$.m4s" initialization="$RepresentationID$/IS.m4s"/>
+      <Representation id="maxBandwidthAudioFrench" bandwidth="9"/>
+      <Representation id="minBandwidthAudioFrench" bandwidth="1"/>
+    </AdaptationSet>
+    <AdaptationSet startWithSAP="2" segmentAlignment="true" id="6" audioSamplingRate="48000"
+      lang="man" contentType="audio" mimeType="audio/m4s">
+      <SegmentTemplate startNumber="1" timescale="1000" duration="3840"
+        media="$RepresentationID$/$Number$.m4s" initialization="$RepresentationID$/IS.m4s"/>
+      <Representation id="maxBandwidthAudioFrench" bandwidth="9"/>
+      <Representation id="minBandwidthAudioFrench" bandwidth="1"/>
+    </AdaptationSet>
+    <AdaptationSet startWithSAP="2" segmentAlignment="true" id="5" codecs="stpp" lang="eng"
+      contentType="text" mimeType="application/m4s">
+      <BaseURL>subtitles/</BaseURL>
+      <SegmentTemplate startNumber="1" timescale="1000" duration="10000"
+        media="$RepresentationID$/$Number$.m4s" initialization="$RepresentationID$/IS.m4s"/>
+      <Representation id="maxBandwidthSubtitlesEnglish" bandwidth="9"/>
+      <Representation id="minBandwidthSubtitlesEnglish" bandwidth="1"/>
+    </AdaptationSet>
+  </Period>
+</MPD>

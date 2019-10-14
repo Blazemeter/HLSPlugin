@@ -18,7 +18,7 @@ public class DashPlaylist {
   private static final Logger LOG = LoggerFactory.getLogger(DashPlaylist.class);
   private static final String SUBTITLES_TYPE_NAME = "subtitles";
   private static final String VIDEO_TYPE_NAME = "video";
-  private static final String DINAMYC_TYPE_NAME = "dinamyc";
+  private static final String DYNAMIC_TYPE_NAME = "dynamic";
   private final String manifestURL;
   private final String type;
   private final String languageSelector;
@@ -209,12 +209,12 @@ public class DashPlaylist {
   }
 
   public boolean isDynamic() {
-    return manifest.getType().equals(DINAMYC_TYPE_NAME);
+    return manifest.getType().name().equals(DYNAMIC_TYPE_NAME);
   }
 
   public boolean liveStreamingContinues() {
     return (manifest.getMinimumUpdatePeriod() != null
         && manifest.getMinimumUpdatePeriod().toMillis() != 0 && manifest.getType() != null
-        && manifest.getType().equals(DINAMYC_TYPE_NAME));
+        && manifest.getType().name().equals(DYNAMIC_TYPE_NAME));
   }
 }

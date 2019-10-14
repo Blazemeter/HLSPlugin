@@ -70,7 +70,8 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private static final String REPRESENTATIONID_FORMULA_REPLACE = "$RepresentationID$";
   private static final String BANDWIDTH_FORMULA_REPLACE = "$Bandwidth$";
   private static final String TIME_FORMULA_REPLACE = "$Time$";
-  private static final String NUMBER_FORMULA_PATTERN = "(?<=\\$Number)(.*?)(?=\\$)";
+  private static final String NUMBER_FORMULA_REPLACE = "$Number$";
+  private static final String FORMATED_NUMBER_FORMULA_PATTERN = "(?<=\\$Number)(.*?)(?=\\$)";
 
   private final transient HlsHttpClient httpClient;
   private final transient TimeMachine timeMachine;
@@ -681,7 +682,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
           .fromUriAndBody(VIDEO_TYPE_NAME, manifestResult.getResponseDataAsString(), url, null);
       processSampleResult("Manifest", manifestResult);
       return videoPlaylist;
-    } catch (IOException e) { //TODO: Change this to "Playlist parsing exception"
+    } catch (IOException e) {
       processSampleResult("Manifest", errorResult(e, manifestResult));
       throw e;
     }
@@ -726,16 +727,12 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     }
 
     private void downloadUntilTimeSecond(float untilTimeSecond) throws IOException {
-      while (consumedSeconds < untilTimeSecond) {
+      while (consumedSeconds < untilTimeSecond && canDownload()) {
         downloadNextSegment();
       }
     }
 
     private void downloadNextSegment() throws IOException {
-      if (!canDownload()) {
-        return;
-      }
-
       AdaptationSet adaptationSetUsed = representation.getAdaptationSet();
       SegmentTemplate template = adaptationSetUsed.getSegmentTemplate();
 
@@ -813,8 +810,9 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
           .replace(REPRESENTATIONID_FORMULA_REPLACE, representation.getRepresentation().getId());
       formula = formula.replace(BANDWIDTH_FORMULA_REPLACE,
           Long.toString(representation.getRepresentation().getBandwidth()));
+      formula = formula.replace(NUMBER_FORMULA_REPLACE, Long.toString(lastSegmentNumber));
 
-      Pattern pattern = Pattern.compile(NUMBER_FORMULA_PATTERN);
+      Pattern pattern = Pattern.compile(FORMATED_NUMBER_FORMULA_PATTERN);
       Matcher matcher = pattern.matcher(formula);
       if (matcher.find()) {
         String lastSegmentFormatted = String.format(matcher.group(1), lastSegmentNumber);
