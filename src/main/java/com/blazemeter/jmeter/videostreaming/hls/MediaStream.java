@@ -1,4 +1,4 @@
-package com.blazemeter.jmeter.hls.logic;
+package com.blazemeter.jmeter.videostreaming.hls;
 
 import java.net.URI;
 
@@ -25,4 +25,5 @@ public class MediaStream {
   public URI getSubtitlesUri() {
     return subtitlesUri;
   }
+
 }

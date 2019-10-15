@@ -1,7 +1,9 @@
-package com.blazemeter.jmeter.hls.logic;
+package com.blazemeter.jmeter.videostreaming.hls;
 
 import static com.comcast.viper.hlsparserj.PlaylistVersion.TWELVE;
 
+import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
+import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
 import com.comcast.viper.hlsparserj.IPlaylist;
 import com.comcast.viper.hlsparserj.MasterPlaylist;
 import com.comcast.viper.hlsparserj.MediaPlaylist;

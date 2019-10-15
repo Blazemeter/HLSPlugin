@@ -1,4 +1,4 @@
-package com.blazemeter.jmeter.hls.logic;
+package com.blazemeter.jmeter.videostreaming.core;
 
 public class VideoStreamingPlayback {
 
@@ -13,15 +13,16 @@ public class VideoStreamingPlayback {
     this.type = type;
   }
 
-  protected float getPlayedTime() {
-    return consumedSeconds;
-  }
-
   protected boolean playedRequestedTime() {
     return playSeconds > 0 && playSeconds <= this.consumedSeconds;
   }
 
-  protected float playedTimeSeconds() {
+  public float getPlayedTimeSeconds() {
     return this.consumedSeconds;
   }
+
+  public long getLastSegmentNumber() {
+    return lastSegmentNumber;
+  }
+
 }

@@ -13,7 +13,9 @@ import static org.mockito.Mockito.withSettings;
 
 import com.blazemeter.jmeter.hls.JMeterTestUtils;
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector.CustomBandwidthSelector;
-import com.blazemeter.jmeter.hls.logic.HlsSampler.HlsHttpClient;
+import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
+import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
+import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 import io.lindstrom.mpd.data.MPD;
@@ -158,7 +160,7 @@ public class HlsSamplerTest {
   }
 
   private void buildSampler(Function<URI, HTTPSampleResult> uriSampler) {
-    HlsHttpClient httpClient = Mockito.mock(HlsHttpClient.class);
+    VideoStreamingHttpClient httpClient = Mockito.mock(VideoStreamingHttpClient.class);
     when(httpClient.sample(any(), any(), anyBoolean(), anyInt()))
         .thenAnswer(a -> uriSampler.apply(a.getArgument(0, URL.class).toURI()));
     sampler = new HlsSampler(httpClient, timeMachine);
@@ -1020,7 +1022,7 @@ public class HlsSamplerTest {
   }
 
   private HTTPSampleResult buildNotMatchingPlaylistResult() {
-    HTTPSampleResult result = HlsSampler.buildNotMatchingMediaPlaylistResult();
+    HTTPSampleResult result = VideoStreamingSampler.buildNotMatchingMediaPlaylistResult();
     result.setSampleLabel(MEDIA_PLAYLIST_SAMPLE_NAME);
     return result;
   }
@@ -1209,7 +1211,7 @@ public class HlsSamplerTest {
   }
 
   private void buildSamplerDash(Function<URI, HTTPSampleResult> uriSampler) {
-    HlsHttpClient httpClient = Mockito.mock(HlsHttpClient.class);
+    VideoStreamingHttpClient httpClient = Mockito.mock(VideoStreamingHttpClient.class);
     when(httpClient.sample(any(), any(), anyBoolean(), anyInt()))
         .thenAnswer(a -> uriSampler.apply(a.getArgument(0, URL.class).toURI()));
     sampler = new HlsSampler(httpClient, timeMachine);

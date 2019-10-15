@@ -1,4 +1,4 @@
-package com.blazemeter.jmeter.hls.logic;
+package com.blazemeter.jmeter.videostreaming.dash;
 
 import io.lindstrom.mpd.data.AdaptationSet;
 import io.lindstrom.mpd.data.Representation;
@@ -24,10 +24,6 @@ public class MediaRepresentation {
     return representation;
   }
 
-  public boolean exists() {
-    return (adaptationSet != null && representation != null);
-  }
-
   public String getBaseURL() {
     return baseURL;
   }
@@ -41,7 +37,8 @@ public class MediaRepresentation {
   }
 
   public long getTotalDuration() {
-    return (long) Long.valueOf(representation.getSegmentBase().getPresentationDuration())
+    return Long.parseLong(representation.getSegmentBase().getPresentationDuration())
         / representation.getSegmentBase().getTimescale();
   }
+
 }
