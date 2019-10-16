@@ -43,7 +43,7 @@ public class HlsSampler extends VideoStreamingSampler {
                 baseSampler.getResolutionSelector(),
                 baseSampler.getAudioLanguage(), baseSampler.getSubtitleLanguage());
         if (mediaStream == null) {
-          sampleResultProcessor.process(buildPlaylistName(MEDIA_TYPE_NAME),
+          sampleResultProcessor.accept(buildPlaylistName(MEDIA_TYPE_NAME),
               buildNotMatchingMediaPlaylistResult());
           return null;
         }
@@ -103,7 +103,7 @@ public class HlsSampler extends VideoStreamingSampler {
     HTTPSampleResult playlistResult = httpClient.downloadUri(uri);
     if (!playlistResult.isSuccessful()) {
       String playlistName = name.apply(null);
-      sampleResultProcessor.process(playlistName, playlistResult);
+      sampleResultProcessor.accept(playlistName, playlistResult);
       throw new PlaylistDownloadException(playlistName, uri);
     }
 
@@ -116,17 +116,17 @@ public class HlsSampler extends VideoStreamingSampler {
     }
 
     if (!uri.toString().contains(".m3u8")) {
-      sampleResultProcessor.process(name.apply(null), playlistResult);
+      sampleResultProcessor.accept(name.apply(null), playlistResult);
       return null;
     }
 
     try {
       Playlist playlist = Playlist
           .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
-      sampleResultProcessor.process(name.apply(playlist), playlistResult);
+      sampleResultProcessor.accept(name.apply(playlist), playlistResult);
       return playlist;
     } catch (PlaylistParsingException e) {
-      sampleResultProcessor.process(name.apply(null), baseSampler.errorResult(e, playlistResult));
+      sampleResultProcessor.accept(name.apply(null), baseSampler.errorResult(e, playlistResult));
       throw e;
     }
   }
@@ -169,7 +169,7 @@ public class HlsSampler extends VideoStreamingSampler {
         result.setResponseHeaders(
             result.getResponseHeaders() + "X-MEDIA-SEGMENT-DURATION: " + segment
                 .getDurationSeconds() + "\n");
-        sampleResultProcessor.process(buildSegmentName(type), result);
+        sampleResultProcessor.accept(buildSegmentName(type), result);
         lastSegmentNumber = segment.getSequenceNumber();
         consumedSeconds += segment.getDurationSeconds();
       }

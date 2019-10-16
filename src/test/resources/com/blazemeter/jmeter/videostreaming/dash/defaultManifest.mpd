@@ -57,5 +57,13 @@
       <Representation id="maxBandwidthSubtitlesEnglish" bandwidth="9"/>
       <Representation id="minBandwidthSubtitlesEnglish" bandwidth="1"/>
     </AdaptationSet>
+    <AdaptationSet startWithSAP="2" segmentAlignment="true" id="7" codecs="stpp" lang="fre"
+      contentType="text" mimeType="application/m4s">
+      <BaseURL>subtitles/</BaseURL>
+      <SegmentTemplate startNumber="1" timescale="1000" duration="10000"
+        media="$RepresentationID$/$Number%06d$.m4s" initialization="$RepresentationID$/IS.m4s"/>
+      <Representation id="maxBandwidthSubtitlesFrench" bandwidth="9"/>
+      <Representation id="minBandwidthSubtitlesFrench" bandwidth="1"/>
+    </AdaptationSet>
   </Period>
 </MPD>

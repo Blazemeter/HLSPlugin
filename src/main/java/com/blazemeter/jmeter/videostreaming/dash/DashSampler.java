@@ -98,8 +98,7 @@ public class DashSampler extends VideoStreamingSampler {
     HTTPSampleResult manifestResult = httpClient.downloadUri(manifestUri);
 
     if (!manifestResult.isSuccessful()) {
-
-      sampleResultProcessor.process("Manifest", manifestResult);
+      sampleResultProcessor.accept("Manifest", manifestResult);
       throw new PlaylistDownloadException("Manifest", manifestUri);
     }
 
@@ -114,10 +113,10 @@ public class DashSampler extends VideoStreamingSampler {
     try {
       DashPlaylist videoPlaylist = DashPlaylist
           .fromUriAndBody(VIDEO_TYPE_NAME, manifestResult.getResponseDataAsString(), url, null);
-      sampleResultProcessor.process("Manifest", manifestResult);
+      sampleResultProcessor.accept("Manifest", manifestResult);
       return videoPlaylist;
     } catch (IOException e) {
-      sampleResultProcessor.process("Manifest", baseSampler.errorResult(e, manifestResult));
+      sampleResultProcessor.accept("Manifest", baseSampler.errorResult(e, manifestResult));
       throw e;
     }
   }
@@ -193,9 +192,9 @@ public class DashSampler extends VideoStreamingSampler {
         HTTPSampleResult initializeResult = httpClient.downloadUri(URI.create(initializeURL));
         if (!initializeResult.isSuccessful()) {
           SampleResult failResult = buildNotMatchingMediaPlaylistResult();
-          sampleResultProcessor.process("Init " + type, failResult);
+          sampleResultProcessor.accept("Init " + type, failResult);
         } else {
-          sampleResultProcessor.process("Init " + type, initializeResult);
+          sampleResultProcessor.accept("Init " + type, initializeResult);
         }
       }
 
@@ -206,13 +205,13 @@ public class DashSampler extends VideoStreamingSampler {
       HTTPSampleResult downloadSegmentResult = httpClient.downloadUri(URI.create(segmentURL));
       if (!downloadSegmentResult.isSuccessful()) {
         HTTPSampleResult failDownloadResult = buildErrorWhileDownloadingMediaSegmentResult(type);
-        sampleResultProcessor.process(type + " segment", failDownloadResult);
+        sampleResultProcessor.accept(type + " segment", failDownloadResult);
         LOG.warn("There was an error while downloading {} segment from {}. Code: {}. Message: {}",
             type,
             segmentURL, downloadSegmentResult.getResponseCode(),
             downloadSegmentResult.getResponseMessage());
       } else {
-        sampleResultProcessor.process(type + " segment", downloadSegmentResult);
+        sampleResultProcessor.accept(type + " segment", downloadSegmentResult);
       }
 
       lastSegmentNumber++;

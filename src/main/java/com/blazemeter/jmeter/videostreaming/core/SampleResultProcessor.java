@@ -2,6 +2,7 @@ package com.blazemeter.jmeter.videostreaming.core;
 
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import org.apache.jmeter.assertions.Assertion;
 import org.apache.jmeter.assertions.AssertionResult;
 import org.apache.jmeter.processor.PostProcessor;
@@ -18,7 +19,7 @@ import org.apache.jorphan.util.JMeterError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SampleResultProcessor {
+public class SampleResultProcessor implements BiConsumer<String, SampleResult> {
 
   private static final Logger LOG = LoggerFactory.getLogger(SampleResultProcessor.class);
   private static final Set<String> SAMPLE_TYPE_NAMES = VideoStreamingSampler.getSampleTypesSet();
@@ -29,7 +30,8 @@ public class SampleResultProcessor {
     this.testElement = testElement;
   }
 
-  public void process(String name, SampleResult result) {
+  @Override
+  public void accept(String name, SampleResult result) {
     result.setSampleLabel(testElement.getName() + " - " + name);
     JMeterContext threadContext = testElement.getThreadContext();
     updateSampleResultThreadsInfo(result, threadContext);
@@ -101,10 +103,10 @@ public class SampleResultProcessor {
     }
   }
 
-  private boolean doesTestElementApplyToSampleResult(SampleResult result, TestElement assertion) {
-    String assertionType = extractLabelType(assertion.getName());
-    String sampleType = extractLabelType(result.getSampleLabel());
-    return sampleType.equals(assertionType) || !SAMPLE_TYPE_NAMES.contains(assertionType);
+  private boolean doesTestElementApplyToSampleResult(SampleResult result, TestElement elem) {
+    String elemLabelType = extractLabelType(elem.getName());
+    String sampleLabelType = extractLabelType(result.getSampleLabel());
+    return sampleLabelType.equals(elemLabelType) || !SAMPLE_TYPE_NAMES.contains(elemLabelType);
   }
 
   private String extractLabelType(String label) {

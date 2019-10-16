@@ -3,7 +3,7 @@ package com.blazemeter.jmeter.hls.gui;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.blazemeter.jmeter.hls.JMeterTestUtils;
+import com.blazemeter.jmeter.JMeterTestUtils;
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector.CustomBandwidthSelector;
 import com.blazemeter.jmeter.hls.logic.HlsSampler;
