@@ -1,4 +1,4 @@
-package com.blazemeter.jmeter.hls;
+package com.blazemeter.jmeter;
 
 import kg.apc.emulators.EmulatorJmeterEngine;
 import kg.apc.emulators.EmulatorThreadMonitor;

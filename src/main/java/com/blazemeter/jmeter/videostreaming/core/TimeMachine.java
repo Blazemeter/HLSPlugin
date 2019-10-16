@@ -1,4 +1,4 @@
-package com.blazemeter.jmeter.hls.logic;
+package com.blazemeter.jmeter.videostreaming.core;
 
 import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
@@ -7,7 +7,8 @@ import java.util.concurrent.TimeUnit;
 public interface TimeMachine {
 
   TimeMachine SYSTEM = new TimeMachine() {
-    CountDownLatch countDownLatch = new CountDownLatch(1);
+    private CountDownLatch countDownLatch = new CountDownLatch(1);
+
     @Override
     public void interrupt() {
       countDownLatch.countDown();
@@ -29,4 +30,5 @@ public interface TimeMachine {
   Instant now();
 
   void interrupt();
+
 }

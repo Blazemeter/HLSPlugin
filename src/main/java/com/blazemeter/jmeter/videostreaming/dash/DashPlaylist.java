@@ -1,5 +1,7 @@
-package com.blazemeter.jmeter.hls.logic;
+package com.blazemeter.jmeter.videostreaming.dash;
 
+import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
+import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
 import io.lindstrom.mpd.MPDParser;
 import io.lindstrom.mpd.data.AdaptationSet;
 import io.lindstrom.mpd.data.MPD;
@@ -69,7 +71,7 @@ public class DashPlaylist {
                     : manifestURL));
       }
       LOG.warn("No representation was found for type {} with bandwidth {} and custom resolution {}",
-          type, bandwidthSelector.customBandwidth, resolutionSelector.customResolution);
+          type, bandwidthSelector, resolutionSelector);
     }
 
     return null;
@@ -201,7 +203,6 @@ public class DashPlaylist {
 
   public void updateManifestFromBody(String body) throws IOException {
     manifest = new MPDParser().parse(body);
-
   }
 
   public String getManifestURL() {
@@ -217,4 +218,5 @@ public class DashPlaylist {
         && manifest.getMinimumUpdatePeriod().toMillis() != 0 && manifest.getType() != null
         && manifest.getType().name().equals(DYNAMIC_TYPE_NAME));
   }
+
 }
