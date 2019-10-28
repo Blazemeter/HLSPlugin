@@ -115,11 +115,6 @@ public class HlsSampler extends VideoStreamingSampler {
           playlistResult.getURL(), uri, e);
     }
 
-    if (!uri.toString().contains(".m3u8")) {
-      sampleResultProcessor.accept(name.apply(null), playlistResult);
-      return null;
-    }
-
     try {
       Playlist playlist = Playlist
           .fromUriAndBody(uri, playlistResult.getResponseDataAsString(), downloadTimestamp);
@@ -214,14 +209,22 @@ public class HlsSampler extends VideoStreamingSampler {
   }
 
   private Playlist tryDownloadPlaylist(URI uri, Function<Playlist, String> namer) {
+    if (uri == null) {
+      return null;
+    }
     try {
-      if (uri != null) {
+      HTTPSampleResult playlistResult = httpClient.downloadUri(uri);
+      if (!uri.toString().contains(".m3u8")) {
+        String playlistName = namer.apply(null);
+        sampleResultProcessor.accept(playlistName, playlistResult);
+        return null;
+      } else {
         return downloadPlaylist(uri, namer);
       }
     } catch (PlaylistDownloadException | PlaylistParsingException e) {
       LOG.warn("Problem downloading {}", namer.apply(null), e);
+      return null;
     }
-    return null;
   }
 
 }
