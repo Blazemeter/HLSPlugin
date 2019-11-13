@@ -13,7 +13,7 @@ build:
     - docker
   except:
     - master
-  script: /execute-on-vnc.sh mvn --batch-mode clean install
+  script: /execute-on-vnc.sh mvn -U --batch-mode clean install
   artifacts:
     paths:
       - target/jmeter-bzm-hls-*.jar
