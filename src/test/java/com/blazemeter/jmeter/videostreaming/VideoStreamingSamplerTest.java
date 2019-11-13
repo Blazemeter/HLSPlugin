@@ -16,8 +16,8 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 import java.util.function.Function;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
 import org.apache.jmeter.samplers.SampleResult;
@@ -34,10 +34,9 @@ public abstract class VideoStreamingSamplerTest {
   protected static final String SEGMENT_CONTENT_TYPE = "video/MP2T";
   protected static final String BASE_URI = "http://test";
   protected static final String SAMPLER_NAME = "HLS";
-  protected static final String MEDIA_TYPE_NAME = "media";
+  protected static final String VIDEO_TYPE_NAME = "video";
   protected static final String AUDIO_TYPE_NAME = "audio";
   protected static final String SUBTITLES_TYPE_NAME = "subtitles";
-  protected static final double MEDIA_SEGMENT_DURATION = 5.0;
 
   protected com.blazemeter.jmeter.hls.logic.HlsSampler baseSampler;
   protected SegmentResultFallbackUriSamplerMock uriSampler = new SegmentResultFallbackUriSamplerMock();
@@ -79,10 +78,7 @@ public abstract class VideoStreamingSamplerTest {
     }
 
     private HTTPSampleResult buildSegmentResult(URI uri) {
-      String uriStr = uri.toString();
-      int extensionPos = uriStr.lastIndexOf('.');
-      int sequenceNumber = Integer.parseInt(uriStr.substring(extensionPos - 1, extensionPos));
-      return buildBaseSegmentSampleResult(sequenceNumber);
+      return buildSampleResult(uri, SEGMENT_CONTENT_TYPE, "");
     }
 
     public void setupUriSampleResults(URI uri, HTTPSampleResult result,
@@ -92,12 +88,12 @@ public abstract class VideoStreamingSamplerTest {
 
   }
 
-  protected static HTTPSampleResult buildBaseSegmentSampleResult(int sequenceNumber) {
-    return buildSampleResult(buildSegmentUri(sequenceNumber), SEGMENT_CONTENT_TYPE, "");
+  protected static HTTPSampleResult buildBaseSegmentSampleResult(String type, int sequenceNumber) {
+    return buildSampleResult(buildSegmentUri(type, sequenceNumber), SEGMENT_CONTENT_TYPE, "");
   }
 
-  protected static URI buildSegmentUri(int sequenceNumber) {
-    return URI.create(BASE_URI + "/00" + sequenceNumber + ".ts");
+  protected static URI buildSegmentUri(String type, int sequenceNumber) {
+    return URI.create(String.format("%s/%s/%03d.ts", BASE_URI, type, sequenceNumber));
   }
 
   protected static HTTPSampleResult buildSampleResult(URI uri, String contentType,
@@ -153,7 +149,17 @@ public abstract class VideoStreamingSamplerTest {
     baseSampler.setPlaySeconds(String.valueOf((int) playSeconds));
   }
 
-  protected void verifySampleResults(List<SampleResult> results) {
+  protected String buildSegmentName(String segmentType) {
+    return "HLS - " + segmentType + " segment";
+  }
+
+  protected HTTPSampleResult addDurationHeader(HTTPSampleResult result, double duration) {
+    result.setResponseHeaders(result.getResponseHeaders() + "X-MEDIA-SEGMENT-DURATION: " + duration
+        + "\n");
+    return result;
+  }
+
+  protected void verifySampleResults(SampleResult... results) {
     ArgumentCaptor<String> sampleNamesCaptor = ArgumentCaptor.forClass(String.class);
     ArgumentCaptor<SampleResult> sampleResultCaptor = ArgumentCaptor.forClass(SampleResult.class);
     verify(sampleResultProcessor, atLeastOnce())
@@ -164,7 +170,7 @@ public abstract class VideoStreamingSamplerTest {
       sampleResult.setSampleLabel(SAMPLER_NAME + " - " + sampleNameIt.next());
     }
     assertThat(ComparableSampleResult.listFrom(sampleResultCaptor.getAllValues()))
-        .isEqualTo(ComparableSampleResult.listFrom(results));
+        .isEqualTo(ComparableSampleResult.listFrom(Arrays.asList(results)));
   }
 
 }

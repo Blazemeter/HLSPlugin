@@ -11,7 +11,7 @@
       <SegmentTemplate timescale="1000" initialization="$RepresentationID$.dash"
         media="$RepresentationID$-$Time$.dash">
         <SegmentTimeline>
-          <S t="0" d="1000" r="3"/>
+          <S t="0" d="3000" r="3"/>
           <S d="1000"/>
           <S d="1000"/>
           <S d="1000"/>
@@ -28,7 +28,7 @@
       <SegmentTemplate timescale="1000" initialization="$RepresentationID$.dash"
         media="$RepresentationID$-$Time$.dash">
         <SegmentTimeline>
-          <S t="0" d="1000" r="6"/>
+          <S t="0" d="10000" r="6"/>
           <S d="4321"/>
           <S d="1234"/>
           <S d="3123"/>
@@ -40,11 +40,11 @@
     <AdaptationSet id="3" group="2" contentType="video" lang="eng" mimeType="video/dash"
       par="56:25" minBandwidth="401000" maxBandwidth="2203000" maxWidth="1680" maxHeight="750"
       segmentAlignment="true" sar="1:1" startWithSAP="1">
-      <BaseURL>media/</BaseURL>
+      <BaseURL>video/</BaseURL>
       <SegmentTemplate timescale="1000" initialization="$RepresentationID$.dash"
         media="$RepresentationID$-$Time$.dash">
         <SegmentTimeline>
-          <S t="0" d="1000" r="6"/>
+          <S t="0" d="3000" r="6"/>
           <S d="1234"/>
           <S d="1234"/>
           <S d="1234"/>
@@ -67,11 +67,11 @@
       par="56:25" minBandwidth="1117000" maxBandwidth="1939000" maxWidth="3360" maxHeight="1000"
       segmentAlignment="true" sar="1:1"
       frameRate="24" codecs="hvc1.1.6.H150.90" startWithSAP="1">
-      <BaseURL>media/</BaseURL>
+      <BaseURL>video/</BaseURL>
       <SegmentTemplate timescale="1000" initialization="$RepresentationID$.dash"
         media="$RepresentationID$-$Time$.dash">
         <SegmentTimeline>
-          <S t="0" d="1000" r="6"/>
+          <S t="0" d="3000" r="6"/>
           <S d="1234"/>
           <S d="1234"/>
           <S d="1234"/>
@@ -91,11 +91,11 @@
     <AdaptationSet id="5" group="2" contentType="video" lang="fre" mimeType="video/dash"
       par="240:107" minBandwidth="1" maxBandwidth="9" maxWidth="1920" maxHeight="856"
       segmentAlignment="true" sar="1:1" startWithSAP="1">
-      <BaseURL>media/</BaseURL>
+      <BaseURL>video/</BaseURL>
       <SegmentTemplate timescale="1000" initialization="$RepresentationID$.dash"
         media="$RepresentationID$-$Time$.dash">
         <SegmentTimeline>
-          <S t="0" d="1000" r="6"/>
+          <S t="0" d="3000" r="6"/>
           <S d="2000"/>
         </SegmentTimeline>
       </SegmentTemplate>

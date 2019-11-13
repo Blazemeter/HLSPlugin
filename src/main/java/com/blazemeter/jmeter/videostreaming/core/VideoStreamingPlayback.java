@@ -1,28 +1,28 @@
 package com.blazemeter.jmeter.videostreaming.core;
 
-public class VideoStreamingPlayback {
+public class VideoStreamingPlayback<T extends MediaSegment> {
 
-  protected final int playSeconds;
   protected final String type;
-  protected float consumedSeconds;
-  protected long lastSegmentNumber;
+  protected double consumedSeconds;
+  protected T lastSegment;
+  private final int playSeconds;
 
-  protected VideoStreamingPlayback(int playSeconds, long lastSegmentNumber, String type) {
-    this.playSeconds = playSeconds;
-    this.lastSegmentNumber = lastSegmentNumber;
+  protected VideoStreamingPlayback(String type, T lastSegment, int playSeconds) {
     this.type = type;
+    this.playSeconds = playSeconds;
+    this.lastSegment = lastSegment;
   }
 
   protected boolean playedRequestedTime() {
     return playSeconds > 0 && playSeconds <= this.consumedSeconds;
   }
 
-  public float getPlayedTimeSeconds() {
+  public double getPlayedTimeSeconds() {
     return this.consumedSeconds;
   }
 
-  public long getLastSegmentNumber() {
-    return lastSegmentNumber;
+  public T getLastSegment() {
+    return lastSegment;
   }
 
 }

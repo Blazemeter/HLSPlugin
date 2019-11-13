@@ -6,7 +6,7 @@
   <Period duration="PT10M31.960S" start="PT0S">
     <AdaptationSet startWithSAP="2" segmentAlignment="true" id="1" sar="1:1" frameRate="25"
       contentType="video" mimeType="video/m4s">
-      <BaseURL>media/</BaseURL>
+      <BaseURL>video/</BaseURL>
       <SegmentTemplate timescale="1000" duration="3000" media="$RepresentationID$/$Number%06d$.m4s"
         initialization="$RepresentationID$/IS.m4s"/>
       <Representation id="maxResolutionMaxBandwidthVideo" codecs="avc3.640028" height="1080"

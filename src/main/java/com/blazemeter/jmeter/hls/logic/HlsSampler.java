@@ -180,6 +180,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     } else if (!this.getResumeVideoStatus()) {
       sampler.resetVideoStatus();
     }
+    lastMasterUrl = url;
     return sampler.sample();
   }
 
@@ -189,16 +190,11 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     return httpClient.sample(url, method, areFollowingRedirect, frameDepth);
   }
 
-  /*
-   Override access to error result to allow protocol samplers to build errorResults with this method
-   */
-  @Override
-  public HTTPSampleResult errorResult(Throwable e, HTTPSampleResult res) {
-    return super.errorResult(e, res);
+  public HTTPSampleResult errorResult(HTTPSampleResult res, Throwable e) {
+    return errorResult(res, e.getClass().getName(), e.getMessage());
   }
 
-  public static HTTPSampleResult errorResult(String code, String message) {
-    HTTPSampleResult res = new HTTPSampleResult();
+  public static HTTPSampleResult errorResult(HTTPSampleResult res, String code, String message) {
     res.setResponseCode(NON_HTTP_RESPONSE_CODE + ": " + code);
     res.setResponseMessage(NON_HTTP_RESPONSE_MESSAGE + ": " + message);
     res.setSuccessful(false);

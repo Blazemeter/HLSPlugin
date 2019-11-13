@@ -1,5 +1,6 @@
 package com.blazemeter.jmeter.videostreaming.core;
 
+import com.blazemeter.jmeter.videostreaming.core.exception.SamplerInterruptedException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;

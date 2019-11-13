@@ -1,17 +1,18 @@
-package com.blazemeter.jmeter.videostreaming.hls;
+package com.blazemeter.jmeter.videostreaming.core;
 
 import java.net.URI;
+import java.time.Duration;
 
 public class MediaSegment {
 
+  protected final Duration duration;
   private final long sequenceNumber;
   private final URI uri;
-  private final float durationSeconds;
 
-  public MediaSegment(long sequenceNumber, URI uri, float durationSeconds) {
+  public MediaSegment(long sequenceNumber, URI uri, Duration duration) {
     this.sequenceNumber = sequenceNumber;
     this.uri = uri;
-    this.durationSeconds = durationSeconds;
+    this.duration = duration;
   }
 
   public long getSequenceNumber() {
@@ -22,8 +23,8 @@ public class MediaSegment {
     return uri;
   }
 
-  public float getDurationSeconds() {
-    return durationSeconds;
+  public double getDurationSeconds() {
+    return (double) duration.toMillis() / 1000;
   }
 
   @Override
@@ -31,7 +32,7 @@ public class MediaSegment {
     return "MediaSegment{" +
         "sequenceNumber=" + sequenceNumber +
         ", uri=" + uri +
-        ", durationSeconds=" + durationSeconds +
+        ", duration=" + duration +
         '}';
   }
 

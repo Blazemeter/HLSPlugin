@@ -3,6 +3,6 @@
 #EXT-X-VERSION:3
 #EXT-X-MEDIA-SEQUENCE:3
 #EXTINF:5.00,
-004.ts
+/media/004.ts
 #EXTINF:5.00,
-005.ts
+/media/005.ts

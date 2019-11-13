@@ -4,6 +4,9 @@ import static com.comcast.viper.hlsparserj.PlaylistVersion.TWELVE;
 
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
 import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
+import com.blazemeter.jmeter.videostreaming.core.MediaSegment;
+import com.blazemeter.jmeter.videostreaming.core.VideoStreamSelector;
+import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistParsingException;
 import com.comcast.viper.hlsparserj.IPlaylist;
 import com.comcast.viper.hlsparserj.MasterPlaylist;
 import com.comcast.viper.hlsparserj.MediaPlaylist;
@@ -14,14 +17,13 @@ import com.comcast.viper.hlsparserj.tags.media.MediaSequence;
 import com.comcast.viper.hlsparserj.tags.media.PlaylistType;
 import com.comcast.viper.hlsparserj.tags.media.TargetDuration;
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiPredicate;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,45 +83,9 @@ public class Playlist {
 
   private StreamInf solveStream(BandwidthSelector bandwidthSelector,
       ResolutionSelector resolutionSelector) {
-    List<StreamInf> variants = ((MasterPlaylist) playlist).getVariantStreams();
-    Function<StreamInf, Long> bandwidthAccessor = v -> (long) v.getBandwidth();
-    if (bandwidthSelector.getCustomBandwidth() == null
-        && resolutionSelector.getCustomResolution() != null) {
-      return findSelectedVariant(StreamInf::getResolution, resolutionSelector, bandwidthAccessor,
-          bandwidthSelector, variants);
-    } else {
-      return findSelectedVariant(bandwidthAccessor, bandwidthSelector, StreamInf::getResolution,
-          resolutionSelector, variants);
-    }
-  }
-
-  private <T, U> StreamInf findSelectedVariant(Function<StreamInf, T> firstAttribute,
-      BiPredicate<T, T> firstAttributeSelector, Function<StreamInf, U> secondAttribute,
-      BiPredicate<U, U> secondAttributeSelector, List<StreamInf> variants) {
-    StreamInf matchedVariant = findVariantPerAttribute(firstAttribute, firstAttributeSelector,
-        variants);
-    if (matchedVariant == null) {
-      return null;
-    }
-    T selectedAttribute = firstAttribute.apply(matchedVariant);
-    List<StreamInf> matchingVariants = variants.stream()
-        .filter(v -> firstAttribute.apply(v).equals(selectedAttribute))
-        .collect(Collectors.toList());
-    return findVariantPerAttribute(secondAttribute, secondAttributeSelector, matchingVariants);
-  }
-
-  private <T> StreamInf findVariantPerAttribute(Function<StreamInf, T> attribute,
-      BiPredicate<T, T> attributeSelector, List<StreamInf> variants) {
-    T lastMatchAttribute = null;
-    StreamInf lastMatchVariant = null;
-    for (StreamInf variant : variants) {
-      T attr = attribute.apply(variant);
-      if (attributeSelector.test(attr, lastMatchAttribute)) {
-        lastMatchAttribute = attr;
-        lastMatchVariant = variant;
-      }
-    }
-    return lastMatchVariant;
+    return new VideoStreamSelector<>(bandwidthSelector, v -> (long) v.getBandwidth(),
+        resolutionSelector, StreamInf::getResolution)
+        .findMatchingVariant(((MasterPlaylist) playlist).getVariantStreams());
   }
 
   private String getRenditionUri(String type, String groupId, String selector) {
@@ -173,7 +139,7 @@ public class Playlist {
 
     return mediaPlaylist.getSegments().stream()
         .map(s -> new MediaSegment(sequenceNumber.getAndIncrement(),
-            buildAbsoluteUri(s.getURI()), s.getDuration()))
+            buildAbsoluteUri(s.getURI()), Duration.ofMillis((long) s.getDuration() * 1000)))
         .collect(Collectors.toList());
 
   }

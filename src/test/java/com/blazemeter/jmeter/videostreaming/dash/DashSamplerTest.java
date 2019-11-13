@@ -3,9 +3,6 @@ package com.blazemeter.jmeter.videostreaming.dash;
 import com.blazemeter.jmeter.videostreaming.VideoStreamingSamplerTest;
 import java.io.IOException;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.BiFunction;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
 import org.apache.jmeter.samplers.SampleResult;
 import org.junit.Test;
@@ -13,12 +10,16 @@ import org.junit.Test;
 public class DashSamplerTest extends VideoStreamingSamplerTest {
 
   private static final URI MANIFEST_URI = URI.create(BASE_URI + "/manifest.mpd");
-  private static final String MANIFEST_NAME = "HLS - Manifest";
+  private static final String MANIFEST_NAME = "HLS - master";
   private static final String DEFAULT_MANIFEST = "defaultManifest.mpd";
-  private static final String DEFAULT_MEDIA_ADAPTATION_SET = "minResolutionMinBandwidthVideo";
+  private static final String DEFAULT_VIDEO_ADAPTATION_SET = "minResolutionMinBandwidthVideo";
   private static final String DEFAULT_AUDIO_ADAPTATION_SET = "minBandwidthAudioEnglish";
   private static final String DEFAULT_SUBTITLES_ADAPTATION_SET = "minBandwidthSubtitlesEnglish";
   public static final int SEGMENTS_COUNT = 5;
+  private static final double VIDEO_DURATION_SECONDS = 3.0;
+  private static final double AUDIO_DURATION_SECONDS = 3.84;
+  private static final double SUBTITLES_DURATION_SECONDS = 10.0;
+  private static final int PLAYBACK_TIME_SECONDS = 5;
 
   private DashSampler sampler;
 
@@ -33,21 +34,20 @@ public class DashSamplerTest extends VideoStreamingSamplerTest {
     String manifest = getResource(DEFAULT_MANIFEST);
     setupUriSamplerManifest(MANIFEST_URI, manifest);
 
-    setupAdaptationSets(DEFAULT_MEDIA_ADAPTATION_SET, DEFAULT_AUDIO_ADAPTATION_SET,
-        DEFAULT_SUBTITLES_ADAPTATION_SET, SEGMENTS_COUNT);
+    setupAdaptationSets(DEFAULT_VIDEO_ADAPTATION_SET, DEFAULT_AUDIO_ADAPTATION_SET,
+        DEFAULT_SUBTITLES_ADAPTATION_SET);
 
-    setPlaySeconds(MEDIA_SEGMENT_DURATION);
+    setPlaySeconds(PLAYBACK_TIME_SECONDS);
     sampler.sample();
 
-    verifySampleResults(buildExpectedSampleResults(manifest, DEFAULT_MEDIA_ADAPTATION_SET,
-        DEFAULT_AUDIO_ADAPTATION_SET, DEFAULT_SUBTITLES_ADAPTATION_SET, SEGMENTS_COUNT));
+    verifySampleResults(buildDefaultSampleResults(manifest));
   }
 
   private void setupAdaptationSets(String mediaAdaptationSetId, String audioAdaptationSetId,
-      String subtitlesAdaptationSetId, int segmentsCount) {
-    setupAdaptationSet(MEDIA_TYPE_NAME, mediaAdaptationSetId, segmentsCount);
-    setupAdaptationSet(AUDIO_TYPE_NAME, audioAdaptationSetId, segmentsCount);
-    setupAdaptationSet(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetId, segmentsCount);
+      String subtitlesAdaptationSetId) {
+    setupAdaptationSet(VIDEO_TYPE_NAME, mediaAdaptationSetId);
+    setupAdaptationSet(AUDIO_TYPE_NAME, audioAdaptationSetId);
+    setupAdaptationSet(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetId);
   }
 
   private void setupUriSamplerManifest(URI uri, String manifest) {
@@ -55,9 +55,9 @@ public class DashSamplerTest extends VideoStreamingSamplerTest {
         .setupUriSampleResults(uri, buildBaseSampleResult(SAMPLER_NAME, uri, manifest));
   }
 
-  private void setupAdaptationSet(String mediaType, String adaptationSetId, int segmentsCount) {
+  private void setupAdaptationSet(String mediaType, String adaptationSetId) {
     setupAdaptationSetInitializationUri(mediaType, adaptationSetId);
-    for (int i = 1; i <= segmentsCount; i++) {
+    for (int i = 1; i <= SEGMENTS_COUNT; i++) {
       URI uri = buildSegmentUri(mediaType, adaptationSetId, i);
       uriSampler.setupUriSampleResults(uri, buildNamedSampleResult(mediaType, uri));
     }
@@ -76,7 +76,7 @@ public class DashSamplerTest extends VideoStreamingSamplerTest {
     return URI.create(String.format("%s/%s/%s/", BASE_URI, type, adaptationSetId));
   }
 
-  private URI buildSegmentUri(String mediaType, String adaptationSetId, int sequenceNumber) {
+  private URI buildSegmentUri(String mediaType, String adaptationSetId, long sequenceNumber) {
     return buildAdaptationSetBaseUri(mediaType, adaptationSetId)
         .resolve(String.format("%06d.m4s", sequenceNumber));
   }
@@ -87,64 +87,52 @@ public class DashSamplerTest extends VideoStreamingSamplerTest {
     return result;
   }
 
-  private List<SampleResult> buildExpectedSampleResults(String manifest,
-      String mediaAdaptationSetId, String audioAdaptationSetId, String subtitlesAdaptationSetId,
-      int segmentsCount) {
-    return buildExpectedSampleResults(manifest, mediaAdaptationSetId, audioAdaptationSetId,
-        subtitlesAdaptationSetId, segmentsCount, this::buildInitSampleResult,
-        this::buildSegmentSampleResult);
+  private SampleResult[] buildDefaultSampleResults(String manifest) {
+    long videoSegmentNumber = 1;
+    long audioSegmentNumber = 1;
+    return new SampleResult[]{buildManifestResult(manifest),
+        buildInitResult(VIDEO_TYPE_NAME, DEFAULT_VIDEO_ADAPTATION_SET),
+        buildVideoSegmentResult(DEFAULT_VIDEO_ADAPTATION_SET, videoSegmentNumber++),
+        buildInitResult(AUDIO_TYPE_NAME, DEFAULT_AUDIO_ADAPTATION_SET),
+        buildAudioSegmentResult(DEFAULT_AUDIO_ADAPTATION_SET, audioSegmentNumber++),
+        buildInitResult(SUBTITLES_TYPE_NAME, DEFAULT_SUBTITLES_ADAPTATION_SET),
+        buildSubtitlesSegmentResult(DEFAULT_SUBTITLES_ADAPTATION_SET, 1),
+        buildVideoSegmentResult(DEFAULT_VIDEO_ADAPTATION_SET, videoSegmentNumber),
+        buildAudioSegmentResult(DEFAULT_AUDIO_ADAPTATION_SET, audioSegmentNumber)};
   }
 
-  private List<SampleResult> buildExpectedSampleResults(String manifest,
-      String mediaAdaptationSetId, String audioAdaptationSetId, String subtitlesAdaptationSetId,
-      int segmentsCount, BiFunction<String, String, SampleResult> initSampleResultBuilder,
-      SegmentSampleResultBuilder segmentSampleResultBuilder) {
-    List<SampleResult> ret = new ArrayList<>();
-    ret.add(buildBaseSampleResult(MANIFEST_NAME, MANIFEST_URI, manifest));
-    addInitAndFirstSegmentSampleResults(MEDIA_TYPE_NAME, mediaAdaptationSetId, ret,
-        initSampleResultBuilder, segmentSampleResultBuilder);
-    addInitAndFirstSegmentSampleResults(AUDIO_TYPE_NAME, audioAdaptationSetId, ret,
-        initSampleResultBuilder, segmentSampleResultBuilder);
-    addInitAndFirstSegmentSampleResults(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetId, ret,
-        initSampleResultBuilder, segmentSampleResultBuilder);
-    for (int i = 2; i <= segmentsCount; i++) {
-      ret.add(segmentSampleResultBuilder.accept(MEDIA_TYPE_NAME, mediaAdaptationSetId, i));
-      ret.add(segmentSampleResultBuilder.accept(AUDIO_TYPE_NAME, audioAdaptationSetId, i));
-      ret.add(segmentSampleResultBuilder.accept(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetId, i));
-    }
-    return ret;
+  private HTTPSampleResult buildManifestResult(String manifest) {
+    return buildBaseSampleResult(MANIFEST_NAME, MANIFEST_URI, manifest);
   }
 
-  private interface SegmentSampleResultBuilder {
-
-    SampleResult accept(String mediaType, String adaptationSetId, int sequenceNumber);
-
-  }
-
-  private void addInitAndFirstSegmentSampleResults(String mediaType, String mediaAdaptationSetId,
-      List<SampleResult> ret, BiFunction<String, String, SampleResult> initSampleResultBuilder,
-      SegmentSampleResultBuilder segmentSampleResultBuilder) {
-    ret.add(initSampleResultBuilder.apply(mediaType, mediaAdaptationSetId));
-    ret.add(segmentSampleResultBuilder.accept(mediaType, mediaAdaptationSetId, 1));
-  }
-
-  private HTTPSampleResult buildInitSampleResult(String type, String adaptationSetId) {
+  private HTTPSampleResult buildInitResult(String type, String adaptationSetId) {
     return buildNamedSampleResult(buildInitSampleName(type),
         buildInitializationUri(type, adaptationSetId));
   }
 
   private String buildInitSampleName(String type) {
-    return "HLS - Init " + type;
+    return buildSegmentName(type + " init");
+  }
+
+  private HTTPSampleResult buildVideoSegmentResult(String adaptationSetId, long segmentNumber) {
+    return buildSegmentSampleResult(VIDEO_TYPE_NAME, adaptationSetId, segmentNumber,
+        VIDEO_DURATION_SECONDS);
   }
 
   private HTTPSampleResult buildSegmentSampleResult(String type, String adaptationSetId,
-      int sequenceNumber) {
-    return buildNamedSampleResult(buildSegmentSampleName(type),
-        buildSegmentUri(type, adaptationSetId, sequenceNumber));
+      long sequenceNumber, double duration) {
+    return addDurationHeader(buildNamedSampleResult(buildSegmentName(type),
+        buildSegmentUri(type, adaptationSetId, sequenceNumber)), duration);
   }
 
-  private String buildSegmentSampleName(String type) {
-    return String.format("HLS - %s segment", type);
+  private HTTPSampleResult buildAudioSegmentResult(String adaptationSetId, long segmentNumber) {
+    return buildSegmentSampleResult(AUDIO_TYPE_NAME, adaptationSetId, segmentNumber,
+        AUDIO_DURATION_SECONDS);
+  }
+
+  private HTTPSampleResult buildSubtitlesSegmentResult(String adaptationSetId, int segmentNumber) {
+    return buildSegmentSampleResult(SUBTITLES_TYPE_NAME, adaptationSetId, segmentNumber,
+        SUBTITLES_DURATION_SECONDS);
   }
 
   @Test
@@ -157,15 +145,24 @@ public class DashSamplerTest extends VideoStreamingSamplerTest {
 
     String audioAdaptationSetId = "minBandwidthAudioSpanish";
     String subtitlesAdaptationSetId = "minBandwidthSubtitlesFrench";
-    setupAdaptationSets(DEFAULT_MEDIA_ADAPTATION_SET, audioAdaptationSetId,
-        subtitlesAdaptationSetId, SEGMENTS_COUNT);
+    setupAdaptationSets(DEFAULT_VIDEO_ADAPTATION_SET, audioAdaptationSetId,
+        subtitlesAdaptationSetId);
 
-    setPlaySeconds(MEDIA_SEGMENT_DURATION);
+    setPlaySeconds(PLAYBACK_TIME_SECONDS);
     sampler.sample();
 
+    long videoSegmentNumber = 1;
+    long audioSegmentNumber = 1;
     verifySampleResults(
-        buildExpectedSampleResults(manifest, DEFAULT_MEDIA_ADAPTATION_SET, audioAdaptationSetId,
-            subtitlesAdaptationSetId, SEGMENTS_COUNT));
+        buildManifestResult(manifest),
+        buildInitResult(VIDEO_TYPE_NAME, DEFAULT_VIDEO_ADAPTATION_SET),
+        buildVideoSegmentResult(DEFAULT_VIDEO_ADAPTATION_SET, videoSegmentNumber++),
+        buildInitResult(AUDIO_TYPE_NAME, audioAdaptationSetId),
+        buildAudioSegmentResult(audioAdaptationSetId, audioSegmentNumber++),
+        buildInitResult(SUBTITLES_TYPE_NAME, subtitlesAdaptationSetId),
+        buildSubtitlesSegmentResult(subtitlesAdaptationSetId, 1),
+        buildVideoSegmentResult(DEFAULT_VIDEO_ADAPTATION_SET, videoSegmentNumber),
+        buildAudioSegmentResult(audioAdaptationSetId, audioSegmentNumber));
   }
 
   private void setUpLanguageSelectors(String subtitleLanguage, String audioLanguage) {
@@ -180,14 +177,13 @@ public class DashSamplerTest extends VideoStreamingSamplerTest {
     String manifest = getResource(DEFAULT_MANIFEST);
     setupUriSamplerManifest(MANIFEST_URI, manifest);
 
-    setupAdaptationSets(DEFAULT_MEDIA_ADAPTATION_SET, DEFAULT_AUDIO_ADAPTATION_SET,
-        DEFAULT_SUBTITLES_ADAPTATION_SET, SEGMENTS_COUNT);
+    setupAdaptationSets(DEFAULT_VIDEO_ADAPTATION_SET, DEFAULT_AUDIO_ADAPTATION_SET,
+        DEFAULT_SUBTITLES_ADAPTATION_SET);
+    setPlaySeconds(PLAYBACK_TIME_SECONDS);
 
-    setPlaySeconds(MEDIA_SEGMENT_DURATION);
     sampler.sample();
 
-    verifySampleResults(buildExpectedSampleResults(manifest, DEFAULT_MEDIA_ADAPTATION_SET,
-        DEFAULT_AUDIO_ADAPTATION_SET, DEFAULT_SUBTITLES_ADAPTATION_SET, SEGMENTS_COUNT));
+    verifySampleResults(buildDefaultSampleResults(manifest));
   }
 
   @Test
@@ -198,25 +194,37 @@ public class DashSamplerTest extends VideoStreamingSamplerTest {
     setupUriSamplerManifest(MANIFEST_URI, manifest);
 
     String videoAdaptationSetId = "minBandwidthMinResolutionVideoEnglish";
-    setupLiveStreamingAdaptationSet(MEDIA_TYPE_NAME, videoAdaptationSetId, SEGMENTS_COUNT);
-    setupLiveStreamingAdaptationSet(AUDIO_TYPE_NAME, DEFAULT_AUDIO_ADAPTATION_SET, SEGMENTS_COUNT);
-    setupLiveStreamingAdaptationSet(SUBTITLES_TYPE_NAME, DEFAULT_SUBTITLES_ADAPTATION_SET,
-        SEGMENTS_COUNT);
+    setupLiveStreamingAdaptationSet(VIDEO_TYPE_NAME, videoAdaptationSetId);
+    setupLiveStreamingAdaptationSet(AUDIO_TYPE_NAME, DEFAULT_AUDIO_ADAPTATION_SET);
+    setupLiveStreamingAdaptationSet(SUBTITLES_TYPE_NAME, DEFAULT_SUBTITLES_ADAPTATION_SET);
 
-    setPlaySeconds(MEDIA_SEGMENT_DURATION);
+    setPlaySeconds(PLAYBACK_TIME_SECONDS);
     sampler.sample();
 
+    long videoSegmentNumber = 1;
+    long audioSegmentNumber = 1;
     verifySampleResults(
-        buildExpectedSampleResults(manifest, videoAdaptationSetId, DEFAULT_AUDIO_ADAPTATION_SET,
-            DEFAULT_SUBTITLES_ADAPTATION_SET, SEGMENTS_COUNT,
-            this::buildLiveStreamingInitSampleResult, this::buildLiveStreamingSegmentSampleResult));
+        buildManifestResult(manifest),
+        buildLiveStreamingInitSampleResult(VIDEO_TYPE_NAME, videoAdaptationSetId),
+        buildLiveStreamingSegmentSampleResult(VIDEO_TYPE_NAME, videoAdaptationSetId,
+            videoSegmentNumber++, VIDEO_DURATION_SECONDS),
+        buildLiveStreamingInitSampleResult(AUDIO_TYPE_NAME, DEFAULT_AUDIO_ADAPTATION_SET),
+        // we use video duration instead of audio duration to simplify building uris in setup which are time based
+        buildLiveStreamingSegmentSampleResult(AUDIO_TYPE_NAME, DEFAULT_AUDIO_ADAPTATION_SET,
+            audioSegmentNumber++, VIDEO_DURATION_SECONDS),
+        buildLiveStreamingInitSampleResult(SUBTITLES_TYPE_NAME, DEFAULT_SUBTITLES_ADAPTATION_SET),
+        buildLiveStreamingSegmentSampleResult(SUBTITLES_TYPE_NAME, DEFAULT_SUBTITLES_ADAPTATION_SET,
+            1, SUBTITLES_DURATION_SECONDS),
+        buildLiveStreamingSegmentSampleResult(VIDEO_TYPE_NAME, videoAdaptationSetId,
+            videoSegmentNumber, VIDEO_DURATION_SECONDS),
+        buildLiveStreamingSegmentSampleResult(AUDIO_TYPE_NAME, DEFAULT_AUDIO_ADAPTATION_SET,
+            audioSegmentNumber, VIDEO_DURATION_SECONDS));
   }
 
-  private void setupLiveStreamingAdaptationSet(String type, String adaptationSetId,
-      int segmentsCount) {
+  private void setupLiveStreamingAdaptationSet(String type, String adaptationSetId) {
     URI uri = buildLiveStreamingInitializationUri(type, adaptationSetId);
     uriSampler.setupUriSampleResults(uri, buildNamedSampleResult(SAMPLER_NAME, uri));
-    for (int i = 1; i <= segmentsCount; i++) {
+    for (int i = 1; i <= SEGMENTS_COUNT; i++) {
       URI mockedURI = buildLiveStreamingSegmentUri(type, adaptationSetId, i);
       uriSampler.setupUriSampleResults(mockedURI, (buildNamedSampleResult(type, mockedURI)));
     }
@@ -227,10 +235,10 @@ public class DashSamplerTest extends VideoStreamingSamplerTest {
   }
 
   private URI buildLiveStreamingSegmentUri(String type, String adaptationSetId,
-      int sequenceNumber) {
+      long sequenceNumber) {
     return URI.create(String
-        .format("%s/%s/%s-%s.dash", BASE_URI, type, adaptationSetId,
-            String.format("%s000", sequenceNumber)));
+        .format("%s/%s/%s-%d.dash", BASE_URI, type, adaptationSetId,
+            (long) ((sequenceNumber - 1) * VIDEO_DURATION_SECONDS * 1000)));
   }
 
   private HTTPSampleResult buildLiveStreamingInitSampleResult(String type, String adaptationSetId) {
@@ -239,51 +247,9 @@ public class DashSamplerTest extends VideoStreamingSamplerTest {
   }
 
   private HTTPSampleResult buildLiveStreamingSegmentSampleResult(String type,
-      String adaptationSetId, int sequenceNumber) {
-    return buildNamedSampleResult(buildSegmentSampleName(type),
-        buildLiveStreamingSegmentUri(type, adaptationSetId, sequenceNumber));
-  }
-
-  @Test
-  public void shouldParseNaturalNumberWhenNoExtraFormat() throws IOException {
-    String manifest = getResource("manifestWithoutNumberFormatting.mpd");
-    setupUriSamplerManifest(MANIFEST_URI, manifest);
-
-    setupAdaptationSetWithoutFormatting(MEDIA_TYPE_NAME, DEFAULT_MEDIA_ADAPTATION_SET,
-        SEGMENTS_COUNT);
-    setupAdaptationSetWithoutFormatting(AUDIO_TYPE_NAME, DEFAULT_AUDIO_ADAPTATION_SET,
-        SEGMENTS_COUNT);
-    setupAdaptationSetWithoutFormatting(SUBTITLES_TYPE_NAME, DEFAULT_SUBTITLES_ADAPTATION_SET,
-        SEGMENTS_COUNT);
-
-    setPlaySeconds(MEDIA_SEGMENT_DURATION);
-    sampler.sample();
-
-    verifySampleResults(
-        buildExpectedSampleResults(manifest, DEFAULT_MEDIA_ADAPTATION_SET,
-            DEFAULT_AUDIO_ADAPTATION_SET, DEFAULT_SUBTITLES_ADAPTATION_SET, SEGMENTS_COUNT,
-            this::buildInitSampleResult, this::buildSegmentSampleResultWithoutFormat));
-  }
-
-  private void setupAdaptationSetWithoutFormatting(String mediaType, String adaptationSetId,
-      int segmentsCount) {
-    setupAdaptationSetInitializationUri(mediaType, adaptationSetId);
-    for (int i = 1; i <= segmentsCount; i++) {
-      URI uri = buildSegmentUriWithoutFormat(mediaType, adaptationSetId, i);
-      uriSampler.setupUriSampleResults(uri, buildNamedSampleResult(mediaType, uri));
-    }
-  }
-
-  private URI buildSegmentUriWithoutFormat(String type, String adaptationSetId,
-      int sequenceNumber) {
-    return buildAdaptationSetBaseUri(type, adaptationSetId)
-        .resolve(String.format("%d.m4s", sequenceNumber));
-  }
-
-  private HTTPSampleResult buildSegmentSampleResultWithoutFormat(String type,
-      String adaptationSetId, int sequenceNumber) {
-    return buildNamedSampleResult(buildSegmentSampleName(type),
-        buildSegmentUriWithoutFormat(type, adaptationSetId, sequenceNumber));
+      String adaptationSetId, long sequenceNumber, double duration) {
+    return addDurationHeader(buildNamedSampleResult(buildSegmentName(type),
+        buildLiveStreamingSegmentUri(type, adaptationSetId, sequenceNumber)), duration);
   }
 
 }

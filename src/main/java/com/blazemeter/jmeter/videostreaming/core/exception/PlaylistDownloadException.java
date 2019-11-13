@@ -1,4 +1,4 @@
-package com.blazemeter.jmeter.videostreaming.core;
+package com.blazemeter.jmeter.videostreaming.core.exception;
 
 import java.net.URI;
 

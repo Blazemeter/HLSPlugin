@@ -3,8 +3,8 @@
 #EXT-X-TARGETDURATION:10
 #EXT-X-VERSION:3
 #EXTINF:5.00,
-001.ts
+/media/001.ts
 #EXTINF:5.00,
-002.ts
+/media/002.ts
 #EXTINF:5.00,
-003.ts
+/media/003.ts
