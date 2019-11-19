@@ -45,7 +45,7 @@
         <dependency>
             <groupId>com.github.blazemeter</groupId>
             <artifactId>mpd-tools</artifactId>
-            <version>master</version>
+            <version>release-0.8-jdk8</version>
         </dependency>
 
         <dependency>
