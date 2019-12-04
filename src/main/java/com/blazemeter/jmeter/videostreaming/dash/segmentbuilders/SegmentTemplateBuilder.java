@@ -62,6 +62,11 @@ public class SegmentTemplateBuilder extends MultiSegmentBuilder<SegmentTemplate>
   }
 
   @Override
+  protected Supplier<Long> getPresentationTimeOffsetSupplier() {
+    return segmentInfo::getPresentationTimeOffset;
+  }
+
+  @Override
   protected Function<Long, URI> getUrlSolver(long segmentNumber) {
     return t -> new UrlTemplateSolver(representation, segmentNumber, t)
         .solveUrlTemplate(segmentInfo.getMedia());

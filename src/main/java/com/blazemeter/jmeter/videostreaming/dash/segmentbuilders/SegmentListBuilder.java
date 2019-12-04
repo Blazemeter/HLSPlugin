@@ -61,6 +61,11 @@ public class SegmentListBuilder extends MultiSegmentBuilder<SegmentList> {
   }
 
   @Override
+  protected Supplier<Long> getPresentationTimeOffsetSupplier() {
+    return segmentInfo::getPresentationTimeOffset;
+  }
+
+  @Override
   protected Function<Long, URI> getUrlSolver(long segmentNumber) {
     URI segmentUrl = URI
         .create(segmentInfo.getSegmentURLs().get(getSegmentIndex(segmentNumber)).getMedia());

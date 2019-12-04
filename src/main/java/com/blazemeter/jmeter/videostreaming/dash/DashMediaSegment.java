@@ -3,6 +3,7 @@ package com.blazemeter.jmeter.videostreaming.dash;
 import com.blazemeter.jmeter.videostreaming.core.MediaSegment;
 import java.net.URI;
 import java.time.Duration;
+import java.time.Instant;
 
 public class DashMediaSegment extends MediaSegment {
 
@@ -20,8 +21,12 @@ public class DashMediaSegment extends MediaSegment {
     return period;
   }
 
-  public Duration getStartTime() {
-    return startTime;
+  public Duration getEndTime() {
+    return startTime.plus(duration);
+  }
+
+  public Instant getStartAvailabilityTime() {
+    return period.getAvailabilityStartTime().plus(getEndTime());
   }
 
 }

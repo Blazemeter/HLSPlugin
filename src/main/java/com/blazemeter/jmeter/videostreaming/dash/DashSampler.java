@@ -13,6 +13,8 @@ import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
 import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistDownloadException;
 import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistParsingException;
 import java.net.URI;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -58,8 +60,13 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
     }
     complementTracks.add(subtitlesPlayback);
     try {
+      /*
+      we use this variable to avoid requesting manifest before even trying downloading segments due
+      to potential low min update period and time taken downloading and processing manifest
+       */
+      boolean initialLoop = true;
       while (!mediaPlayback.hasEnded()) {
-        if (mediaPlayback.needsManifestUpdate()) {
+        if (mediaPlayback.needsManifestUpdate() && !initialLoop) {
           long awaitMillis = manifest.getReloadTimeMillis(timeMachine.now());
           if (awaitMillis > 0) {
             timeMachine.awaitMillis(awaitMillis);
@@ -71,10 +78,10 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
             complementTrack.updateManifest(manifest);
           }
         }
+        initialLoop = false;
 
         while (mediaPlayback.shouldAdvancePeriod()) {
           MediaPeriod period = mediaPlayback.nextPeriod();
-          mediaPlayback.updatePeriod(period);
           for (MediaPlayback complementTrack : complementTracks) {
             complementTrack.updatePeriod(period);
           }
@@ -160,7 +167,7 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
       }
     }
 
-    private void downloadNextSegment() {
+    private void downloadNextSegment() throws InterruptedException {
       if (!segmentBuilder.hasNext()) {
         return;
       }
@@ -170,9 +177,18 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
         initializedMedia = true;
       }
       DashMediaSegment segment = segmentBuilder.next();
+      awaitSegmentAvailable(segment);
       downloadSegment(segment, type);
       lastSegment = segment;
       consumedSeconds += segment.getDurationSeconds();
+    }
+
+    private void awaitSegmentAvailable(DashMediaSegment segment) throws InterruptedException {
+      Instant availabilityTime = segment.getStartAvailabilityTime();
+      Instant now = timeMachine.now();
+      if (availabilityTime.isAfter(now)) {
+        timeMachine.awaitMillis(Duration.between(availabilityTime, now).toMillis());
+      }
     }
 
     private void downloadInitializationSegment() {
@@ -184,7 +200,7 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
       sampleResultProcessor.accept(buildInitSegmentName(type), result);
     }
 
-    private void downloadUntilTimeSecond(double untilTimeSecond) {
+    private void downloadUntilTimeSecond(double untilTimeSecond) throws InterruptedException {
       if (segmentBuilder == null) {
         return;
       }

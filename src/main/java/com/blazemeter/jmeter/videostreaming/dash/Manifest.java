@@ -4,6 +4,7 @@ import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistParsingExcept
 import io.lindstrom.mpd.MPDParser;
 import io.lindstrom.mpd.data.BaseURL;
 import io.lindstrom.mpd.data.MPD;
+import io.lindstrom.mpd.data.Period;
 import io.lindstrom.mpd.data.PresentationType;
 import java.net.URI;
 import java.time.Duration;
@@ -29,6 +30,11 @@ public class Manifest {
     List<MediaPeriod> ret = new ArrayList<>();
     MediaPeriod previousPeriod = null;
     for (int i = 0; i < mpd.getPeriods().size(); i++) {
+      Period period = mpd.getPeriods().get(i);
+      if (period.getHref() != null) {
+        throw new UnsupportedOperationException(
+            "External periods references are not supported yet.");
+      }
       previousPeriod = MediaPeriod.builder()
           .withPeriod(mpd.getPeriods().get(i))
           .withManifest(this)
@@ -87,4 +93,9 @@ public class Manifest {
     return Duration.between(mpd.getAvailabilityStartTime(), mpd.getPublishTime())
         .minus(bufferTime);
   }
+
+  public Instant getAvailabilityStartTime() {
+    return mpd.getAvailabilityStartTime().toInstant();
+  }
+
 }

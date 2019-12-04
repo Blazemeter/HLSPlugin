@@ -9,6 +9,7 @@ import io.lindstrom.mpd.data.SegmentBase;
 import io.lindstrom.mpd.data.SegmentList;
 import io.lindstrom.mpd.data.SegmentTemplate;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -123,6 +124,10 @@ public class MediaPeriod {
 
   public static Builder builder() {
     return new Builder();
+  }
+
+  public Instant getAvailabilityStartTime() {
+    return manifest.getAvailabilityStartTime().plus(startTime);
   }
 
   public static class Builder {
