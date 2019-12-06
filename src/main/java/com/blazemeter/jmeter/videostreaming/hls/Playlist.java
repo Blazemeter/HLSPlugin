@@ -7,6 +7,7 @@ import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
 import com.blazemeter.jmeter.videostreaming.core.MediaSegment;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamSelector;
 import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistParsingException;
+import com.comcast.viper.hlsparserj.AbstractPlaylist;
 import com.comcast.viper.hlsparserj.IPlaylist;
 import com.comcast.viper.hlsparserj.MasterPlaylist;
 import com.comcast.viper.hlsparserj.MediaPlaylist;
@@ -47,10 +48,13 @@ public class Playlist {
   public static Playlist fromUriAndBody(URI uri, String body, Instant timestamp)
       throws PlaylistParsingException {
     try {
-      return new Playlist(uri, body, timestamp,
-          PlaylistFactory.parsePlaylist(TWELVE, body.replace("\r", "")));
+      AbstractPlaylist p = PlaylistFactory.parsePlaylist(TWELVE, body.replace("\r", ""));
+      if (p.getTags().isEmpty()) {
+        throw new PlaylistParsingException(uri, "No playlist tags found");
+      }
+      return new Playlist(uri, body, timestamp, p);
     } catch (Exception e) {
-      throw new PlaylistParsingException(e, uri);
+      throw new PlaylistParsingException(uri, e);
     }
   }
 

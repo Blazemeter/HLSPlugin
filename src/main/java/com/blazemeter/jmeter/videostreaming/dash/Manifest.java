@@ -52,7 +52,7 @@ public class Manifest {
     try {
       return new Manifest(uri, new MPDParser().parse(body), timestamp);
     } catch (Exception e) {
-      throw new PlaylistParsingException(e, uri);
+      throw new PlaylistParsingException(uri, e);
     }
   }
 
