@@ -49,7 +49,8 @@ public abstract class MultiSegmentBuilder<T> extends BaseSegmentBuilder<T> {
     if (lastSegment == null) {
       if (manifest.isDynamic()) {
         Duration reproductionStart = manifest.getBufferStartTime()
-            .minus(period.getStartTime());
+            .minus(period.getStartTime())
+            .plus(scaledTimeToDuration(startTime));
         advanceUntilTime(reproductionStart, true);
       }
     } else if (lastSegment.getPeriod().equals(period)) {
