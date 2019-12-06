@@ -9,6 +9,7 @@ import io.lindstrom.mpd.data.PresentationType;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -95,7 +96,8 @@ public class Manifest {
   }
 
   public Instant getAvailabilityStartTime() {
-    return mpd.getAvailabilityStartTime().toInstant();
+    OffsetDateTime time = mpd.getAvailabilityStartTime();
+    return time != null ? time.toInstant() : Instant.MIN;
   }
 
 }
