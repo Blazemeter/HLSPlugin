@@ -2,7 +2,9 @@
 
 The HLS protocol provides a reliable, cost-effective means of delivering continuous and long-form video over the Internet. It allows a receiver to adapt the bitrate of the media to the current network conditions, in order to maintain uninterrupted playback at the best possible quality.
 
-For more information related to HLS, please refer to the  [wikipedia page](https://en.wikipedia.org/wiki/HTTP_Live_Streaming) or to the [RFC](https://tools.ietf.org/html/rfc8216).
+Likewise, the plugin recognizes MPEG-DASH links automatically, without having to point it out in the interface, and supports the downloads of manifests and segments with a predefined resolution and bandwidth.
+ 
+For more information related to HLS, please refer to the  [wikipedia page](https://en.wikipedia.org/wiki/HTTP_Live_Streaming) or to the [RFC](https://tools.ietf.org/html/rfc8216) and, for MPEG DASH, please refer to the [wikipedia page](https://en.wikipedia.org/wiki/Dynamic_Adaptive_Streaming_over_HTTP) or to the [ISO](https://standards.iso.org/ittf/PubliclyAvailableStandards/c065274_ISO_IEC_23009-1_2014.zip).
 
 Currently the project uses the [HLSParserJ](https://github.com/Comcast/hlsparserj) library to parse the playlists.
 
@@ -14,11 +16,19 @@ Currently the project uses the [HLSParserJ](https://github.com/Comcast/hlsparser
 - The encoder creates a Master Playlist File with the URLs of each Media Playlist.
 To play, the client first downloads the Master Playlist, and then the Media Playlists. Then, they play each Media Segment declared within the chosen Media Playlist. The client can reload the Playlist to discover any added segments. This is needed in cases of live events, for example.
 
+#### In a Dynamic Adaptive Streaming over HTTP Live Streaming process:
+
+- The encoder creates a Manifest that contains all the Periods, among Base URLs and the Adaptation Sets to do the filtering, based on resolution, bandwidth and language selector.
+- The plugin is coded so it will download the segments, for each Adaptation Set selected, consecutively, instead of doing it in parallel.
+- The plugin will update the manifest based on the ```timeShiftBufferDepth``` attribute of MPD.
+
 ## How the plugin works
 
 ### Concept
 
 This plugin solves the HLS complexity internally. It gets the master playlist file, chooses one variant and gets its media playlist file, the segments, etc. The plugin simulates users consuming media over HLS supporting different situations: stream type, playback time, network bandwidth and device resolution.
+
+Same occurs for MPEG Dash. It gets the Manifest file from the url, chooses an Adaptive set for Media, Audio and Subtitles based on availability, stream type, playback time, network bandwidth and device resolution.
 
 Here is what the HLS Sampler looks like:
 
@@ -79,7 +89,11 @@ You can set listeners to evaluate the results of your tests. The View Results Tr
 
 ![](docs/sample-results.png)
 
-The sampler will automatically add an `X-MEDIA-SEGMENT-DURATION` HTTP response header which contains the media segment duration in seconds (in decimal representation). This value can later be used to perform analysis comparing it to the time taken in the associated sample. 
+The sampler will automatically add an `X-MEDIA-SEGMENT-DURATION` HTTP response header which contains the media segment duration in seconds (in decimal representation). This value can later be used to perform analysis comparing it to the time taken in the associated sample.
+
+![](docs/sample-mpeg-dash-results.png)
+
+In the case of MPEG DASH, the View Results Tree Listener displays the resultant samples with the associated type (manifest, inits and segments for media, audio and subtitles) to easily identify them as well.
 
 ## Assertions and Post Processors
 
