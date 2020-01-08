@@ -2,11 +2,11 @@
 
 The HLS protocol provides a reliable, cost-effective means of delivering continuous and long-form video over the Internet. It allows a receiver to adapt the bitrate of the media to the current network conditions, in order to maintain uninterrupted playback at the best possible quality.
 
-Likewise, the plugin recognizes MPEG-DASH links automatically, without having to point it out in the interface, and supports the downloads of manifests and segments with a predefined resolution and bandwidth.
+Likewise, trying to provide a wider spectrum of protocols to support videos streaming and video on demand, the plugin also recognizes MPEG-DASH links automatically, without having to point it out in the interface, supporting the downloads of manifests and segments with a predefined resolution and bandwidth.
  
 For more information related to HLS, please refer to the  [wikipedia page](https://en.wikipedia.org/wiki/HTTP_Live_Streaming) or to the [RFC](https://tools.ietf.org/html/rfc8216) and, for MPEG DASH, please refer to the [wikipedia page](https://en.wikipedia.org/wiki/Dynamic_Adaptive_Streaming_over_HTTP) or to the [ISO](https://standards.iso.org/ittf/PubliclyAvailableStandards/c065274_ISO_IEC_23009-1_2014.zip).
 
-Currently the project uses the [HLSParserJ](https://github.com/Comcast/hlsparserj) library to parse the playlists.
+Currently the project uses the [HLSParserJ](https://github.com/Comcast/hlsparserj) library to parse the HLS playlists and a [fork]((https://github.com/Blazemeter/mpd-tools)) of [MPD-Tools](https://github.com/carlanton/mpd-tools) for MPEG-DASH manifest and segments.
 
 #### In a HTTP Live Streaming process:
 
@@ -30,7 +30,8 @@ This plugin solves the HLS complexity internally. It gets the master playlist fi
 
 Same occurs for MPEG Dash. It gets the Manifest file from the url, chooses an Adaptive set for Media, Audio and Subtitles based on availability, stream type, playback time, network bandwidth and device resolution.
 
-Here is what the HLS Sampler looks like:
+
+Here is what the Sampler looks like:
 
 ![](docs/sampler.png)
 
@@ -38,7 +39,7 @@ Here is what the HLS Sampler looks like:
 
 - Install the HLS plugin from the Plugins Manager
 - Create a Thread Group.
-- Add the HLS Sampler Add -> Sampler -> bzm - HLS Sampler
+- Add the HLS Sampler Add -> Sampler -> bzm - Video Streaming Sampler
 
 ![](docs/add-sampler.png)
 
