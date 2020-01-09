@@ -6,9 +6,11 @@ Likewise, trying to provide a wider spectrum of protocols to support videos stre
  
 For more information related to HLS, please refer to the  [wikipedia page](https://en.wikipedia.org/wiki/HTTP_Live_Streaming) or to the [RFC](https://tools.ietf.org/html/rfc8216) and, for MPEG DASH, please refer to the [wikipedia page](https://en.wikipedia.org/wiki/Dynamic_Adaptive_Streaming_over_HTTP) or to the [ISO](https://standards.iso.org/ittf/PubliclyAvailableStandards/c065274_ISO_IEC_23009-1_2014.zip).
 
-In future releases, the plugin will be named "Video Streaming Plugin" instead of "HLS Plugin", following the same desire to cover a wider range of protocols.
-
 Currently the project uses the [HLSParserJ](https://github.com/Comcast/hlsparserj) library to parse the HLS playlists and a [fork](https://github.com/Blazemeter/mpd-tools) of [MPD-Tools](https://github.com/carlanton/mpd-tools) for MPEG-DASH manifest and segments.
+
+**NOTICE**
+
+In future releases, the plugin will be named "Video Streaming Plugin" instead of "HLS Plugin", following the same desire to cover a wider range of protocols.
 
 #### In a HTTP Live Streaming process:
 
@@ -41,7 +43,7 @@ Here is what the Sampler looks like:
 
 - Install the HLS plugin from the Plugins Manager
 - Create a Thread Group.
-- Add the HLS Sampler Add -> Sampler -> bzm - Video Streaming Sampler
+- Add the HLS Sampler Add -> Sampler -> bzm - Streaming Sampler
 
 ![](docs/add-sampler.png)
 
