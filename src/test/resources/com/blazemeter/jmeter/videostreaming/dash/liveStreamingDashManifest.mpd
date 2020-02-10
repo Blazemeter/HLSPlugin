@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MPD xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="urn:mpeg:dash:schema:mpd:2011"
+  xsi:schemaLocation="urn:mpeg:dash:schema:mpd:2011 http://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD.xsd"
+  type="static" mediaPresentationDuration="PT12M14S" maxSegmentDuration="PT1M" minBufferTime="PT10S"
+  profiles="urn:mpeg:dash:profile:isoff-live:2011">
+  <Period id="1" duration="PT12M14S">
+    <AdaptationSet id="1" group="1" contentType="audio" lang="eng" mimeType="audio/dash"
+      minBandwidth="1" maxBandwidth="5" segmentAlignment="true" audioSamplingRate="48000"
+      codecs="dasha.40.2" startWithSAP="1">
+      <BaseURL>audio/</BaseURL>
+      <SegmentTemplate timescale="1000" initialization="$RepresentationID$.dash"
+        media="$RepresentationID$-$Time$.dash">
+        <SegmentTimeline>
+          <S t="0" d="3000" r="3"/>
+          <S d="1000"/>
+          <S d="1000"/>
+          <S d="1000"/>
+          <S d="1000"/>
+          <S d="1000"/>
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="maxBandwidthAudioEnglish" bandwidth="9"></Representation>
+      <Representation id="minBandwidthAudioEnglish" bandwidth="1"></Representation>
+    </AdaptationSet>
+    <AdaptationSet id="2" group="3" contentType="text" lang="eng" mimeType="application/dash"
+      codecs="stpp.TTML.im1t" startWithSAP="1">
+      <BaseURL>subtitles/</BaseURL>
+      <SegmentTemplate timescale="1000" initialization="$RepresentationID$.dash"
+        media="$RepresentationID$-$Time$.dash">
+        <SegmentTimeline>
+          <S t="0" d="10000" r="6"/>
+          <S d="4321"/>
+          <S d="1234"/>
+          <S d="3123"/>
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="maxBandwidthSubtitlesEnglish" bandwidth="9"></Representation>
+      <Representation id="minBandwidthSubtitlesEnglish" bandwidth="1"></Representation>
+    </AdaptationSet>
+    <AdaptationSet id="3" group="2" contentType="video" lang="eng" mimeType="video/dash"
+      par="56:25" minBandwidth="401000" maxBandwidth="2203000" maxWidth="1680" maxHeight="750"
+      segmentAlignment="true" sar="1:1" startWithSAP="1">
+      <BaseURL>video/</BaseURL>
+      <SegmentTemplate timescale="1000" initialization="$RepresentationID$.dash"
+        media="$RepresentationID$-$Time$.dash">
+        <SegmentTimeline>
+          <S t="0" d="3000" r="6"/>
+          <S d="1234"/>
+          <S d="1234"/>
+          <S d="1234"/>
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="minBandwidthMinResolutionVideoEnglish" bandwidth="1" width="224"
+        height="100"
+        codecs="avc1.42C014" scanType="progressive"></Representation>
+      <Representation id="maxBandwidthMinResolutionVideoEnglish" bandwidth="9" width="448"
+        height="200"
+        codecs="avc1.42C016" scanType="progressive"></Representation>
+      <Representation id="minBandwidthMaxResolutionVideoEnglish" bandwidth="1" width="1680"
+        height="750"
+        codecs="avc1.640028" scanType="progressive"></Representation>
+      <Representation id="maxBandwidthMaxResolutionVideoEnglish" bandwidth="9" width="1680"
+        height="750"
+        codecs="avc1.640028" scanType="progressive"></Representation>
+    </AdaptationSet>
+    <AdaptationSet id="4" group="2" contentType="video" lang="spa" mimeType="video/dash"
+      par="56:25" minBandwidth="1117000" maxBandwidth="1939000" maxWidth="3360" maxHeight="1000"
+      segmentAlignment="true" sar="1:1"
+      frameRate="24" codecs="hvc1.1.6.H150.90" startWithSAP="1">
+      <BaseURL>video/</BaseURL>
+      <SegmentTemplate timescale="1000" initialization="$RepresentationID$.dash"
+        media="$RepresentationID$-$Time$.dash">
+        <SegmentTimeline>
+          <S t="0" d="3000" r="6"/>
+          <S d="1234"/>
+          <S d="1234"/>
+          <S d="1234"/>
+          <S d="1234"/>
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="maxBandwidthMaxResolutionVideoSpanish" bandwidth="9" width="1680"
+        height="750"
+        scanType="progressive"></Representation>
+      <Representation id="customBandwidthMaxResolutionVideoSpanish" bandwidth="5" width="1680"
+        height="750"
+        scanType="progressive"></Representation>
+      <Representation id="minBandwidthMinResolutionVideoSpanish" bandwidth="1" width="600"
+        height="700"
+        scanType="progressive"></Representation>
+    </AdaptationSet>
+    <AdaptationSet id="5" group="2" contentType="video" lang="fre" mimeType="video/dash"
+      par="240:107" minBandwidth="1" maxBandwidth="9" maxWidth="1920" maxHeight="856"
+      segmentAlignment="true" sar="1:1" startWithSAP="1">
+      <BaseURL>video/</BaseURL>
+      <SegmentTemplate timescale="1000" initialization="$RepresentationID$.dash"
+        media="$RepresentationID$-$Time$.dash">
+        <SegmentTimeline>
+          <S t="0" d="3000" r="6"/>
+          <S d="2000"/>
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="minBandwidthMinResolution" bandwidth="1" width="480" height="214"
+        codecs="av01.0.00M.08.0.110" scanType="progressive"></Representation>
+      <Representation id="maxBandwidthMinResolution" bandwidth="9" width="480" height="214"
+        codecs="av01.0.01M.08.0.110" scanType="progressive"></Representation>
+      <Representation id="maxBandwidthMaxResolution" bandwidth="9" width="1920" height="856"
+        codecs="av01.0.08M.08.0.110" scanType="progressive"></Representation>
+      <Representation id="minBandwidthMaxResolution" bandwidth="1" width="1920" height="856"
+        codecs="av01.0.08M.08.0.110" scanType="progressive"></Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>

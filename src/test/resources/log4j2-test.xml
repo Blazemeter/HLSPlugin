@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+  <Appenders>
+    <Console name="console">
+      <PatternLayout pattern="%d{HH:mm:ss} %-5p %logger{36}:%L - %msg%n"/>
+    </Console>
+  </Appenders>
+  <Loggers>
+    <Root level="INFO">
+      <AppenderRef ref="console"/>
+    </Root>
+    <Logger name="org.apache.jmeter.util" level="ERROR"/>
+  </Loggers>
+</Configuration>
