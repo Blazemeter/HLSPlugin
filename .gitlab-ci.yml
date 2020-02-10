@@ -1,4 +1,4 @@
-image: 836525813842.dkr.ecr.us-east-1.amazonaws.com/jmeter-plugins-build:3.1.1
+image: 941618104661.dkr.ecr.us-east-1.amazonaws.com/jmeter-plugins-build:3.2
 
 variables:
   MAVEN_OPTS: -Dmaven.repo.local=.m2/repository
