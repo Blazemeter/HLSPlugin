@@ -46,7 +46,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private final transient VideoStreamingHttpClient httpClient;
   private final transient TimeMachine timeMachine;
   private final transient SampleResultProcessor sampleResultProcessor;
-  private transient VideoStreamingSampler sampler;
+  private transient VideoStreamingSampler<?, ?> sampler;
 
   private transient String lastMasterUrl = null;
   private transient volatile boolean notifyFirstSampleAfterLoopRestart;
@@ -227,6 +227,11 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       }
     }
     return playSeconds;
+  }
+
+  @Override
+  public void testStarted() {
+    timeMachine.reset();
   }
 
 }

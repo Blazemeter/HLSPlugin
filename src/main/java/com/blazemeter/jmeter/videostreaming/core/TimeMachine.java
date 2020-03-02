@@ -10,6 +10,11 @@ public interface TimeMachine {
     private CountDownLatch countDownLatch = new CountDownLatch(1);
 
     @Override
+    public void reset() {
+      countDownLatch = new CountDownLatch(1);
+    }
+
+    @Override
     public void interrupt() {
       countDownLatch.countDown();
     }
@@ -24,6 +29,8 @@ public interface TimeMachine {
       return Instant.now();
     }
   };
+
+  void reset();
 
   void awaitMillis(long millis) throws InterruptedException;
 

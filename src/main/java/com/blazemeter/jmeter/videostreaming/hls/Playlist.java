@@ -23,7 +23,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -175,8 +174,7 @@ public class Playlist {
     long targetDuration = (mediaTargetDuration != null
         ? media.getTargetDuration().getDuration() : 0);
     long timeDiffMillis = downloadTimestamp.until(now, ChronoUnit.MILLIS);
-    long reloadPeriodMillis = TimeUnit.SECONDS.toMillis(Math
-        .round(targetDuration * targetDurationMultiplier));
+    long reloadPeriodMillis = Math.round(targetDuration * 1000 * targetDurationMultiplier);
     return Math.max(0, reloadPeriodMillis - timeDiffMillis);
   }
 

@@ -60,6 +60,10 @@ public abstract class VideoStreamingSamplerTest {
     public void interrupt() {
     }
 
+    @Override
+    public void reset() {
+    }
+
   };
   @Mock
   protected VideoStreamingHttpClient httpClient;
