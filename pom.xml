@@ -5,7 +5,7 @@
 
     <groupId>com.blazemeter.jmeter</groupId>
     <artifactId>jmeter-bzm-hls</artifactId>
-    <version>3.0</version>
+    <version>3.0.1</version>
     <name>Video Streaming Sampler as JMeter plugin</name>
 
     <properties>
