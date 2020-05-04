@@ -38,9 +38,10 @@
             <version>${jmeter.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.comcast</groupId>
+            <groupId>com.github.comcast</groupId>
             <artifactId>hlsparserj</artifactId>
-            <version>1.0.0</version>
+            <!--Pointing to commit with subtitles fixes and equals support on URI-->
+            <version>c287e78</version>
         </dependency>
         <dependency>
             <groupId>com.github.blazemeter</groupId>
