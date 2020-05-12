@@ -31,11 +31,10 @@ import org.slf4j.LoggerFactory;
 public class Playlist {
 
   private static final Logger LOG = LoggerFactory.getLogger(Playlist.class);
-  private IPlaylist playlist;
-
   private final URI uri;
   private final String body; //This field is only used for comparing objects
   private final Instant downloadTimestamp;
+  private IPlaylist playlist;
 
   private Playlist(URI uri, String body, Instant downloadTimestamp, IPlaylist playlist) {
     this.uri = uri;
@@ -72,12 +71,7 @@ public class Playlist {
     }
     String audioPlayListUri = getRenditionUri("AUDIO", mediaStream.getAudio(),
         audioLanguageSelector);
-    /*
-    Because of a bug in the library, the mediaStream.getSubtitle() method wont return
-    the subtitlesGroupId but null. Because of it, we are use getTag instead.
-    */
-    String subtitlesGroupId = mediaStream.getTag().getAttributes().get("SUBTITLES");
-    String subtitlePlayListUri = getRenditionUri("SUBTITLES", subtitlesGroupId,
+    String subtitlePlayListUri = getRenditionUri("SUBTITLES", mediaStream.getSubtitle(),
         subtitleLanguageSelector);
     return new MediaStream(buildAbsoluteUri(mediaStream.getURI()),
         (audioPlayListUri != null ? buildAbsoluteUri(audioPlayListUri) : null),
