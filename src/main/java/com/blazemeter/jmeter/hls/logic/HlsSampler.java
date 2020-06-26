@@ -5,6 +5,9 @@ import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
 import com.blazemeter.jmeter.videostreaming.dash.DashSampler;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.Serializable;
 import java.net.URL;
 import org.apache.jmeter.engine.event.LoopIterationEvent;
 import org.apache.jmeter.protocol.http.control.CacheManager;
@@ -24,7 +27,7 @@ import org.slf4j.LoggerFactory;
  Not doing the change right now to avoid abrupt change to users, take advantage of HLS plugin
  popularity and release DASH protocol support faster.
  */
-public class HlsSampler extends HTTPSamplerBase implements Interruptible {
+public class HlsSampler extends HTTPSamplerBase implements Interruptible, Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(HlsSampler.class);
 
@@ -43,9 +46,9 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
   private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
 
-  private final transient VideoStreamingHttpClient httpClient;
-  private final transient TimeMachine timeMachine;
-  private final transient SampleResultProcessor sampleResultProcessor;
+  private transient VideoStreamingHttpClient httpClient;
+  private transient TimeMachine timeMachine;
+  private transient SampleResultProcessor sampleResultProcessor;
   private transient VideoStreamingSampler<?, ?> sampler;
 
   private transient String lastMasterUrl = null;
@@ -234,4 +237,10 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     timeMachine.reset();
   }
 
+  private void readObject(ObjectInputStream inputStream)
+      throws IOException, ClassNotFoundException {
+    httpClient = new VideoStreamingHttpClient(this);
+    sampleResultProcessor = new SampleResultProcessor(this);
+    timeMachine = TimeMachine.SYSTEM;
+  }
 }

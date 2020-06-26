@@ -31,9 +31,9 @@
           </elementProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
-          <stringProp name="HLS.URL_DATA">https://mnmedias.api.telequebec.tv/m3u8/29880.m3u8</stringProp>
-          <boolProp name="HLS.DURATION">false</boolProp>
-          <stringProp name="HLS.SECONDS_DATA"></stringProp>
+          <stringProp name="HLS.URL_DATA">http://localhost:8080/path/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8</stringProp>
+          <boolProp name="HLS.DURATION">true</boolProp>
+          <stringProp name="HLS.SECONDS_DATA">120</stringProp>
           <stringProp name="HLS.AUDIO_LANGUAGE"></stringProp>
           <stringProp name="HLS.SUBTITLE_LANGUAGE"></stringProp>
           <stringProp name="HLS.BANDWIDTH_TYPE">minBandwidth</stringProp>
