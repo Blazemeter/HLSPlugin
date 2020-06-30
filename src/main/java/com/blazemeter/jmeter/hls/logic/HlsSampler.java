@@ -7,7 +7,6 @@ import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
 import com.blazemeter.jmeter.videostreaming.dash.DashSampler;
 import java.io.IOException;
 import java.io.ObjectInputStream;
-import java.io.Serializable;
 import java.net.URL;
 import org.apache.jmeter.engine.event.LoopIterationEvent;
 import org.apache.jmeter.protocol.http.control.CacheManager;
@@ -27,7 +26,7 @@ import org.slf4j.LoggerFactory;
  Not doing the change right now to avoid abrupt change to users, take advantage of HLS plugin
  popularity and release DASH protocol support faster.
  */
-public class HlsSampler extends HTTPSamplerBase implements Interruptible, Serializable {
+public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   private static final Logger LOG = LoggerFactory.getLogger(HlsSampler.class);
 
@@ -239,6 +238,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible, Serial
 
   private void readObject(ObjectInputStream inputStream)
       throws IOException, ClassNotFoundException {
+    initHttpSampler();
     httpClient = new VideoStreamingHttpClient(this);
     sampleResultProcessor = new SampleResultProcessor(this);
     timeMachine = TimeMachine.SYSTEM;
