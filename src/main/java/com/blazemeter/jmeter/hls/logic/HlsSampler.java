@@ -171,7 +171,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
     String url = getMasterUrl();
     if (!url.equals(lastMasterUrl)) {
-      if (!url.contains(".mpd")) {
+      if (url.contains(".m3u8")) {
         sampler = new com.blazemeter.jmeter.videostreaming.hls.HlsSampler(this, httpClient,
             timeMachine, sampleResultProcessor);
       } else {
