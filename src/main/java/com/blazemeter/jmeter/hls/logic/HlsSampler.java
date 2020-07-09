@@ -191,7 +191,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       int frameDepth) {
     return httpClient.sample(url, method, areFollowingRedirect, frameDepth);
   }
-  
+
   /*
    * Created to avoid making mocks for Dash and HLS URLs
    * that are tested in other classes
