@@ -186,10 +186,16 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     return sampler.sample();
   }
 
+  @Override
+  protected HTTPSampleResult sample(URL url, String method, boolean areFollowingRedirect,
+      int frameDepth) {
+    return httpClient.sample(url, method, areFollowingRedirect, frameDepth);
+  }
+  
   /*
-  * Created to avoid making mocks for Dash and HLS URLs
-  * that are tested in other classes
-  */
+   * Created to avoid making mocks for Dash and HLS URLs
+   * that are tested in other classes
+   */
   @VisibleForTesting
   public VideoStreamingSampler<?, ?> protocolPick() {
     if (notifyFirstSampleAfterLoopRestart) {
@@ -211,12 +217,6 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     }
     lastMasterUrl = url;
     return sampler;
-  }
-
-  @Override
-  protected HTTPSampleResult sample(URL url, String method, boolean areFollowingRedirect,
-      int frameDepth) {
-    return httpClient.sample(url, method, areFollowingRedirect, frameDepth);
   }
 
   public HTTPSampleResult errorResult(HTTPSampleResult res, Throwable e) {
