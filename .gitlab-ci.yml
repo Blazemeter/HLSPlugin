@@ -63,8 +63,6 @@ master_slave_test:
   services:
     # Adding DockerInDocker service
     - docker:18.09-dind
-  variables:
-    DOCKER_DRIVER: overlay2
   script:
     - >
       docker run -t --rm
@@ -72,7 +70,7 @@ master_slave_test:
       -v "$(pwd)":"$(pwd)"
       -w "$(pwd)"
       -u 0:0
-      maven:3.5 mvn -Dtest=MasterSlave test
+      maven:3.5 mvn -Dtest=MasterSlaveIT test
   artifacts:
     paths:
       - target/jmeter-bzm-hls-*.jar

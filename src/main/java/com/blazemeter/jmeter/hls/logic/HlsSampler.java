@@ -55,19 +55,23 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   public HlsSampler() {
     initHttpSampler();
-    httpClient = new VideoStreamingHttpClient(this);
-    sampleResultProcessor = new SampleResultProcessor(this);
-    timeMachine = TimeMachine.SYSTEM;
   }
 
   public HlsSampler(VideoStreamingHttpClient httpClient, TimeMachine timeMachine) {
-    initHttpSampler();
+    setInitHttpSamplerConfig();
     this.httpClient = httpClient;
     sampleResultProcessor = new SampleResultProcessor(this);
     this.timeMachine = timeMachine;
   }
 
   private void initHttpSampler() {
+    setInitHttpSamplerConfig();
+    httpClient = new VideoStreamingHttpClient(this);
+    sampleResultProcessor = new SampleResultProcessor(this);
+    timeMachine = TimeMachine.SYSTEM;
+  }
+
+  private void setInitHttpSamplerConfig() {
     setName("Media Sampler");
     setFollowRedirects(true);
     setUseKeepAlive(true);
@@ -238,9 +242,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   private void readObject(ObjectInputStream inputStream)
       throws IOException, ClassNotFoundException {
+    inputStream.defaultReadObject();
     initHttpSampler();
-    httpClient = new VideoStreamingHttpClient(this);
-    sampleResultProcessor = new SampleResultProcessor(this);
-    timeMachine = TimeMachine.SYSTEM;
   }
 }

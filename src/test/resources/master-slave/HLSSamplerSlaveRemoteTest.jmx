@@ -31,7 +31,7 @@
           </elementProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
-          <stringProp name="HLS.URL_DATA">http://localhost:8080/path/about_demo_hls_600k.m3u8</stringProp>
+          <stringProp name="HLS.URL_DATA">http://wiremock:8080/path/about_demo_hls_600k.m3u8</stringProp>
           <boolProp name="HLS.DURATION">true</boolProp>
           <stringProp name="HLS.SECONDS_DATA">12</stringProp>
           <stringProp name="HLS.AUDIO_LANGUAGE"></stringProp>
