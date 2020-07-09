@@ -5,9 +5,7 @@ import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
 import com.blazemeter.jmeter.videostreaming.dash.DashSampler;
-import java.io.IOException;
 import java.net.URL;
-import java.net.URLConnection;
 import org.apache.jmeter.engine.event.LoopIterationEvent;
 import org.apache.jmeter.protocol.http.control.CacheManager;
 import org.apache.jmeter.protocol.http.control.CookieManager;
@@ -173,7 +171,8 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
     String url = getMasterUrl();
     if (!url.equals(lastMasterUrl)) {
-      if (!isDash(url)) {
+      //HLS Master Playlist must contain this extension
+      if (url.contains(".m3u8")) {
         sampler = new com.blazemeter.jmeter.videostreaming.hls.HlsSampler(this, httpClient,
             timeMachine, sampleResultProcessor);
       } else {
@@ -190,18 +189,6 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   protected HTTPSampleResult sample(URL url, String method, boolean areFollowingRedirect,
       int frameDepth) {
     return httpClient.sample(url, method, areFollowingRedirect, frameDepth);
-  }
-
-  private boolean isDash(String url) {
-    try {
-      URLConnection conn = new URL(url).openConnection();
-      //MPEG-DASH manifests should have a "application/dash+xml" content type
-      return conn.getHeaderFields().get("Content-Type").stream()
-          .anyMatch(c -> c.contains("dash+xml"));
-    } catch (IOException e) {
-      LOG.error("Error trying to get the URL headers", e);
-    }
-    return false;
   }
 
   public HTTPSampleResult errorResult(HTTPSampleResult res, Throwable e) {
