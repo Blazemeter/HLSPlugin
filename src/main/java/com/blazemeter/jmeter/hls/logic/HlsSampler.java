@@ -5,6 +5,7 @@ import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
 import com.blazemeter.jmeter.videostreaming.dash.DashSampler;
+import com.helger.commons.annotation.VisibleForTesting;
 import java.net.URL;
 import org.apache.jmeter.engine.event.LoopIterationEvent;
 import org.apache.jmeter.protocol.http.control.CacheManager;
@@ -171,7 +172,8 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
     String url = getMasterUrl();
     if (!url.equals(lastMasterUrl)) {
-      if (!url.contains(".mpd")) {
+      //HLS Master Playlist must contain this extension
+      if (url.contains(".m3u8")) {
         sampler = new com.blazemeter.jmeter.videostreaming.hls.HlsSampler(this, httpClient,
             timeMachine, sampleResultProcessor);
       } else {
@@ -188,6 +190,33 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   protected HTTPSampleResult sample(URL url, String method, boolean areFollowingRedirect,
       int frameDepth) {
     return httpClient.sample(url, method, areFollowingRedirect, frameDepth);
+  }
+
+  /*
+   * Created to avoid making mocks for Dash and HLS URLs
+   * that are tested in other classes
+   */
+  @VisibleForTesting
+  public VideoStreamingSampler<?, ?> protocolPick() {
+    if (notifyFirstSampleAfterLoopRestart) {
+      httpClient.notifyFirstSampleAfterLoopRestart();
+      notifyFirstSampleAfterLoopRestart = false;
+    }
+
+    String url = getMasterUrl();
+    if (!url.equals(lastMasterUrl)) {
+      //HLS Master Playlist must contain this extension
+      if (url.contains(".m3u8")) {
+        sampler = new com.blazemeter.jmeter.videostreaming.hls.HlsSampler(this, httpClient,
+            timeMachine, sampleResultProcessor);
+      } else {
+        sampler = new DashSampler(this, httpClient, timeMachine, sampleResultProcessor);
+      }
+    } else if (!this.getResumeVideoStatus()) {
+      sampler.resetVideoStatus();
+    }
+    lastMasterUrl = url;
+    return sampler;
   }
 
   public HTTPSampleResult errorResult(HTTPSampleResult res, Throwable e) {

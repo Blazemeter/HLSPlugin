@@ -20,11 +20,15 @@ In future releases, the plugin will be named "Video Streaming Plugin" instead of
 - The encoder creates a Master Playlist File with the URLs of each Media Playlist.
 To play, the client first downloads the Master Playlist, and then the Media Playlists. Then, they play each Media Segment declared within the chosen Media Playlist. The client can reload the Playlist to discover any added segments. This is needed in cases of live events, for example.
 
+Notice that the recognition of the HLS protocol is based on the requiriment of the URL extension of the Master playlist link, which must have ".m3a8" on it, as specified on the [ISO regulation](https://tools.ietf.org/html/rfc8216#section-4).
+
 #### In a Dynamic Adaptive Streaming over HTTP Live Streaming process:
 
 - The encoder creates a Manifest that contains all the Periods, among Base URLs and the Adaptation Sets to do the filtering, based on resolution, bandwidth and language selector.
 - The plugin is coded so it will download the segments, for each Adaptation Set selected, consecutively, instead of doing it in parallel.
 - The plugin will update the manifest based on the ```timeShiftBufferDepth``` attribute of MPD.
+
+Notice that, just like is done for HLS, the recognition on this protocol is based on the URL of the Manifest, which should contains ".mpd" on it. In cases it doesn't meet this requirement and the url don't contain ".m3a8", it is going to be considered a MPEG-DASH as well.
 
 ## How the plugin works
 
