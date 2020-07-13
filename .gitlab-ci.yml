@@ -58,7 +58,7 @@ master_slave_test:
   tags:
     - docker
   image: docker:18.09
-  except:
+  only:
     - master
   services:
     # Adding DockerInDocker service
