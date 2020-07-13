@@ -5,7 +5,7 @@
 
     <groupId>com.blazemeter.jmeter</groupId>
     <artifactId>jmeter-bzm-hls</artifactId>
-    <version>3.0.2-SNAPSHOT</version>
+    <version>3.0.3-SNAPSHOT</version>
     <name>Video Streaming Sampler as JMeter plugin</name>
 
     <properties>
@@ -107,6 +107,12 @@
             <groupId>org.assertj</groupId>
             <artifactId>assertj-swing</artifactId>
             <version>3.8.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.tomakehurst</groupId>
+            <artifactId>wiremock</artifactId>
+            <version>2.27.1</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
