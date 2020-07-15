@@ -10,5 +10,6 @@
       <AppenderRef ref="console"/>
     </Root>
     <Logger name="org.apache.jmeter.util" level="ERROR"/>
+    <Logger name="org.testcontainers" level="DEBUG"/>
   </Loggers>
 </Configuration>

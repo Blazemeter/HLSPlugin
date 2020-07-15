@@ -68,6 +68,12 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>1.14.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>kg.apc</groupId>
             <artifactId>jmeter-plugins-cmn-jmeter</artifactId>
             <scope>test</scope>
@@ -153,6 +159,9 @@
                         <parallel>both</parallel>
                         <threadCount>10</threadCount>
                         <useSystemClassLoader>false</useSystemClassLoader>
+                        <excludedGroups>
+                            com.blazemeter.jmeter.MasterSlaveIT
+                        </excludedGroups>
                     </configuration>
                 </plugin>
             </plugins>

@@ -1,8 +1,8 @@
 image: 941618104661.dkr.ecr.us-east-1.amazonaws.com/jmeter-plugins-build:3.2
-
+    
 variables:
   MAVEN_OPTS: -Dmaven.repo.local=.m2/repository
-
+  
 cache:
   paths:
     - .m2/repository/
@@ -53,6 +53,31 @@ jmeter_compatibility:
     paths:
       - target/jmeter-test
     expire_in: 4 hour
+master_slave_test:
+  stage: test
+  tags:
+    - docker
+  image: docker:18.09
+  only:
+    - master
+  services:
+    # Adding DockerInDocker service
+    - docker:18.09-dind
+  script:
+    - >
+      docker run -t --rm
+      -v /var/run/docker.sock:/var/run/docker.sock
+      -v "$(pwd)":"$(pwd)"
+      -w "$(pwd)"
+      -u 0:0
+      maven:3.5 mvn -Dtest=MasterSlaveIT test
+  artifacts:
+    paths:
+      - target/jmeter-bzm-hls-*.jar
+      - target/jmeter-test
+      - target/failsafe-reports
+    expire_in: 1 month
+    when: always
 release:
   stage: deploy
   tags:

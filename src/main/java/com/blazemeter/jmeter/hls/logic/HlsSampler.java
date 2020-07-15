@@ -6,6 +6,8 @@ import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
 import com.blazemeter.jmeter.videostreaming.dash.DashSampler;
 import com.helger.commons.annotation.VisibleForTesting;
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.net.URL;
 import org.apache.jmeter.engine.event.LoopIterationEvent;
 import org.apache.jmeter.protocol.http.control.CacheManager;
@@ -44,9 +46,9 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
   private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
 
-  private final transient VideoStreamingHttpClient httpClient;
-  private final transient TimeMachine timeMachine;
-  private final transient SampleResultProcessor sampleResultProcessor;
+  private transient VideoStreamingHttpClient httpClient;
+  private transient TimeMachine timeMachine;
+  private transient SampleResultProcessor sampleResultProcessor;
   private transient VideoStreamingSampler<?, ?> sampler;
 
   private transient String lastMasterUrl = null;
@@ -54,19 +56,23 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   public HlsSampler() {
     initHttpSampler();
-    httpClient = new VideoStreamingHttpClient(this);
-    sampleResultProcessor = new SampleResultProcessor(this);
-    timeMachine = TimeMachine.SYSTEM;
   }
 
   public HlsSampler(VideoStreamingHttpClient httpClient, TimeMachine timeMachine) {
-    initHttpSampler();
+    setInitHttpSamplerConfig();
     this.httpClient = httpClient;
     sampleResultProcessor = new SampleResultProcessor(this);
     this.timeMachine = timeMachine;
   }
 
   private void initHttpSampler() {
+    setInitHttpSamplerConfig();
+    httpClient = new VideoStreamingHttpClient(this);
+    sampleResultProcessor = new SampleResultProcessor(this);
+    timeMachine = TimeMachine.SYSTEM;
+  }
+
+  private void setInitHttpSamplerConfig() {
     setName("Media Sampler");
     setFollowRedirects(true);
     setUseKeepAlive(true);
@@ -263,4 +269,9 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     timeMachine.reset();
   }
 
+  private void readObject(ObjectInputStream inputStream)
+      throws IOException, ClassNotFoundException {
+    inputStream.defaultReadObject();
+    initHttpSampler();
+  }
 }
