@@ -23,12 +23,8 @@ public class MasterSlaveIT {
 
   private static final Logger LOG = LoggerFactory.getLogger(MasterSlaveIT.class);
   private static final long TIMEOUT_MILLI = 120000;
+  private static final String JMETER_HOME_PATH = "/jmeter/apache-jmeter-5.1.1/bin";
   private static final Network network = Network.newNetwork();
-  // useful to validate when wiremock have logged its logo (when is up)
-  private static final String WIREMOCK_STDOUT = "(/\\$\\$      /\\$\\$ /\\$\\$                 "
-      + "    /\\$\\$      /\\$\\$                     /\\$\\$     )";
-  private static final String JMETER_VERSION = "5.1.1";
-  private static final String JMETER_HOME_PATH = "/jmeter/apache-jmeter-" + JMETER_VERSION + "/bin";
 
   public GenericContainer<?> wiremockContainer;
   public GenericContainer<?> container;
@@ -59,7 +55,9 @@ public class MasterSlaveIT {
         .withNetwork(network)
         .withNetworkAliases("wiremock")
         // wait for wiremock to be running
-        .waitingFor(new LogMessageWaitStrategy().withRegEx(".*" + WIREMOCK_STDOUT + ".*")
+        .waitingFor(new LogMessageWaitStrategy()
+            .withRegEx(".*(/\\$\\$      /\\$\\$ /\\$\\$                 "
+                + "    /\\$\\$      /\\$\\$                     /\\$\\$     ).*")
             .withStartupTimeout(Duration.ofMillis(TIMEOUT_MILLI)));
   }
 
@@ -67,7 +65,6 @@ public class MasterSlaveIT {
     return new GenericContainer<>(
         new ImageFromDockerfile()
             //adding files to test-container context
-            .withFileFromClasspath("rmi_keystore.jks", "master-slave/rmi_keystore.jks")
             .withFileFromClasspath("master-slave-test.sh", "master-slave/master-slave-test.sh")
             .withFileFromClasspath("Dockerfile", "master-slave/Dockerfile")
             .withFileFromClasspath("test.jmx", "master-slave/HLSSamplerSlaveRemoteTest.jmx")

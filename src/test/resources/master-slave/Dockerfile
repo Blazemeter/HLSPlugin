@@ -16,12 +16,8 @@ RUN mkdir /jmeter \
     
 ENV JMETER_HOME /jmeter/apache-jmeter-$JMETER_VERSION/bin
 
-COPY rmi_keystore.jks $JMETER_HOME/rmi_keystore.jks
-# Configuring keystore file on jmeter.properties
-RUN sed -i '313s/.*/server.rmi.ssl.keystore.type=JKS/' $JMETER_HOME/jmeter.properties \
-    && sed -i '316s/.*/server.rmi.ssl.keystore.file=\/jmeter\/apache-jmeter-5.1.1\/bin\/rmi_keystore.jks/' $JMETER_HOME/jmeter.properties \
-    && sed -i '313s/.*/server.rmi.ssl.keystore.password=changeit/' $JMETER_HOME/jmeter.properties \
-    && sed -i '313s/.*/server.rmi.ssl.keystore.alias=rmi/' $JMETER_HOME/jmeter.properties
+# Disable keystore file on jmeter.properties
+RUN sed -i '334s/.*/server.rmi.ssl.disable=true/' $JMETER_HOME/jmeter.properties
 
 COPY test.jmx /test.jmx
 COPY master-slave-test.sh /master-slave-test.sh
