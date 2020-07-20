@@ -1,67 +1,49 @@
 package com.blazemeter.jmeter.hls.logic;
 
-import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
-import static com.github.tomakehurst.wiremock.client.WireMock.configureFor;
-import static com.github.tomakehurst.wiremock.client.WireMock.get;
-import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
-import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
-import static org.assertj.core.api.Java6Assertions.assertThat;
+import static org.mockito.Mockito.only;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import com.blazemeter.jmeter.videostreaming.dash.DashSampler;
-import com.github.tomakehurst.wiremock.WireMockServer;
-import java.net.HttpURLConnection;
+import com.blazemeter.jmeter.videostreaming.core.SampleResultProcessor;
+import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
+import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
+import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 
+@RunWith(MockitoJUnitRunner.class)
 public class HlsSamplerTest {
-  private static final String HOST = "localhost";
-  private static final String URL_FORMAT = "http://%s:%d/%s";
-  private WireMockServer wireMockServer = new WireMockServer(wireMockConfig().dynamicPort());
-  private HlsSampler sampler;
+
+  @Mock
+  private VideoStreamingSampler<?, ?> videoStreamingSampler;
+  @Mock
+  private VideoStreamingSamplerFactory factory;
+  @Mock
+  private VideoStreamingHttpClient client;
+  @Mock
+  private TimeMachine timeMachine;
+  @Mock
+  private SampleResultProcessor processor;
+
+  private HlsSampler hlsSampler;
 
   @Before
   public void setUp() {
-    wireMockServer.start();
-    configureFor(HOST, wireMockServer.port());
-    sampler = new HlsSampler();
+    hlsSampler = new HlsSampler(factory, client, processor, timeMachine);
   }
 
   @Test
-  public void shouldRecognizeHlsProtocolWhenUrlWithExtension() {
-    String resource = "hls_master_playlist.m3u8";
-    prepareMockResponse(resource);
-    sampler.setMasterUrl(mockURL("/"+resource));
-    assertThat(sampler.protocolPick()).isInstanceOf(com.blazemeter.jmeter.videostreaming.hls.HlsSampler.class);
-  }
+  public void shouldFactoryGetVideoStreamingSamplerWhenSample() {
+    String masterUrl = "hls_master_playlist.m3u8";
+    hlsSampler.setMasterUrl(masterUrl);
+    when(factory.getVideoStreamingSampler(masterUrl, hlsSampler, client, timeMachine, processor))
+        .thenReturn(videoStreamingSampler);
 
-  private void prepareMockResponse(String resource) {
-    wireMockServer.start();
-    configureFor(HOST, wireMockServer.port());
-
-    wireMockServer.stubFor(get(urlEqualTo(mockURL(resource))).willReturn(aResponse()
-        .withStatus(HttpURLConnection.HTTP_OK)
-        .withHeader("Cache-Control", "no-cache")
-        .withBody("")
-    ));
-  }
-
-  private String mockURL(String resourceName) {
-    return String.format(URL_FORMAT, HOST, wireMockServer.port(), resourceName);
-  }
-
-  @Test
-  public void shouldRecognizeDashProtocolWhenUrlWithExtension() {
-    String resource = "dash_manifest.mpd";
-    prepareMockResponse(resource);
-    sampler.setMasterUrl(mockURL("/"+resource));
-    assertThat(sampler.protocolPick()).isInstanceOf(DashSampler.class);
-  }
-
-  @Test
-  public void shouldRecognizeDashProtocolWhenUrlWithNoExtension() {
-    String resource = "dash_manifest";
-    prepareMockResponse(resource);
-    sampler.setMasterUrl(mockURL("/"+resource));
-    assertThat(sampler.protocolPick()).isInstanceOf(DashSampler.class);
+    hlsSampler.sample();
+    verify(factory, only())
+        .getVideoStreamingSampler(masterUrl, hlsSampler, client, timeMachine, processor);
   }
 }
