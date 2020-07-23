@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.blazemeter.jmeter.videostreaming.core.SampleResultProcessor;
 import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
-import com.blazemeter.jmeter.videostreaming.dash.DashSampler;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
@@ -38,14 +37,7 @@ public class VideoStreamingSamplerFactoryTest {
   @Test
   public void shouldNotCreateHlsSamplerWhenUrlNotContainsExtension() {
     assertThat(factory
-        .getVideoStreamingSampler("test.com/master.md", proxy, client, timeMachine, processor))
+        .getVideoStreamingSampler("test.com/master.mpd", proxy, client, timeMachine, processor))
         .isNotInstanceOf(com.blazemeter.jmeter.videostreaming.hls.HlsSampler.class);
-  }
-
-  @Test
-  public void shouldCreateDashSamplerWhenUrlContainsExtension() {
-    assertThat(factory
-        .getVideoStreamingSampler("test.com/master.md", proxy, client, timeMachine, processor))
-        .isInstanceOf(DashSampler.class);
   }
 }
