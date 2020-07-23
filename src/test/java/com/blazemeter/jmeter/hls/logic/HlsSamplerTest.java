@@ -1,13 +1,15 @@
 package com.blazemeter.jmeter.hls.logic;
 
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
+import com.blazemeter.jmeter.videostreaming.core.MediaSegment;
 import com.blazemeter.jmeter.videostreaming.core.SampleResultProcessor;
 import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
+import com.blazemeter.jmeter.videostreaming.hls.Playlist;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -18,7 +20,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 public class HlsSamplerTest {
 
   @Mock
-  private VideoStreamingSampler<?, ?> videoStreamingSampler;
+  private VideoStreamingSampler<Playlist, MediaSegment> videoStreamingSampler;
   @Mock
   private VideoStreamingSamplerFactory factory;
   @Mock
@@ -39,8 +41,10 @@ public class HlsSamplerTest {
   public void shouldFactoryGetVideoStreamingSamplerWhenSample() {
     String masterUrl = "hls_master_playlist.m3u8";
     hlsSampler.setMasterUrl(masterUrl);
-    when(factory.getVideoStreamingSampler(masterUrl, hlsSampler, client, timeMachine, processor))
-        .thenReturn(videoStreamingSampler);
+
+    doReturn(videoStreamingSampler)
+        .when(factory)
+        .getVideoStreamingSampler(masterUrl, hlsSampler, client, timeMachine, processor);
 
     hlsSampler.sample();
     verify(factory, only())

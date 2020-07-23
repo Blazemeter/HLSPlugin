@@ -8,7 +8,7 @@ import com.blazemeter.jmeter.videostreaming.dash.DashSampler;
 
 public class VideoStreamingSamplerFactory {
 
-  public VideoStreamingSampler getVideoStreamingSampler(String url, HlsSampler baseSampler,
+  public VideoStreamingSampler<?, ?> getVideoStreamingSampler(String url, HlsSampler baseSampler,
       VideoStreamingHttpClient httpClient,
       TimeMachine timeMachine, SampleResultProcessor sampleResultProcessor) {
     //HLS Master Playlist must contain this .m3u8 extension in their URLs
