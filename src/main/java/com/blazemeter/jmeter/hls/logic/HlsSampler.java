@@ -55,7 +55,6 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private VideoStreamingSamplerFactory factory;
 
   public HlsSampler() {
-    factory = new VideoStreamingSamplerFactory();
     initHttpSampler();
   }
 
@@ -77,6 +76,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   private void initHttpSampler() {
     setInitHttpSamplerConfig();
+    factory = new VideoStreamingSamplerFactory();
     httpClient = new VideoStreamingHttpClient(this);
     sampleResultProcessor = new SampleResultProcessor(this);
     timeMachine = TimeMachine.SYSTEM;
