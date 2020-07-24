@@ -52,7 +52,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   private transient String lastMasterUrl = null;
   private transient volatile boolean notifyFirstSampleAfterLoopRestart;
-  private VideoStreamingSamplerFactory factory;
+  private transient VideoStreamingSamplerFactory factory;
 
   public HlsSampler() {
     initHttpSampler();
@@ -70,8 +70,9 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   public HlsSampler(VideoStreamingHttpClient httpClient, TimeMachine timeMachine) {
     setInitHttpSamplerConfig();
     this.httpClient = httpClient;
-    sampleResultProcessor = new SampleResultProcessor(this);
     this.timeMachine = timeMachine;
+    sampleResultProcessor = new SampleResultProcessor(this);
+    factory = new VideoStreamingSamplerFactory();
   }
 
   private void initHttpSampler() {
