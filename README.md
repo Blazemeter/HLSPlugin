@@ -6,13 +6,13 @@ Likewise, trying to provide a wider spectrum of protocols to support videos stre
  
 For more information related to HLS, please refer to the  [wikipedia page](https://en.wikipedia.org/wiki/HTTP_Live_Streaming) or to the [RFC](https://tools.ietf.org/html/rfc8216) and, for MPEG DASH, please refer to the [wikipedia page](https://en.wikipedia.org/wiki/Dynamic_Adaptive_Streaming_over_HTTP) or to the [ISO](https://standards.iso.org/ittf/PubliclyAvailableStandards/c065274_ISO_IEC_23009-1_2014.zip).
 
-Currently the project uses the [HLSParserJ](https://github.com/Comcast/hlsparserj) library to parse the HLS playlists and a [fork](https://github.com/Blazemeter/mpd-tools) of [MPD-Tools](https://github.com/carlanton/mpd-tools) for MPEG-DASH manifest and segments.
+Currently, the project uses the [HLSParserJ](https://github.com/Comcast/hlsparserj) library to parse the HLS playlists and a [fork](https://github.com/Blazemeter/mpd-tools) of [MPD-Tools](https://github.com/carlanton/mpd-tools) for MPEG-DASH manifest and segments.
 
 **NOTICE**
 
 In future releases, the plugin will be named "Video Streaming Plugin" instead of "HLS Plugin", following the same desire to cover a wider range of protocols.
 
-#### In a HTTP Live Streaming process:
+#### In an HTTP Live Streaming process:
 
 - The audio/video to be streamed is reproduced by a media encoder at different quality levels, bitrates and resolutions. Each version is called a variant.
 - The different variants are split up into smaller Media Segment Files.
@@ -20,15 +20,15 @@ In future releases, the plugin will be named "Video Streaming Plugin" instead of
 - The encoder creates a Master Playlist File with the URLs of each Media Playlist.
 To play, the client first downloads the Master Playlist, and then the Media Playlists. Then, they play each Media Segment declared within the chosen Media Playlist. The client can reload the Playlist to discover any added segments. This is needed in cases of live events, for example.
 
-Notice that the recognition of the HLS protocol is based on the requiriment of the URL extension of the Master playlist link, which must have ".m3a8" on it, as specified on the [ISO regulation](https://tools.ietf.org/html/rfc8216#section-4).
+Notice that the recognition of the HLS protocol is based on the requirement of the URL extension of the Master playlist link, which must have ".m3u8" on it, as specified on the [ISO regulation](https://tools.ietf.org/html/rfc8216#section-4).
 
 #### In a Dynamic Adaptive Streaming over HTTP Live Streaming process:
 
-- The encoder creates a Manifest that contains all the Periods, among Base URLs and the Adaptation Sets to do the filtering, based on resolution, bandwidth and language selector.
+- The encoder creates a Manifest which contains all the Periods, among Base URLs and the Adaptation Sets to do the filtering, based on resolution, bandwidth and language selector.
 - The plugin is coded so it will download the segments, for each Adaptation Set selected, consecutively, instead of doing it in parallel.
 - The plugin will update the manifest based on the ```timeShiftBufferDepth``` attribute of MPD.
 
-Notice that, just like is done for HLS, the recognition on this protocol is based on the URL of the Manifest, which should contains ".mpd" on it. In cases it doesn't meet this requirement and the url don't contain ".m3a8", it is going to be considered a MPEG-DASH as well.
+Notice that, just like is done for HLS, the recognition on this protocol is based on the URL of the Manifest, which should contain ".mpd" on it. In cases, it doesn't meet this requirement, and the url don't contain ".m3a8", it is going to be considered a MPEG-DASH as well.
 
 ## How the plugin works
 
@@ -63,7 +63,7 @@ Set the link to the master playlist file
 
 #### Duration
 
-Set the playback time to either the whole video or a certain amount of seconds.
+Set the playback time to either the whole video, or a certain amount of seconds.
 
 ![](docs/duration.png)
 
