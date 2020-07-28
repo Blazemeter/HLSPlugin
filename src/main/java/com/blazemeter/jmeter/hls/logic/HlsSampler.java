@@ -4,7 +4,9 @@ import com.blazemeter.jmeter.videostreaming.core.SampleResultProcessor;
 import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
-import com.blazemeter.jmeter.videostreaming.dash.DashSampler;
+import com.helger.commons.annotation.VisibleForTesting;
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.net.URL;
 import org.apache.jmeter.engine.event.LoopIterationEvent;
 import org.apache.jmeter.protocol.http.control.CacheManager;
@@ -43,29 +45,45 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
   private static final String CACHE_MANAGER = "HLSRequest.cache_manager";
 
-  private final transient VideoStreamingHttpClient httpClient;
-  private final transient TimeMachine timeMachine;
-  private final transient SampleResultProcessor sampleResultProcessor;
+  private transient VideoStreamingHttpClient httpClient;
+  private transient TimeMachine timeMachine;
+  private transient SampleResultProcessor sampleResultProcessor;
   private transient VideoStreamingSampler<?, ?> sampler;
 
   private transient String lastMasterUrl = null;
   private transient volatile boolean notifyFirstSampleAfterLoopRestart;
+  private transient VideoStreamingSamplerFactory factory;
 
   public HlsSampler() {
     initHttpSampler();
+  }
+
+  @VisibleForTesting
+  public HlsSampler(VideoStreamingSamplerFactory factory, VideoStreamingHttpClient client,
+      SampleResultProcessor processor, TimeMachine timeMachine) {
+    this.factory = factory;
+    this.httpClient = client;
+    this.sampleResultProcessor = processor;
+    this.timeMachine = timeMachine;
+  }
+
+  public HlsSampler(VideoStreamingHttpClient httpClient, TimeMachine timeMachine) {
+    setInitHttpSamplerConfig();
+    this.httpClient = httpClient;
+    this.timeMachine = timeMachine;
+    sampleResultProcessor = new SampleResultProcessor(this);
+    factory = new VideoStreamingSamplerFactory();
+  }
+
+  private void initHttpSampler() {
+    setInitHttpSamplerConfig();
+    factory = new VideoStreamingSamplerFactory();
     httpClient = new VideoStreamingHttpClient(this);
     sampleResultProcessor = new SampleResultProcessor(this);
     timeMachine = TimeMachine.SYSTEM;
   }
 
-  public HlsSampler(VideoStreamingHttpClient httpClient, TimeMachine timeMachine) {
-    initHttpSampler();
-    this.httpClient = httpClient;
-    sampleResultProcessor = new SampleResultProcessor(this);
-    this.timeMachine = timeMachine;
-  }
-
-  private void initHttpSampler() {
+  private void setInitHttpSamplerConfig() {
     setName("Media Sampler");
     setFollowRedirects(true);
     setUseKeepAlive(true);
@@ -171,12 +189,8 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
     String url = getMasterUrl();
     if (!url.equals(lastMasterUrl)) {
-      if (!url.contains(".mpd")) {
-        sampler = new com.blazemeter.jmeter.videostreaming.hls.HlsSampler(this, httpClient,
-            timeMachine, sampleResultProcessor);
-      } else {
-        sampler = new DashSampler(this, httpClient, timeMachine, sampleResultProcessor);
-      }
+      sampler = factory
+          .getVideoStreamingSampler(url, this, httpClient, timeMachine, sampleResultProcessor);
     } else if (!this.getResumeVideoStatus()) {
       sampler.resetVideoStatus();
     }
@@ -234,4 +248,9 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     timeMachine.reset();
   }
 
+  private void readObject(ObjectInputStream inputStream)
+      throws IOException, ClassNotFoundException {
+    inputStream.defaultReadObject();
+    initHttpSampler();
+  }
 }

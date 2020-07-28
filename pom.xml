@@ -5,7 +5,7 @@
 
     <groupId>com.blazemeter.jmeter</groupId>
     <artifactId>jmeter-bzm-hls</artifactId>
-    <version>3.0.1-SNAPSHOT</version>
+    <version>3.0.3</version>
     <name>Video Streaming Sampler as JMeter plugin</name>
 
     <properties>
@@ -68,6 +68,12 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>1.14.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>kg.apc</groupId>
             <artifactId>jmeter-plugins-cmn-jmeter</artifactId>
             <scope>test</scope>
@@ -101,6 +107,12 @@
             <groupId>org.assertj</groupId>
             <artifactId>assertj-swing</artifactId>
             <version>3.8.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.tomakehurst</groupId>
+            <artifactId>wiremock</artifactId>
+            <version>2.27.1</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -147,6 +159,9 @@
                         <parallel>both</parallel>
                         <threadCount>10</threadCount>
                         <useSystemClassLoader>false</useSystemClassLoader>
+                        <excludedGroups>
+                            com.blazemeter.jmeter.MasterSlaveIT
+                        </excludedGroups>
                     </configuration>
                 </plugin>
             </plugins>

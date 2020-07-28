@@ -1,0 +1,14 @@
+FROM java:8
+
+ENV WIREMOCK_VERSION 2.26.3
+
+RUN mkdir -p /wiremock/mappings/ \
+    && cd /wiremock \
+    && wget https://repo1.maven.org/maven2/com/github/tomakehurst/wiremock-standalone/$WIREMOCK_VERSION/wiremock-standalone-$WIREMOCK_VERSION.jar \
+    && cd /wiremock    
+
+COPY mapping.json /wiremock/mappings/
+RUN nc -l 8080 &
+# wiremock needs in same level as mappings
+CMD cd /wiremock \
+    && java -jar wiremock-standalone-$WIREMOCK_VERSION.jar --port=8080
