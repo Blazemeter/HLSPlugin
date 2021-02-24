@@ -1,6 +1,5 @@
 package com.blazemeter.jmeter.hls.logic;
 
-import com.blazemeter.jmeter.videostreaming.core.Protocol;
 import com.blazemeter.jmeter.videostreaming.core.SampleResultProcessor;
 import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
