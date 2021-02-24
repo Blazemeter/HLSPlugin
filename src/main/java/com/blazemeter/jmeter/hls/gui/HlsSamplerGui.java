@@ -3,6 +3,7 @@ package com.blazemeter.jmeter.hls.gui;
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
 import com.blazemeter.jmeter.hls.logic.HlsSampler;
 import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
+import com.blazemeter.jmeter.videostreaming.core.Protocol;
 import com.google.common.annotations.VisibleForTesting;
 import java.awt.BorderLayout;
 import org.apache.jmeter.samplers.gui.AbstractSamplerGui;
@@ -54,6 +55,7 @@ public class HlsSamplerGui extends AbstractSamplerGui {
     hlsSamplerPanel.setBandwidthSelector(sampler.getBandwidthSelector());
     hlsSamplerPanel.setResolutionSelector(sampler.getResolutionSelector());
     hlsSamplerPanel.setResumeStatus(sampler.getResumeVideoStatus());
+    hlsSamplerPanel.setProtocolSelector(sampler.getProtocolSelector());
   }
 
   @Override
@@ -69,6 +71,7 @@ public class HlsSamplerGui extends AbstractSamplerGui {
       sampler.setBandwidthSelector(hlsSamplerPanel.getBandwidthSelector());
       sampler.setResolutionSelector(hlsSamplerPanel.getResolutionSelector());
       sampler.setResumeVideoStatus(hlsSamplerPanel.getResumeVideoStatus());
+      sampler.setProtocolSelector(hlsSamplerPanel.getProtocolSelector());
     }
   }
 
@@ -83,6 +86,7 @@ public class HlsSamplerGui extends AbstractSamplerGui {
     hlsSamplerPanel.setBandwidthSelector(BandwidthSelector.MIN);
     hlsSamplerPanel.setResolutionSelector(ResolutionSelector.MIN);
     hlsSamplerPanel.setResumeStatus(false);
+    hlsSamplerPanel.setProtocolSelector(Protocol.AUTOMATIC);
   }
 
 }
