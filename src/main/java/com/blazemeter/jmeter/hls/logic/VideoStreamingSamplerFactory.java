@@ -12,20 +12,18 @@ public class VideoStreamingSamplerFactory {
   public VideoStreamingSampler<?, ?> getVideoStreamingSampler(String url, HlsSampler baseSampler,
       VideoStreamingHttpClient httpClient, TimeMachine timeMachine,
       SampleResultProcessor sampleResultProcessor) throws IllegalArgumentException {
-    if (baseSampler.getProtocolSelector() == Protocol.AUTOMATIC) {
-      //HLS Master Playlist must contain this .m3u8 extension in their URLs
-      if (url.contains(".m3u8")) {
+    switch (baseSampler.getProtocolSelector()) {
+      case HLS:
         return createHlsSampler(baseSampler, httpClient, timeMachine, sampleResultProcessor);
-      } else {
+      case MPEG_DASH:
         return createDashSampler(baseSampler, httpClient, timeMachine, sampleResultProcessor);
-      }
-    } else if (baseSampler.getProtocolSelector() == Protocol.HLS) {
-      return createHlsSampler(baseSampler, httpClient, timeMachine, sampleResultProcessor);
-    } else if (baseSampler.getProtocolSelector() == Protocol.MPEG_DASH) {
-      return createDashSampler(baseSampler, httpClient, timeMachine, sampleResultProcessor);
-    } else {
-      throw new IllegalArgumentException(String.format("Protocol %s is not supported",
-          baseSampler.getProtocolSelector().toString()));
+      default:
+        //HLS Master Playlist must contain this .m3u8 extension in their URLs
+        if (url.contains(".m3u8")) {
+          return createHlsSampler(baseSampler, httpClient, timeMachine, sampleResultProcessor);
+        } else {
+          return createDashSampler(baseSampler, httpClient, timeMachine, sampleResultProcessor);
+        }
     }
   }
 

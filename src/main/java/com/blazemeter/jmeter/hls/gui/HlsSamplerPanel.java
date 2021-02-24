@@ -36,7 +36,7 @@ public class HlsSamplerPanel extends JPanel {
   private JRadioButton maxResolutionOption;
 
   private JRadioButton hlsProtocolOption;
-  private JRadioButton mpgeDashProtocolOption;
+  private JRadioButton mpegDashProtocolOption;
   private JRadioButton automaticProtocolOption;
 
   private JCheckBox resumeDownloadOption;
@@ -314,13 +314,13 @@ public class HlsSamplerPanel extends JPanel {
         new JRadioButton(Protocol.AUTOMATIC.toString()));
     hlsProtocolOption = namedComponent("hlsProtocolOption",
         new JRadioButton(Protocol.HLS.toString()));
-    mpgeDashProtocolOption = namedComponent("mpgeDashProtocolOption",
+    mpegDashProtocolOption = namedComponent("mpgeDashProtocolOption",
         new JRadioButton(Protocol.MPEG_DASH.toString()));
 
     ButtonGroup protocolRadiosGroup = new ButtonGroup();
     protocolRadiosGroup.add(automaticProtocolOption);
     protocolRadiosGroup.add(hlsProtocolOption);
-    protocolRadiosGroup.add(mpgeDashProtocolOption);
+    protocolRadiosGroup.add(mpegDashProtocolOption);
 
     GroupLayout layout = new GroupLayout(panel);
     layout.setAutoCreateContainerGaps(true);
@@ -328,11 +328,11 @@ public class HlsSamplerPanel extends JPanel {
     layout.setHorizontalGroup(layout.createSequentialGroup()
         .addComponent(automaticProtocolOption)
         .addComponent(hlsProtocolOption)
-        .addComponent(mpgeDashProtocolOption));
+        .addComponent(mpegDashProtocolOption));
     layout.setVerticalGroup(layout.createParallelGroup()
         .addComponent(automaticProtocolOption)
         .addComponent(hlsProtocolOption)
-        .addComponent(mpgeDashProtocolOption));
+        .addComponent(mpegDashProtocolOption));
     return panel;
   }
 
@@ -419,7 +419,7 @@ public class HlsSamplerPanel extends JPanel {
   }
 
   public Protocol getProtocolSelector() {
-    if (mpgeDashProtocolOption.isSelected()) {
+    if (mpegDashProtocolOption.isSelected()) {
       return Protocol.MPEG_DASH;
     } else if (hlsProtocolOption.isSelected()) {
       return Protocol.HLS;
@@ -434,7 +434,7 @@ public class HlsSamplerPanel extends JPanel {
     } else if (option == Protocol.HLS) {
       hlsProtocolOption.setSelected(true);
     } else {
-      mpgeDashProtocolOption.setSelected(true);
+      mpegDashProtocolOption.setSelected(true);
     }
   }
 
