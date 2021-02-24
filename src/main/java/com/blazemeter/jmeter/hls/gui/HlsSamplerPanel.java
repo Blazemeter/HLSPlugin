@@ -314,7 +314,7 @@ public class HlsSamplerPanel extends JPanel {
         new JRadioButton(Protocol.AUTOMATIC.toString()));
     hlsProtocolOption = namedComponent("hlsProtocolOption",
         new JRadioButton(Protocol.HLS.toString()));
-    mpegDashProtocolOption = namedComponent("mpgeDashProtocolOption",
+    mpegDashProtocolOption = namedComponent("mpegDashProtocolOption",
         new JRadioButton(Protocol.MPEG_DASH.toString()));
 
     ButtonGroup protocolRadiosGroup = new ButtonGroup();

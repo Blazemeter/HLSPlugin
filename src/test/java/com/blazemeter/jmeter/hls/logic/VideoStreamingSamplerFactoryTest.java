@@ -30,11 +30,11 @@ public class VideoStreamingSamplerFactoryTest {
   @Before
   public void setUp() {
     factory = new VideoStreamingSamplerFactory();
+    doReturn(Protocol.AUTOMATIC).when(proxy).getProtocolSelector();
   }
 
   @Test
   public void shouldCreateHlsSamplerWhenUrlContainsExtension() {
-    doReturn(Protocol.AUTOMATIC).when(proxy).getProtocolSelector();
     assertThat(factory
         .getVideoStreamingSampler("test.com/master.m3u8", proxy, client, timeMachine, processor))
         .isInstanceOf(com.blazemeter.jmeter.videostreaming.hls.HlsSampler.class);
@@ -42,7 +42,6 @@ public class VideoStreamingSamplerFactoryTest {
 
   @Test
   public void shouldNotCreateHlsSamplerWhenUrlNotContainsExtension() {
-    doReturn(Protocol.AUTOMATIC).when(proxy).getProtocolSelector();
     assertThat(factory
         .getVideoStreamingSampler("test.com/master.mpd", proxy, client, timeMachine, processor))
         .isNotInstanceOf(com.blazemeter.jmeter.videostreaming.hls.HlsSampler.class);
