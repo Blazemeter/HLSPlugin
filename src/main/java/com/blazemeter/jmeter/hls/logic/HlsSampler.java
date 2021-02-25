@@ -1,5 +1,6 @@
 package com.blazemeter.jmeter.hls.logic;
 
+import com.blazemeter.jmeter.videostreaming.core.Protocol;
 import com.blazemeter.jmeter.videostreaming.core.SampleResultProcessor;
 import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
@@ -40,6 +41,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private static final String BANDWIDTH_TYPE_PROPERTY_NAME = "HLS.BANDWIDTH_TYPE";
   private static final String RESOLUTION_TYPE_PROPERTY_NAME = "HLS.RESOLUTION_TYPE";
   private static final String RESUME_DOWNLOAD_PROPERTY_NAME = "HLS.RESUME_DOWNLOAD";
+  private static final String PROTOCOL_PROPERTY_NAME = "VIDEO_STREAMING.PROTOCOL";
 
   private static final String HEADER_MANAGER = "HLSRequest.header_manager";
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
@@ -151,6 +153,14 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     setProperty(CUSTOM_RESOLUTION_PROPERTY_NAME, selector.getCustomResolution());
   }
 
+  public Protocol getProtocolSelector() {
+    return Protocol.valueOf(getPropertyAsString(PROTOCOL_PROPERTY_NAME, Protocol.AUTOMATIC.name()));
+  }
+
+  public void setProtocolSelector(Protocol selector) {
+    setProperty(PROTOCOL_PROPERTY_NAME, selector.name());
+  }
+
   public boolean getResumeVideoStatus() {
     return this.getPropertyAsBoolean(RESUME_DOWNLOAD_PROPERTY_NAME);
   }
@@ -189,8 +199,12 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
     String url = getMasterUrl();
     if (!url.equals(lastMasterUrl)) {
-      sampler = factory
-          .getVideoStreamingSampler(url, this, httpClient, timeMachine, sampleResultProcessor);
+      try {
+        sampler = factory
+            .getVideoStreamingSampler(url, this, httpClient, timeMachine, sampleResultProcessor);
+      } catch (IllegalArgumentException e) {
+        LOG.error("Error initializing the sampler", e);
+      }
     } else if (!this.getResumeVideoStatus()) {
       sampler.resetVideoStatus();
     }
