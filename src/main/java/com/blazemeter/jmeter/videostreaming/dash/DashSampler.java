@@ -67,7 +67,9 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
       boolean initialLoop = true;
       while (!mediaPlayback.hasEnded()) {
         if (mediaPlayback.needsManifestUpdate() && !initialLoop) {
-          long awaitMillis = manifest.getReloadTimeMillis(timeMachine.now());
+          long segmentDurationMillis = (long) mediaPlayback.getLastSegment().getDurationSeconds() * 1000;
+          long awaitMillis = manifest.getReloadTimeMillis(segmentDurationMillis);
+
           if (awaitMillis > 0) {
             timeMachine.awaitMillis(awaitMillis);
           }
@@ -187,7 +189,7 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
       Instant availabilityTime = segment.getStartAvailabilityTime();
       Instant now = timeMachine.now();
       if (availabilityTime.isAfter(now)) {
-        timeMachine.awaitMillis(Duration.between(availabilityTime, now).toMillis());
+        timeMachine.awaitMillis(Duration.between(now, availabilityTime).toMillis());
       }
     }
 
@@ -219,11 +221,9 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
       return segmentBuilder != null;
     }
 
+    // dynamic manifests (live) or empty segment list require manifest get (timing determined elsewhere)
     private boolean needsManifestUpdate() {
-      return manifest.isDynamic()
-          && manifest.getMinimumUpdatePeriod() != null
-          && (manifest.getReloadTimeMillis(timeMachine.now()) <= 0
-          || !segmentBuilder.hasNext() && !periods.hasNext());
+      return manifest.isDynamic() || !segmentBuilder.hasNext() && !periods.hasNext();
     }
 
   }

@@ -12,7 +12,7 @@ public class VideoStreamingSamplerFactory {
       VideoStreamingHttpClient httpClient,
       TimeMachine timeMachine, SampleResultProcessor sampleResultProcessor) {
     //HLS Master Playlist must contain this .m3u8 extension in their URLs
-    if (url.contains(".m3u8")) {
+    if (url.contains(".m3u8")||url.contains("format=m3u8")) {
       return createHlsSampler(baseSampler, httpClient, timeMachine, sampleResultProcessor);
     } else {
       return createDashSampler(baseSampler, httpClient, timeMachine, sampleResultProcessor);

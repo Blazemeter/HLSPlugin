@@ -179,7 +179,7 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
     }
     try {
       HTTPSampleResult playlistResult = httpClient.downloadUri(uri);
-      if (!uri.toString().contains(".m3u8")) {
+      if (!uri.toString().contains(".m3u8") && !uri.toString().contains("format=m3u8")) {
         String playlistName = namer.apply(null);
         sampleResultProcessor.accept(playlistName, playlistResult);
         return null;

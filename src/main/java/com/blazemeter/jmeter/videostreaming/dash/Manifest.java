@@ -6,6 +6,9 @@ import io.lindstrom.mpd.data.BaseURL;
 import io.lindstrom.mpd.data.MPD;
 import io.lindstrom.mpd.data.Period;
 import io.lindstrom.mpd.data.PresentationType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -17,13 +20,15 @@ public class Manifest {
 
   private final URI uri;
   private final MPD mpd;
-  private final Instant downloadTime;
+  private final Instant lastDownLoadTime;
   private final List<MediaPeriod> periods;
+  private Instant playbackStartTime;
+  private static final Logger LOG = LoggerFactory.getLogger(Manifest.class);
 
   private Manifest(URI uri, MPD mpd, Instant timestamp) {
     this.uri = uri;
     this.mpd = mpd;
-    this.downloadTime = timestamp;
+    this.lastDownLoadTime = timestamp;
     this.periods = buildPeriods(mpd);
   }
 
@@ -81,9 +86,13 @@ public class Manifest {
     return mpd.getMinimumUpdatePeriod();
   }
 
-  public long getReloadTimeMillis(Instant now) {
-    return Math
-        .max(mpd.getMinimumUpdatePeriod().minus(Duration.between(downloadTime, now)).toMillis(), 0);
+  public long getReloadTimeMillis(long segmentDurationMillis) {
+    Duration minUpdatePeriod = mpd.getMinimumUpdatePeriod();
+    // wait at least segment duration if minUpdatePeriod is 0 (or very small)
+    long maxIntervalTime = Math.max(minUpdatePeriod.toMillis(), segmentDurationMillis);
+    Instant now = Instant.now();
+
+    return Math.max(maxIntervalTime - Duration.between(lastDownLoadTime, now).toMillis(), 0);
   }
 
   public Duration getBufferStartTime() {
@@ -97,7 +106,12 @@ public class Manifest {
 
   public Instant getAvailabilityStartTime() {
     OffsetDateTime time = mpd.getAvailabilityStartTime();
-    return time != null ? time.toInstant() : Instant.MIN;
+    // simulating availabilityStartTime for VOD enables pacing of segment GETs according to segment duration
+    if (time == null && playbackStartTime == null) {
+      LOG.info("setting playbackStartTime to now()");
+      playbackStartTime = Instant.now();
+    }
+    return time != null ? time.toInstant() : playbackStartTime;
   }
 
 }
