@@ -55,7 +55,7 @@ public abstract class MultiSegmentBuilder<T> extends BaseSegmentBuilder<T> {
         advanceUntilTime(reproductionStart, true);
       }
     } else if (lastSegment.getPeriod().equals(period)) {
-      advanceUntilTime(lastSegment.getEndTime(), false);
+      advanceUntilTime(lastSegment.getEndTime().minus(scaledTimeToDuration(startTime)), false);
     }
   }
 
@@ -72,7 +72,8 @@ public abstract class MultiSegmentBuilder<T> extends BaseSegmentBuilder<T> {
 
   private Duration scaledTimeToDuration(long scaledTime) {
     return Duration.ofMillis(BigDecimal.valueOf(scaledTime)
-        .divide(BigDecimal.valueOf(getTimescale()), 10, RoundingMode.HALF_UP).longValue() * 1000);
+        .divide(BigDecimal.valueOf(getTimescale()), 10, RoundingMode.HALF_UP)
+        .multiply(BigDecimal.valueOf(1000)).longValue());
   }
 
   private long getTimescale() {
