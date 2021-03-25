@@ -9,12 +9,14 @@ public class DashMediaSegment extends MediaSegment {
 
   private final Duration startTime;
   private final MediaPeriod period;
+  private final Duration presentationTimeOffset;
 
   public DashMediaSegment(MediaPeriod period, long sequenceNumber, URI uri, Duration duration,
-      Duration startTime) {
+      Duration startTime, Duration presentationTimeOffset) {
     super(sequenceNumber, uri, duration);
     this.startTime = startTime;
     this.period = period;
+    this.presentationTimeOffset = presentationTimeOffset;
   }
 
   public MediaPeriod getPeriod() {
@@ -26,7 +28,8 @@ public class DashMediaSegment extends MediaSegment {
   }
 
   public Instant getStartAvailabilityTime() {
-    return period.getAvailabilityStartTime().plus(getEndTime());
+    return period.getAvailabilityStartTime().plus(getEndTime()).minus(presentationTimeOffset)
+        .plus(duration.multipliedBy(2));
   }
 
 }

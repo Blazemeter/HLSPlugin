@@ -187,7 +187,7 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
       Instant availabilityTime = segment.getStartAvailabilityTime();
       Instant now = timeMachine.now();
       if (availabilityTime.isAfter(now)) {
-        timeMachine.awaitMillis(Duration.between(availabilityTime, now).toMillis());
+        timeMachine.awaitMillis(Duration.between(now, availabilityTime).toMillis());
       }
     }
 

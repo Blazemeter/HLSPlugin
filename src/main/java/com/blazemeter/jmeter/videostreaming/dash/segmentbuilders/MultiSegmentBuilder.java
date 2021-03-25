@@ -162,7 +162,7 @@ public abstract class MultiSegmentBuilder<T> extends BaseSegmentBuilder<T> {
   public DashMediaSegment next() {
     DashMediaSegment ret = new DashMediaSegment(period, segmentNumber,
         getUrlSolver(segmentNumber).apply(startTime), scaledTimeToDuration(getDuration()),
-        scaledTimeToDuration(startTime));
+        scaledTimeToDuration(startTime), scaledTimeToDuration(getPresentationTimeOffset()));
     moveToNextSegment();
     return ret;
   }

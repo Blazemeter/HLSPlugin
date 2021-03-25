@@ -74,7 +74,8 @@ public class SegmentBaseBuilder extends BaseSegmentBuilder<SegmentBase> {
   @Override
   public DashMediaSegment next() {
     generated = true;
-    return new DashMediaSegment(period, 1, segmentUrl, period.getDuration(), Duration.ZERO);
+    return new DashMediaSegment(period, 1, segmentUrl, period.getDuration(), Duration.ZERO,
+        Duration.ZERO);
   }
 
 }
