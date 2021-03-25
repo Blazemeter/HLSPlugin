@@ -71,6 +71,8 @@ public abstract class MultiSegmentBuilder<T> extends BaseSegmentBuilder<T> {
   protected abstract Supplier<Long> getSegmentDurationSupplier();
 
   private Duration scaledTimeToDuration(long scaledTime) {
+    //BigDecimal is used to avoid losing precision which is necessary to avoid miscalculating
+    //segment numbers or time stamps
     return Duration.ofMillis(BigDecimal.valueOf(scaledTime)
         .divide(BigDecimal.valueOf(getTimescale()), 10, RoundingMode.HALF_UP)
         .multiply(BigDecimal.valueOf(1000)).longValue());
@@ -90,6 +92,8 @@ public abstract class MultiSegmentBuilder<T> extends BaseSegmentBuilder<T> {
   private void advanceUntilTime(Duration time, boolean init) {
     Long segmentDuration = getSegmentDurationSupplier().get();
     if (segmentDuration != null) {
+      //BigDecimal is used to avoid losing precision which is necessary to avoid miscalculating
+      //segment numbers or time stamps
       long incr = BigDecimal.valueOf(time.toMillis())
           .divide(BigDecimal.valueOf(segmentDuration).multiply(BigDecimal.valueOf(1000)), 10,
               RoundingMode.HALF_UP)

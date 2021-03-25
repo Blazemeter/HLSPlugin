@@ -4,6 +4,7 @@ import com.blazemeter.jmeter.videostreaming.core.MediaSegment;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.TemporalAmount;
 
 public class DashMediaSegment extends MediaSegment {
 
@@ -28,8 +29,14 @@ public class DashMediaSegment extends MediaSegment {
   }
 
   public Instant getStartAvailabilityTime() {
-    return period.getAvailabilityStartTime().plus(getEndTime()).minus(presentationTimeOffset)
-        .plus(duration.multipliedBy(2));
+    return period.getAvailabilityStartTime().plus(getEndTime());
   }
 
+  public Duration getDuration() {
+    return duration;
+  }
+
+  public TemporalAmount getPresentationTimeOffset() {
+    return presentationTimeOffset;
+  }
 }

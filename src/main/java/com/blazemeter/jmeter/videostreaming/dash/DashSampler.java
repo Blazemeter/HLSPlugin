@@ -184,10 +184,13 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
     }
 
     private void awaitSegmentAvailable(DashMediaSegment segment) throws InterruptedException {
-      Instant availabilityTime = segment.getStartAvailabilityTime();
-      Instant now = timeMachine.now();
-      if (availabilityTime.isAfter(now)) {
-        timeMachine.awaitMillis(Duration.between(now, availabilityTime).toMillis());
+      Instant availabilityTime =
+          segment.getStartAvailabilityTime().minus(segment.getPresentationTimeOffset())
+              .plus(segment.getDuration().multipliedBy(2));
+      //The clocks have to be synchronized to avoid error on segments availability
+      Instant nowSynchronized = timeMachine.now().plus(manifest.getClocksDiff());
+      if (availabilityTime.isAfter(nowSynchronized)) {
+        timeMachine.awaitMillis(Duration.between(nowSynchronized, availabilityTime).toMillis());
       }
     }
 
