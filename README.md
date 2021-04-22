@@ -20,7 +20,7 @@ In future releases, the plugin will be named "Video Streaming Plugin" instead of
 - The encoder creates a Master Playlist File with the URLs of each Media Playlist.
 To play, the client first downloads the Master Playlist, and then the Media Playlists. Then, they play each Media Segment declared within the chosen Media Playlist. The client can reload the Playlist to discover any added segments. This is needed in cases of live events, for example.
 
-Notice that the recognition of the HLS protocol is based on the requirement of the URL extension of the Master playlist link, which must have ".m3u8" on it, as specified on the [ISO regulation](https://tools.ietf.org/html/rfc8216#section-4).
+Notice that the automatic recognition of the HLS protocol is based on the requirement of the URL extension of the Master playlist link, which must have ".m3u8" on it, as specified on the [ISO regulation](https://tools.ietf.org/html/rfc8216#section-4).
 
 #### In a Dynamic Adaptive Streaming over HTTP Live Streaming process:
 
@@ -60,6 +60,12 @@ After that you can add assertions, listeners, etc.
 Set the link to the master playlist file
 
 ![](docs/video-url.png)
+
+#### Protocol
+
+Set the protocol you want to test or let the plugin to automatically detect it.
+
+![](docs/protocol.png)
 
 #### Duration
 
