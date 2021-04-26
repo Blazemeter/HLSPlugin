@@ -3,6 +3,8 @@ package com.blazemeter.jmeter.videostreaming.dash.segmentbuilders;
 import com.blazemeter.jmeter.videostreaming.dash.DashMediaSegment;
 import com.blazemeter.jmeter.videostreaming.dash.MediaRepresentation;
 import io.lindstrom.mpd.data.Segment;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Iterator;
@@ -49,12 +51,11 @@ public abstract class MultiSegmentBuilder<T> extends BaseSegmentBuilder<T> {
     if (lastSegment == null) {
       if (manifest.isDynamic()) {
         Duration reproductionStart = manifest.getBufferStartTime()
-            .minus(period.getStartTime())
-            .plus(scaledTimeToDuration(startTime));
+            .minus(period.getStartTime());
         advanceUntilTime(reproductionStart, true);
       }
     } else if (lastSegment.getPeriod().equals(period)) {
-      advanceUntilTime(lastSegment.getEndTime(), false);
+      advanceUntilTime(lastSegment.getEndTime().minus(scaledTimeToDuration(startTime)), false);
     }
   }
 
@@ -70,8 +71,11 @@ public abstract class MultiSegmentBuilder<T> extends BaseSegmentBuilder<T> {
   protected abstract Supplier<Long> getSegmentDurationSupplier();
 
   private Duration scaledTimeToDuration(long scaledTime) {
-    double seconds = (double) scaledTime / getTimescale();
-    return Duration.ofMillis((long) (seconds * 1000));
+    //BigDecimal is used to avoid losing precision which is necessary to avoid miscalculating
+    //segment numbers or time stamps
+    return Duration.ofMillis(BigDecimal.valueOf(scaledTime)
+        .divide(BigDecimal.valueOf(getTimescale()), 10, RoundingMode.HALF_UP)
+        .multiply(BigDecimal.valueOf(1000)).longValue());
   }
 
   private long getTimescale() {
@@ -88,22 +92,21 @@ public abstract class MultiSegmentBuilder<T> extends BaseSegmentBuilder<T> {
   private void advanceUntilTime(Duration time, boolean init) {
     Long segmentDuration = getSegmentDurationSupplier().get();
     if (segmentDuration != null) {
-      double incrDec = (double) time.toMillis() / scaledTimeToDuration(segmentDuration).toMillis();
-      // we round times due to double precision issues
-      long incr = init ? (long) incrDec : Math.round(incrDec);
+      //BigDecimal is used to avoid losing precision which is necessary to avoid miscalculating
+      //segment numbers or time stamps
+      long incr = BigDecimal.valueOf(time.toMillis())
+          .divide(BigDecimal.valueOf(segmentDuration).multiply(BigDecimal.valueOf(1000)), 10,
+              RoundingMode.HALF_UP)
+          .multiply(BigDecimal.valueOf(getTimescale())).longValue();
       segmentNumber += incr;
       startTime += incr * segmentDuration;
     } else {
       while (hasNext()
           && scaledTimeToDuration(startTime + timelineSegment.duration).compareTo(time) <= 0) {
-        /*
-        instead converting scaling time to seconds (dividing by 1000), we scale it to millis
-        to and work with millis which requires smaller doubles to operate and less precision
-        issues
-        */
-        long repetitionsUntilTime =
-            Math.round((double) (time.toMillis() * getTimescale() - startTime * 1000) / (
-                timelineSegment.duration * 1000));
+        long repetitionsUntilTime = BigDecimal
+            .valueOf(time.toMillis() * getTimescale() - startTime)
+            .divide(BigDecimal.valueOf(timelineSegment.duration), 10, RoundingMode.HALF_UP)
+            .longValue();
         long pendingRepetitions = timelineSegment.repetitions - timelineSegmentRepetitions + 1;
         long repetitions = Math.min(pendingRepetitions, repetitionsUntilTime);
         segmentNumber += repetitions;
@@ -163,7 +166,7 @@ public abstract class MultiSegmentBuilder<T> extends BaseSegmentBuilder<T> {
   public DashMediaSegment next() {
     DashMediaSegment ret = new DashMediaSegment(period, segmentNumber,
         getUrlSolver(segmentNumber).apply(startTime), scaledTimeToDuration(getDuration()),
-        scaledTimeToDuration(startTime));
+        scaledTimeToDuration(startTime), scaledTimeToDuration(getPresentationTimeOffset()));
     moveToNextSegment();
     return ret;
   }

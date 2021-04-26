@@ -2,6 +2,7 @@ package com.blazemeter.jmeter.hls.gui;
 
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
 import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
+import com.blazemeter.jmeter.videostreaming.core.Protocol;
 import java.awt.event.ItemEvent;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
@@ -31,8 +32,12 @@ public class HlsSamplerPanel extends JPanel {
 
   private JRadioButton customResolutionOption;
   private JTextField customResolutionField;
-  private JRadioButton maxResolutionOption;
   private JRadioButton minResolutionOption;
+  private JRadioButton maxResolutionOption;
+
+  private JRadioButton hlsProtocolOption;
+  private JRadioButton mpegDashProtocolOption;
+  private JRadioButton automaticProtocolOption;
 
   private JCheckBox resumeDownloadOption;
 
@@ -47,6 +52,7 @@ public class HlsSamplerPanel extends JPanel {
     JPanel bandwidthPanel = buildBandwidthPanel();
     JPanel resolutionPanel = buildResolutionPanel();
     JPanel resumeDownloadPanel = buildResumeDownloadPanel();
+    JPanel protocolSelectionPanel = buildProtocolSelectionPanel();
 
     BlazeMeterLabsLogo blazeMeterLabsLogo = new BlazeMeterLabsLogo();
     GroupLayout layout = new GroupLayout(this);
@@ -54,7 +60,10 @@ public class HlsSamplerPanel extends JPanel {
     layout.setAutoCreateGaps(true);
     setLayout(layout);
     layout.setHorizontalGroup(layout.createParallelGroup()
-        .addComponent(urlPanel)
+        .addComponent(urlPanel, GroupLayout.PREFERRED_SIZE,
+            GroupLayout.PREFERRED_SIZE, Short.MAX_VALUE)
+        .addComponent(protocolSelectionPanel, GroupLayout.PREFERRED_SIZE,
+            GroupLayout.PREFERRED_SIZE, Short.MAX_VALUE)
         .addGroup(layout.createSequentialGroup()
             .addComponent(durationPanel)
             .addComponent(trackPanel))
@@ -67,6 +76,8 @@ public class HlsSamplerPanel extends JPanel {
     );
     layout.setVerticalGroup(layout.createSequentialGroup()
         .addComponent(urlPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
+            GroupLayout.PREFERRED_SIZE)
+        .addComponent(protocolSelectionPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
             GroupLayout.PREFERRED_SIZE)
         .addGroup(layout.createParallelGroup()
             .addComponent(durationPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
@@ -88,7 +99,7 @@ public class HlsSamplerPanel extends JPanel {
     panel.setBorder(BorderFactory.createTitledBorder("Video"));
 
     JLabel urlLabel = new JLabel("URL");
-    masterUrlField = namedComponent("masterUrlField", new JTextField());
+    masterUrlField = namedComponent("masterUrlField", new JTextField(80));
 
     GroupLayout layout = new GroupLayout(panel);
     layout.setAutoCreateContainerGaps(true);
@@ -295,6 +306,36 @@ public class HlsSamplerPanel extends JPanel {
     return panel;
   }
 
+  private JPanel buildProtocolSelectionPanel() {
+    JPanel panel = new JPanel();
+    panel.setBorder(BorderFactory.createTitledBorder("Protocol"));
+
+    automaticProtocolOption = namedComponent("automaticProtocolOption",
+        new JRadioButton(Protocol.AUTOMATIC.toString()));
+    hlsProtocolOption = namedComponent("hlsProtocolOption",
+        new JRadioButton(Protocol.HLS.toString()));
+    mpegDashProtocolOption = namedComponent("mpegDashProtocolOption",
+        new JRadioButton(Protocol.MPEG_DASH.toString()));
+
+    ButtonGroup protocolRadiosGroup = new ButtonGroup();
+    protocolRadiosGroup.add(automaticProtocolOption);
+    protocolRadiosGroup.add(hlsProtocolOption);
+    protocolRadiosGroup.add(mpegDashProtocolOption);
+
+    GroupLayout layout = new GroupLayout(panel);
+    layout.setAutoCreateContainerGaps(true);
+    panel.setLayout(layout);
+    layout.setHorizontalGroup(layout.createSequentialGroup()
+        .addComponent(automaticProtocolOption)
+        .addComponent(hlsProtocolOption)
+        .addComponent(mpegDashProtocolOption));
+    layout.setVerticalGroup(layout.createParallelGroup()
+        .addComponent(automaticProtocolOption)
+        .addComponent(hlsProtocolOption)
+        .addComponent(mpegDashProtocolOption));
+    return panel;
+  }
+
   public void setMasterUrl(String masterUrl) {
     masterUrlField.setText(masterUrl);
   }
@@ -374,6 +415,26 @@ public class HlsSamplerPanel extends JPanel {
     } else {
       customResolutionOption.setSelected(true);
       customResolutionField.setText(option.getCustomResolution());
+    }
+  }
+
+  public Protocol getProtocolSelector() {
+    if (mpegDashProtocolOption.isSelected()) {
+      return Protocol.MPEG_DASH;
+    } else if (hlsProtocolOption.isSelected()) {
+      return Protocol.HLS;
+    } else {
+      return Protocol.AUTOMATIC;
+    }
+  }
+
+  public void setProtocolSelector(Protocol option) {
+    if (option == Protocol.AUTOMATIC) {
+      automaticProtocolOption.setSelected(true);
+    } else if (option == Protocol.HLS) {
+      hlsProtocolOption.setSelected(true);
+    } else {
+      mpegDashProtocolOption.setSelected(true);
     }
   }
 

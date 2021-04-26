@@ -95,6 +95,11 @@ public class Manifest {
         .minus(bufferTime);
   }
 
+  public Duration getClocksDiff() {
+    OffsetDateTime publishTime = mpd.getPublishTime();
+    return publishTime != null ? Duration.between(downloadTime, publishTime) : Duration.ZERO;
+  }
+
   public Instant getAvailabilityStartTime() {
     OffsetDateTime time = mpd.getAvailabilityStartTime();
     return time != null ? time.toInstant() : Instant.MIN;
