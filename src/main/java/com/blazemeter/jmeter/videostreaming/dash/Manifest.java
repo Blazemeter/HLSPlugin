@@ -105,4 +105,8 @@ public class Manifest {
     return time != null ? time.toInstant() : Instant.MIN;
   }
 
+  public List<String> getLocations() {
+    return mpd.getLocations();
+  }
+
 }

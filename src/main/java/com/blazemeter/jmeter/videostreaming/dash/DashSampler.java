@@ -13,6 +13,7 @@ import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
 import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistDownloadException;
 import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistParsingException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -70,6 +71,15 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
           long awaitMillis = manifest.getReloadTimeMillis(timeMachine.now());
           if (awaitMillis > 0) {
             timeMachine.awaitMillis(awaitMillis);
+          }
+
+          List<String> locations = manifest.getLocations();
+          if (locations != null && !locations.isEmpty()) {
+            try {
+              masterUri = new URI(locations.get(0));
+            } catch (URISyntaxException e) {
+              e.printStackTrace();
+            }
           }
           manifest = downloadPlaylist(masterUri, p -> MASTER_TYPE_NAME,
               Manifest::fromUriAndBody);
