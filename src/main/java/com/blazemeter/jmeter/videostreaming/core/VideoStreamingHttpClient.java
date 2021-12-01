@@ -47,7 +47,8 @@ public class VideoStreamingHttpClient extends HTTPHC4Impl {
       throw new SamplerInterruptedException();
     }
     try {
-      return sample(uri.toURL(), "GET", false, 0);
+
+      return sample(uri.normalize().toURL(), "GET", false, 0);
     } catch (MalformedURLException e) {
       throw new IllegalArgumentException(e);
     }
