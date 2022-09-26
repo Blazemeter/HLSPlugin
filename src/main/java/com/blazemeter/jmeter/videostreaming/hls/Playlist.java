@@ -4,6 +4,7 @@ import static com.comcast.viper.hlsparserj.PlaylistVersion.TWELVE;
 
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
 import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
+import com.blazemeter.jmeter.videostreaming.core.Manifest;
 import com.blazemeter.jmeter.videostreaming.core.MediaSegment;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamSelector;
 import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistParsingException;
@@ -12,32 +13,41 @@ import com.comcast.viper.hlsparserj.IPlaylist;
 import com.comcast.viper.hlsparserj.MasterPlaylist;
 import com.comcast.viper.hlsparserj.MediaPlaylist;
 import com.comcast.viper.hlsparserj.PlaylistFactory;
+import com.comcast.viper.hlsparserj.tags.UnparsedTag;
 import com.comcast.viper.hlsparserj.tags.master.Media;
 import com.comcast.viper.hlsparserj.tags.master.StreamInf;
+import com.comcast.viper.hlsparserj.tags.media.ByteRange;
+import com.comcast.viper.hlsparserj.tags.media.ExtMap;
 import com.comcast.viper.hlsparserj.tags.media.MediaSequence;
 import com.comcast.viper.hlsparserj.tags.media.PlaylistType;
 import com.comcast.viper.hlsparserj.tags.media.TargetDuration;
+
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class Playlist {
+public class Playlist extends Manifest {
 
   private static final Logger LOG = LoggerFactory.getLogger(Playlist.class);
-  private final URI uri;
   private final String body; //This field is only used for comparing objects
   private final Instant downloadTimestamp;
   private IPlaylist playlist;
 
   private Playlist(URI uri, String body, Instant downloadTimestamp, IPlaylist playlist) {
-    this.uri = uri;
+    super(uri);
+
     this.downloadTimestamp = downloadTimestamp;
     this.body = body;
     this.playlist = playlist;
@@ -60,10 +70,14 @@ public class Playlist {
     return uri;
   }
 
+  public IPlaylist getPlaylist() {
+    return playlist;
+  }
+
   public MediaStream solveMediaStream(BandwidthSelector bandwidthSelector,
-      ResolutionSelector resolutionSelector,
-      String audioLanguageSelector,
-      String subtitleLanguageSelector) {
+                                      ResolutionSelector resolutionSelector,
+                                      String audioLanguageSelector,
+                                      String subtitleLanguageSelector) {
 
     StreamInf mediaStream = solveStream(bandwidthSelector, resolutionSelector);
     if (mediaStream == null) {
@@ -73,13 +87,13 @@ public class Playlist {
         audioLanguageSelector);
     String subtitlePlayListUri = getRenditionUri("SUBTITLES", mediaStream.getSubtitle(),
         subtitleLanguageSelector);
-    return new MediaStream(buildAbsoluteUri(mediaStream.getURI()),
-        (audioPlayListUri != null ? buildAbsoluteUri(audioPlayListUri) : null),
-        (subtitlePlayListUri != null ? buildAbsoluteUri(subtitlePlayListUri) : null));
+    return new MediaStream(uri.resolve(mediaStream.getURI()),
+        (audioPlayListUri != null ? uri.resolve(audioPlayListUri) : null),
+        (subtitlePlayListUri != null ? uri.resolve(subtitlePlayListUri) : null));
   }
 
   private StreamInf solveStream(BandwidthSelector bandwidthSelector,
-      ResolutionSelector resolutionSelector) {
+                                ResolutionSelector resolutionSelector) {
     return new VideoStreamSelector<>(bandwidthSelector, v -> (long) v.getBandwidth(),
         resolutionSelector, StreamInf::getResolution)
         .findMatchingVariant(((MasterPlaylist) playlist).getVariantStreams());
@@ -100,7 +114,8 @@ public class Playlist {
           defaultRendition = rendition;
         }
         if (rendition.getName().toLowerCase().trim().equals(selector.toLowerCase())
-            || rendition.getLanguage().toLowerCase().trim().equals(selector.toLowerCase())) {
+            || (rendition.getLanguage() != null
+            && rendition.getLanguage().toLowerCase().trim().equals(selector.toLowerCase()))) {
           return rendition.getURI();
         }
       }
@@ -113,20 +128,6 @@ public class Playlist {
     return (defaultRendition != null ? defaultRendition.getURI() : null);
   }
 
-  private URI buildAbsoluteUri(String str) {
-    URI ret = URI.create(str);
-    if (ret.getScheme() != null) {
-      return ret;
-    } else if (ret.getPath().startsWith("/")) {
-      return URI.create(uri.getScheme() + "://" + uri.getRawAuthority() + ret.toString());
-    } else {
-      String basePath = uri.getPath();
-      basePath = basePath.substring(0, basePath.lastIndexOf('/') + 1);
-      return URI.create(
-          uri.getScheme() + "://" + uri.getRawAuthority() + basePath + ret.toString());
-    }
-  }
-
   public List<MediaSegment> getMediaSegments() {
     MediaPlaylist mediaPlaylist = (MediaPlaylist) playlist;
     MediaSequence mediaSequence = mediaPlaylist.getMediaSequence();
@@ -134,11 +135,41 @@ public class Playlist {
 
     AtomicInteger sequenceNumber = new AtomicInteger(sequence);
 
-    return mediaPlaylist.getSegments().stream()
-        .map(s -> new MediaSegment(sequenceNumber.getAndIncrement(),
-            buildAbsoluteUri(s.getURI()), Duration.ofMillis((long) s.getDuration() * 1000)))
-        .collect(Collectors.toList());
+    if (!hasByteRange()) {
+      return mediaPlaylist.getSegments().stream()
+          .map(s -> new MediaSegment(sequenceNumber.getAndIncrement(),
+              uri.resolve(s.getURI()), Duration.ofMillis((long) s.getDuration() * 1000)))
+          .collect(Collectors.toList());
+    } else {
+      List<MediaSegment> mediaSegments = mediaPlaylist.getSegments().stream()
+          .map(s -> new MediaSegment(sequenceNumber.getAndIncrement(),
+              Duration.ofMillis((long) s.getDuration() * 1000))).collect(Collectors.toList());
+      for (int i = 0; i < mediaSegments.size(); i++) {
+        MediaSegment segment = mediaSegments.get(i);
+        ByteRange byteRange = mediaPlaylist.getByteRanges().get(i);
+        segment.setByteRangeInfo(uri.resolve(byteRange.getURI()), byteRange.getLength(),
+            byteRange.getOffset());
 
+      }
+
+      return mediaSegments;
+    }
+  }
+
+  public List<String> getSubtitles() {
+    Set<String> subtitles = new HashSet<>();
+    for (UnparsedTag tag : playlist.getTags()) {
+      Map<String, String> att = tag.getAttributes();
+      if (!att.isEmpty() && att.get("TYPE") != null && att.get("TYPE").equals("SUBTITLES")) {
+        subtitles.add(att.get("LANGUAGE"));
+      }
+    }
+
+    return new ArrayList<>(subtitles);
+  }
+
+  public boolean hasByteRange() {
+    return !((MediaPlaylist) playlist).getByteRanges().isEmpty();
   }
 
   public boolean hasEnd() {
@@ -162,7 +193,7 @@ public class Playlist {
   }
 
   public long getReloadTimeMillisForDurationMultiplier(double targetDurationMultiplier,
-      Instant now) {
+                                                       Instant now) {
     MediaPlaylist media = (MediaPlaylist) playlist;
     TargetDuration mediaTargetDuration = media.getTargetDuration();
     long targetDuration = (mediaTargetDuration != null
@@ -194,4 +225,25 @@ public class Playlist {
     return playlist.isMasterPlaylist();
   }
 
+  public InitializationSegment getInitializationSegment() {
+    MediaPlaylist mediaPlaylist = (MediaPlaylist) playlist;
+    ExtMap extMap = mediaPlaylist.getInitializationSegment();
+    return new
+        InitializationSegment(uri.resolve(extMap.getURI()), extMap.getLength(), extMap.getOffset());
+  }
+
+  @Override
+  protected String getManifestType() {
+    if (playlist == null) {
+      return null;
+    }
+
+    for (UnparsedTag tag : playlist.getTags()) {
+      String tagname = tag.getTagName();
+      if ("EXT-X-PLAYLIST-TYPE".equals(tagname)) {
+        return tag.getRawTag().split(":", 2)[1];
+      }
+    }
+    return null;
+  }
 }

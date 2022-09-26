@@ -6,7 +6,9 @@ import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
 import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistDownloadException;
 import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistParsingException;
 import com.blazemeter.jmeter.videostreaming.core.exception.SamplerInterruptedException;
+import com.blazemeter.jmeter.videostreaming.hls.InitializationSegment;
 import com.google.common.annotations.VisibleForTesting;
+
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -15,6 +17,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
 import org.apache.jmeter.samplers.SampleResult;
 import org.slf4j.Logger;
@@ -23,10 +26,10 @@ import org.slf4j.LoggerFactory;
 public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
 
   public static final String SUBTITLES_TYPE_NAME = "subtitles";
+  public static final String VIDEO_TYPE_NAME = "video";
+  public static final String AUDIO_TYPE_NAME = "audio";
   protected static final String MASTER_TYPE_NAME = "master";
   protected static final String MEDIA_TYPE_NAME = "media";
-  protected static final String AUDIO_TYPE_NAME = "audio";
-  protected static final String VIDEO_TYPE_NAME = "video";
   private static final byte[] BOM_BYTES = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
 
   private static final Logger LOG = LoggerFactory.getLogger(VideoStreamingSampler.class);
@@ -42,8 +45,8 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
   private final HlsSampler baseSampler;
 
   public VideoStreamingSampler(HlsSampler baseSampler,
-      VideoStreamingHttpClient httpClient, TimeMachine timeMachine,
-      SampleResultProcessor sampleResultProcessor) {
+                               VideoStreamingHttpClient httpClient, TimeMachine timeMachine,
+                               SampleResultProcessor sampleResultProcessor) {
     this.baseSampler = baseSampler;
     this.httpClient = httpClient;
     this.timeMachine = timeMachine;
@@ -91,8 +94,9 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
   }
 
   protected abstract void sample(URI masterUri, BandwidthSelector bandwidthSelector,
-      ResolutionSelector resolutionSelector, String audioLanguage, String subtitleLanguage,
-      int playSeconds)
+                                 ResolutionSelector resolutionSelector,
+                                 String audioLanguage, String subtitleLanguage,
+                                 int playSeconds)
       throws SamplerInterruptedException, InterruptedException, PlaylistDownloadException,
       PlaylistParsingException;
 
@@ -118,6 +122,15 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
       String playlistContents = getPlaylistContents(playlistResult);
       T playlist = playlistParser
           .parse(uri, playlistContents, downloadTimestamp);
+      String videoType = ((Manifest) playlist).getManifestType();
+      if (videoType != null && this.baseSampler.getIncludeTypeInHeadersStatus()) {
+        videoType = "Type: " + videoType;
+        String responseHeaders = playlistResult.getResponseHeaders();
+        String requestHeaders = playlistResult.getRequestHeaders();
+
+        playlistResult.setResponseHeaders(responseHeaders + videoType);
+        playlistResult.setRequestHeaders(requestHeaders + videoType);
+      }
       sampleResultProcessor.accept(name.apply(playlist), playlistResult);
       return playlist;
     } catch (PlaylistParsingException e) {
@@ -125,6 +138,48 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
       throw e;
     }
   }
+
+  protected T downloadPlaylist(URI uri, PlaylistParser<T> playlistParser)
+      throws PlaylistDownloadException, PlaylistParsingException {
+    HTTPSampleResult playlistResult = httpClient.downloadUri(uri);
+    if (!playlistResult.isSuccessful()) {
+      throw new PlaylistDownloadException("provided url", uri);
+    }
+
+    // we update uri in case the request was redirected
+    try {
+      uri = playlistResult.getURL().toURI();
+    } catch (URISyntaxException e) {
+      LOG.warn("Problem updating uri to redirected one: {}. Continue with original uri {}",
+          playlistResult.getURL(), uri, e);
+    }
+
+    String playlistContents = getPlaylistContents(playlistResult);
+    return playlistParser.parse(uri, playlistContents, timeMachine.now());
+  }
+
+  protected T getManifest(URI uri, Function<T, String> name, PlaylistParser<T> playlistParser)
+      throws PlaylistDownloadException, PlaylistParsingException {
+    Instant downloadTimestamp = timeMachine.now();
+    HTTPSampleResult playlistResult = httpClient.downloadUri(uri);
+    if (!playlistResult.isSuccessful()) {
+      throw new PlaylistDownloadException("", uri);
+    }
+
+    // we update uri in case the request was redirected
+    try {
+      uri = playlistResult.getURL().toURI();
+    } catch (URISyntaxException e) {
+      LOG.warn("Problem updating uri to redirected one: {}. Continue with original uri {}",
+          playlistResult.getURL(), uri, e);
+    }
+
+    String playlistContents = getPlaylistContents(playlistResult);
+    T playlist = playlistParser
+        .parse(uri, playlistContents, downloadTimestamp);
+    return playlist;
+  }
+
 
   /*
    since some playlist may contain a BOM marker, and jmeter HTTPSampleResult.getResponseDataAsString
@@ -162,6 +217,10 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
   }
 
   protected void downloadSegment(MediaSegment segment, String type) {
+    if (segment.hasSubRange()) {
+      httpClient.addHeader("range", "bytes=" + segment.getByteOffset() + "-"
+          + (segment.getByteOffset() + segment.getByteLength() - 1));
+    }
     SampleResult result = httpClient.downloadUri(segment.getUri());
     result.setResponseHeaders(
         result.getResponseHeaders() + "X-MEDIA-SEGMENT-DURATION: " + segment.getDurationSeconds()
@@ -169,10 +228,23 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
     sampleResultProcessor.accept(VideoStreamingSampler.buildSegmentName(type), result);
   }
 
-  @VisibleForTesting
-  public static HTTPSampleResult buildNotMatchingMediaPlaylistResult() {
-    return HlsSampler.errorResult(new HTTPSampleResult(), "NoMatchingMediaPlaylist",
-        "No matching media playlist for provided resolution and bandwidth");
+  protected void downloadInitSegment(InitializationSegment initializationSegment, String type) {
+
+    httpClient.addHeader("range", "bytes=" + initializationSegment.getByteOffset() + "-"
+        + (initializationSegment.getByteOffset() + initializationSegment.getByteLength() - 1));
+    SampleResult result = httpClient.downloadUri(initializationSegment.getUri());
+    sampleResultProcessor.accept(VideoStreamingSampler.buildInitSegmentName(type), result);
   }
+
+  @VisibleForTesting
+  public static HTTPSampleResult buildNotMatchingMediaPlaylistResult(String variants,
+                                                                     String selector) {
+    return HlsSampler.errorResult(new HTTPSampleResult(), "NoMatchingMediaPlaylist",
+        "No matching media playlist for provided " + selector + ", "
+            + "available " + selector + "s" + " are: \n" + variants);
+  }
+
+  public abstract Variants getVariants(URI masterUri)
+      throws PlaylistParsingException, PlaylistDownloadException;
 
 }

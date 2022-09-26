@@ -1,8 +1,6 @@
 package com.blazemeter.jmeter.hls.gui;
 
-import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
 import com.blazemeter.jmeter.hls.logic.HlsSampler;
-import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
 import com.blazemeter.jmeter.videostreaming.core.Protocol;
 import com.google.common.annotations.VisibleForTesting;
 import java.awt.BorderLayout;
@@ -50,12 +48,18 @@ public class HlsSamplerGui extends AbstractSamplerGui {
     hlsSamplerPanel.setMasterUrl(sampler.getMasterUrl());
     hlsSamplerPanel.setPlayVideoDuration(sampler.isPlayVideoDuration());
     hlsSamplerPanel.setPlaySeconds(sampler.getPlaySeconds());
+    hlsSamplerPanel.setAudioLanguageOptions(sampler.getAudioLanguageOptions());
     hlsSamplerPanel.setAudioLanguage(sampler.getAudioLanguage());
+    hlsSamplerPanel.setSubtitleOptions(sampler.getSubtitleOptions());
     hlsSamplerPanel.setSubtitleLanguage(sampler.getSubtitleLanguage());
-    hlsSamplerPanel.setBandwidthSelector(sampler.getBandwidthSelector());
-    hlsSamplerPanel.setResolutionSelector(sampler.getResolutionSelector());
+    hlsSamplerPanel.setBandwidthOptions(sampler.getBandwidthOptions());
+    hlsSamplerPanel.setBandwidthSelected(sampler.getBandwidthSelected());
+    hlsSamplerPanel.setResolutionOptions(sampler.getResolutionOptions());
+    hlsSamplerPanel.setResolutionSelected(sampler.getResolutionSelected());
     hlsSamplerPanel.setResumeStatus(sampler.getResumeVideoStatus());
+    hlsSamplerPanel.setIncludeTypeInHeaders(sampler.getIncludeTypeInHeadersStatus());
     hlsSamplerPanel.setProtocolSelector(sampler.getProtocolSelector());
+    hlsSamplerPanel.setVariantsProvider(sampler);
   }
 
   @Override
@@ -66,11 +70,16 @@ public class HlsSamplerGui extends AbstractSamplerGui {
       sampler.setMasterUrl(hlsSamplerPanel.getMasterUrl());
       sampler.setPlayVideoDuration(hlsSamplerPanel.isPlayVideoDuration());
       sampler.setPlaySeconds(hlsSamplerPanel.getPlaySeconds());
+      sampler.setAudioLanguageOptions(hlsSamplerPanel.getAudioLanguageOptions());
       sampler.setAudioLanguage(hlsSamplerPanel.getAudioLanguage());
+      sampler.setSubtitleOptions(hlsSamplerPanel.getSubtitleOptions());
       sampler.setSubtitleLanguage(hlsSamplerPanel.getSubtitleLanguage());
-      sampler.setBandwidthSelector(hlsSamplerPanel.getBandwidthSelector());
-      sampler.setResolutionSelector(hlsSamplerPanel.getResolutionSelector());
+      sampler.setBandwidthOptions(hlsSamplerPanel.getBandwidthOptions());
+      sampler.setBandwidthSelected(hlsSamplerPanel.getBandwidthSelected());
+      sampler.setResolutionOptions(hlsSamplerPanel.getResolutionOptions());
+      sampler.setResolutionSelected(hlsSamplerPanel.getResolutionSelected());
       sampler.setResumeVideoStatus(hlsSamplerPanel.getResumeVideoStatus());
+      sampler.setIncludeTypeInHeadersStatus(hlsSamplerPanel.getIncludeTypeInHeadersStatus());
       sampler.setProtocolSelector(hlsSamplerPanel.getProtocolSelector());
     }
   }
@@ -79,13 +88,11 @@ public class HlsSamplerGui extends AbstractSamplerGui {
   public void clearGui() {
     super.clearGui();
     hlsSamplerPanel.setMasterUrl("");
+    hlsSamplerPanel.setDefaultForAllBoxes();
     hlsSamplerPanel.setPlayVideoDuration(false);
     hlsSamplerPanel.setPlaySeconds("");
-    hlsSamplerPanel.setAudioLanguage("");
-    hlsSamplerPanel.setSubtitleLanguage("");
-    hlsSamplerPanel.setBandwidthSelector(BandwidthSelector.MIN);
-    hlsSamplerPanel.setResolutionSelector(ResolutionSelector.MIN);
     hlsSamplerPanel.setResumeStatus(false);
+    hlsSamplerPanel.setIncludeTypeInHeaders(false);
     hlsSamplerPanel.setProtocolSelector(Protocol.AUTOMATIC);
   }
 

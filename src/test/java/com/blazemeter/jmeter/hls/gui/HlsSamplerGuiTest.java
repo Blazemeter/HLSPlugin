@@ -4,11 +4,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.blazemeter.jmeter.JMeterTestUtils;
-import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
-import com.blazemeter.jmeter.hls.logic.BandwidthSelector.CustomBandwidthSelector;
+import com.blazemeter.jmeter.SwingTestRunner;
 import com.blazemeter.jmeter.hls.logic.HlsSampler;
-import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
-import com.blazemeter.jmeter.hls.logic.ResolutionSelector.CustomResolutionSelector;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -19,7 +16,7 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.mockito.junit.VerificationCollector;
 
-@RunWith(MockitoJUnitRunner.class)
+@RunWith(SwingTestRunner.class)
 public class HlsSamplerGuiTest {
 
   private static final String MASTER_URL = "http://test/test.m3u8";
@@ -49,56 +46,48 @@ public class HlsSamplerGuiTest {
 
   @Test
   public void shouldSetPanelFieldsWithTestElementPropertiesWhenConfigure() {
-    CustomBandwidthSelector bandwidthSelector = new CustomBandwidthSelector(
-        CUSTOM_BANDWIDTH);
-    CustomResolutionSelector resolutionSelector = new CustomResolutionSelector(
-        CUSTOM_RESOLUTION);
     when(sampler.getMasterUrl()).thenReturn(MASTER_URL);
     when(sampler.isPlayVideoDuration()).thenReturn(true);
     when(sampler.getPlaySeconds()).thenReturn(PLAY_SECONDS);
     when(sampler.getResumeVideoStatus()).thenReturn(true);
-    when(sampler.getBandwidthSelector()).thenReturn(bandwidthSelector);
-    when(sampler.getResolutionSelector()).thenReturn(resolutionSelector);
+    when(sampler.getIncludeTypeInHeadersStatus()).thenReturn(true);
+    when(sampler.getBandwidthSelected()).thenReturn(CUSTOM_BANDWIDTH);
+    when(sampler.getResolutionSelected()).thenReturn(CUSTOM_RESOLUTION);
     gui.configure(sampler);
     verify(panel).setMasterUrl(MASTER_URL);
     verify(panel).setPlayVideoDuration(true);
     verify(panel).setPlaySeconds(PLAY_SECONDS);
     verify(panel).setResumeStatus(true);
-    verify(panel).setBandwidthSelector(bandwidthSelector);
-    verify(panel).setResolutionSelector(resolutionSelector);
+    verify(panel).setIncludeTypeInHeaders(true);
+    verify(panel).setBandwidthSelected(CUSTOM_BANDWIDTH);
+    verify(panel).setResolutionSelected(CUSTOM_RESOLUTION);
   }
 
   @Test
   public void shouldSetTestElementPropertiesWithPanelFieldsWhenModifyTestElement() {
-
-    CustomBandwidthSelector bandwidthSelector = new CustomBandwidthSelector(
-        CUSTOM_BANDWIDTH);
-    CustomResolutionSelector resolutionSelector = new CustomResolutionSelector(
-        CUSTOM_RESOLUTION);
     when(panel.getMasterUrl()).thenReturn(MASTER_URL);
     when(panel.isPlayVideoDuration()).thenReturn(true);
     when(panel.getPlaySeconds()).thenReturn(PLAY_SECONDS);
     when(panel.getResumeVideoStatus()).thenReturn(true);
-    when(panel.getBandwidthSelector()).thenReturn(bandwidthSelector);
-    when(panel.getResolutionSelector()).thenReturn(resolutionSelector);
+    when(panel.getBandwidthSelected()).thenReturn(CUSTOM_BANDWIDTH);
+    when(panel.getResolutionSelected()).thenReturn(CUSTOM_RESOLUTION);
     gui.modifyTestElement(sampler);
     verify(sampler).setMasterUrl(MASTER_URL);
     verify(sampler).setPlayVideoDuration(true);
     verify(sampler).setPlaySeconds(PLAY_SECONDS);
     verify(sampler).setResumeVideoStatus(true);
-    verify(sampler).setBandwidthSelector(bandwidthSelector);
-    verify(sampler).setResolutionSelector(resolutionSelector);
+    verify(sampler).setBandwidthSelected(CUSTOM_BANDWIDTH);
+    verify(sampler).setResolutionSelected(CUSTOM_RESOLUTION);
   }
 
   @Test
   public void shouldClearPanelFieldsWhenClear() {
     gui.clearGui();
     verify(panel).setMasterUrl("");
+    verify(panel).setDefaultForAllBoxes();
     verify(panel).setPlayVideoDuration(false);
     verify(panel).setPlaySeconds("");
     verify(panel).setResumeStatus(false);
-    verify(panel).setBandwidthSelector(BandwidthSelector.MIN);
-    verify(panel).setResolutionSelector(ResolutionSelector.MIN);
   }
 
 }

@@ -3,12 +3,19 @@ package com.blazemeter.jmeter.hls.logic;
 import com.blazemeter.jmeter.videostreaming.core.Protocol;
 import com.blazemeter.jmeter.videostreaming.core.SampleResultProcessor;
 import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
+import com.blazemeter.jmeter.videostreaming.core.Variants;
+import com.blazemeter.jmeter.videostreaming.core.VariantsProvider;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
+import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistDownloadException;
+import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistParsingException;
 import com.helger.commons.annotation.VisibleForTesting;
+
 import java.io.IOException;
 import java.io.ObjectInputStream;
+import java.net.URI;
 import java.net.URL;
+
 import org.apache.jmeter.engine.event.LoopIterationEvent;
 import org.apache.jmeter.protocol.http.control.CacheManager;
 import org.apache.jmeter.protocol.http.control.CookieManager;
@@ -27,7 +34,7 @@ import org.slf4j.LoggerFactory;
  Not doing the change right now to avoid abrupt change to users, take advantage of HLS plugin
  popularity and release DASH protocol support faster.
  */
-public class HlsSampler extends HTTPSamplerBase implements Interruptible {
+public class HlsSampler extends HTTPSamplerBase implements Interruptible, VariantsProvider {
 
   private static final Logger LOG = LoggerFactory.getLogger(HlsSampler.class);
 
@@ -41,7 +48,14 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
   private static final String BANDWIDTH_TYPE_PROPERTY_NAME = "HLS.BANDWIDTH_TYPE";
   private static final String RESOLUTION_TYPE_PROPERTY_NAME = "HLS.RESOLUTION_TYPE";
   private static final String RESUME_DOWNLOAD_PROPERTY_NAME = "HLS.RESUME_DOWNLOAD";
+  private static final String INCLUDE_TYPE_IN_HEADER_NAME = "HLS.INCLUDE_TYPE_IN_HEADER";
   private static final String PROTOCOL_PROPERTY_NAME = "VIDEO_STREAMING.PROTOCOL";
+  private static final String AUDIO_LANGUAGE_OPTIONS_PROPERTY_NAME = "HLS.AUDIO_OPTIONS";
+  private static final String SUBTITLE_LANGUAGE_OPTIONS_PROPERTY_NAME = "HLS.SUBTITLES_OPTIONS";
+  private static final String BANDWIDTH_OPTIONS_PROPERTY_NAME = "HLS.BANDWIDTH_OPTIONS";
+  private static final String RESOLUTION_OPTIONS_PROPERTY_NAME = "HLS.RESOLUTION_OPTIONS";
+  private static final String BANDWIDTH_SELECTED_PROPERTY_NAME = "HLS.BANDWIDTH_SELECTED";
+  private static final String RESOLUTION_SELECTED_PROPERTY_NAME = "HLS.RESOLUTION_SELECTED";
 
   private static final String HEADER_MANAGER = "HLSRequest.header_manager";
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
@@ -62,7 +76,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   @VisibleForTesting
   public HlsSampler(VideoStreamingSamplerFactory factory, VideoStreamingHttpClient client,
-      SampleResultProcessor processor, TimeMachine timeMachine) {
+                    SampleResultProcessor processor, TimeMachine timeMachine) {
     this.factory = factory;
     this.httpClient = client;
     this.sampleResultProcessor = processor;
@@ -165,8 +179,65 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
     return this.getPropertyAsBoolean(RESUME_DOWNLOAD_PROPERTY_NAME);
   }
 
+  public boolean getIncludeTypeInHeadersStatus() {
+    return this.getPropertyAsBoolean(INCLUDE_TYPE_IN_HEADER_NAME);
+  }
+
   public void setResumeVideoStatus(boolean res) {
     this.setProperty(RESUME_DOWNLOAD_PROPERTY_NAME, res);
+  }
+
+  public void setIncludeTypeInHeadersStatus(boolean res) {
+    this.setProperty(INCLUDE_TYPE_IN_HEADER_NAME, res);
+  }
+
+  // implemented for avoiding loading the url when changing context
+  public String getAudioLanguageOptions() {
+    return getPropertyAsString(AUDIO_LANGUAGE_OPTIONS_PROPERTY_NAME);
+  }
+
+  public void setAudioLanguageOptions(String audioLanguageOptions) {
+    setProperty(AUDIO_LANGUAGE_OPTIONS_PROPERTY_NAME, audioLanguageOptions);
+  }
+
+  public String getSubtitleOptions() {
+    return getPropertyAsString(SUBTITLE_LANGUAGE_OPTIONS_PROPERTY_NAME);
+  }
+
+  public void setSubtitleOptions(String subtitleOptions) {
+    setProperty(SUBTITLE_LANGUAGE_OPTIONS_PROPERTY_NAME, subtitleOptions);
+  }
+
+  public String getBandwidthOptions() {
+    return getPropertyAsString(BANDWIDTH_OPTIONS_PROPERTY_NAME);
+  }
+
+  public void setBandwidthOptions(String bandwidthOptions) {
+    setProperty(BANDWIDTH_OPTIONS_PROPERTY_NAME, bandwidthOptions);
+  }
+
+  public String getBandwidthSelected() {
+    return getPropertyAsString(BANDWIDTH_SELECTED_PROPERTY_NAME);
+  }
+
+  public void setBandwidthSelected(String selected) {
+    setProperty(BANDWIDTH_SELECTED_PROPERTY_NAME, selected);
+  }
+
+  public String getResolutionOptions() {
+    return getPropertyAsString(RESOLUTION_OPTIONS_PROPERTY_NAME);
+  }
+
+  public void setResolutionOptions(String resolutionOptions) {
+    setProperty(RESOLUTION_OPTIONS_PROPERTY_NAME, resolutionOptions);
+  }
+
+  public String getResolutionSelected() {
+    return getPropertyAsString(RESOLUTION_SELECTED_PROPERTY_NAME);
+  }
+
+  public void setResolutionSelected(String selected) {
+    setProperty(RESOLUTION_SELECTED_PROPERTY_NAME, selected);
   }
 
   // implemented for backwards compatibility
@@ -214,7 +285,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
 
   @Override
   protected HTTPSampleResult sample(URL url, String method, boolean areFollowingRedirect,
-      int frameDepth) {
+                                    int frameDepth) {
     return httpClient.sample(url, method, areFollowingRedirect, frameDepth);
   }
 
@@ -266,5 +337,14 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible {
       throws IOException, ClassNotFoundException {
     inputStream.defaultReadObject();
     initHttpSampler();
+  }
+
+  @Override
+  public Variants getVariantsFromURL(String url)
+      throws IllegalArgumentException, PlaylistParsingException, PlaylistDownloadException {
+    initHttpSampler();
+    sampler = factory
+        .getVideoStreamingSampler(url, this, httpClient, timeMachine, sampleResultProcessor);
+    return sampler.getVariants(URI.create(url));
   }
 }

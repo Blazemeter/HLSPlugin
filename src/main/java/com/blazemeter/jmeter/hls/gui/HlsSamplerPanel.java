@@ -2,34 +2,60 @@ package com.blazemeter.jmeter.hls.gui;
 
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
 import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
+import com.blazemeter.jmeter.hls.logic.ResolutionSelector.CustomResolutionSelector;
 import com.blazemeter.jmeter.videostreaming.core.Protocol;
+import com.blazemeter.jmeter.videostreaming.core.Variants;
+import com.blazemeter.jmeter.videostreaming.core.VariantsProvider;
+import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistDownloadException;
+import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistParsingException;
+
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
 import javax.swing.GroupLayout;
 import javax.swing.GroupLayout.Alignment;
+import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JTextField;
+import javax.swing.event.ChangeListener;
 
-public class HlsSamplerPanel extends JPanel {
+import org.apache.jorphan.gui.JLabeledChoice;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+public class HlsSamplerPanel extends JPanel implements ActionListener {
+
+  private static final Logger LOG = LoggerFactory
+      .getLogger(HlsSamplerPanel.class);
+
+  private static final String LOAD = "LOAD";
   private JTextField masterUrlField;
 
   private JRadioButton playVideoDurationOption;
   private JTextField playSecondsField;
 
-  private JTextField audioField;
-  private JTextField subtitleField;
+  private JLabeledChoice audioBox;
+  private JLabeledChoice subtitleBox;
 
+  private JLabeledChoice bandwidthBox;
   private JRadioButton customBandwidthOption;
   private JTextField customBandwidthField;
   private JRadioButton maxBandwidthOption;
   private JRadioButton minBandwidthOption;
 
+  private JLabeledChoice resolutionBox;
   private JRadioButton customResolutionOption;
   private JTextField customResolutionField;
   private JRadioButton minResolutionOption;
@@ -40,9 +66,18 @@ public class HlsSamplerPanel extends JPanel {
   private JRadioButton automaticProtocolOption;
 
   private JCheckBox resumeDownloadOption;
+  private JCheckBox includeTypeInHeaders;
+  private final String min = "Min";
+  private final String max = "Max";
+
+  private VariantsProvider variantsProvider;
 
   public HlsSamplerPanel() {
     initComponents();
+  }
+
+  public void setVariantsProvider(VariantsProvider variantsProvider) {
+    this.variantsProvider = variantsProvider;
   }
 
   private void initComponents() {
@@ -69,8 +104,8 @@ public class HlsSamplerPanel extends JPanel {
             .addComponent(trackPanel))
         .addGroup(layout.createSequentialGroup()
             .addComponent(bandwidthPanel)
-            .addComponent(resolutionPanel))
-        .addComponent(resumeDownloadPanel)
+            .addComponent(resolutionPanel)
+            .addComponent(resumeDownloadPanel))
         .addComponent(blazeMeterLabsLogo, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
             Short.MAX_VALUE)
     );
@@ -88,8 +123,8 @@ public class HlsSamplerPanel extends JPanel {
             .addComponent(bandwidthPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
                 GroupLayout.PREFERRED_SIZE)
             .addComponent(resolutionPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE,
-                GroupLayout.PREFERRED_SIZE))
-        .addComponent(resumeDownloadPanel)
+                GroupLayout.PREFERRED_SIZE)
+            .addComponent(resumeDownloadPanel))
         .addComponent(blazeMeterLabsLogo)
     );
   }
@@ -99,7 +134,11 @@ public class HlsSamplerPanel extends JPanel {
     panel.setBorder(BorderFactory.createTitledBorder("Video"));
 
     JLabel urlLabel = new JLabel("URL");
-    masterUrlField = namedComponent("masterUrlField", new JTextField(80));
+    masterUrlField = namedComponent("masterUrlField", new JTextField(60));
+
+    JButton loadButton = namedComponent("loadButton", new JButton("Load Playlist"));
+    loadButton.setActionCommand(LOAD);
+    loadButton.addActionListener(this);
 
     GroupLayout layout = new GroupLayout(panel);
     layout.setAutoCreateContainerGaps(true);
@@ -107,10 +146,12 @@ public class HlsSamplerPanel extends JPanel {
     panel.setLayout(layout);
     layout.setHorizontalGroup(layout.createSequentialGroup()
         .addComponent(urlLabel)
-        .addComponent(masterUrlField));
+        .addComponent(masterUrlField)
+        .addComponent(loadButton));
     layout.setVerticalGroup(layout.createParallelGroup(Alignment.BASELINE)
         .addComponent(urlLabel)
-        .addComponent(masterUrlField));
+        .addComponent(masterUrlField)
+        .addComponent(loadButton));
     return panel;
   }
 
@@ -123,30 +164,36 @@ public class HlsSamplerPanel extends JPanel {
     JPanel panel = new JPanel();
     panel.setBorder(BorderFactory.createTitledBorder("Tracks"));
 
-    JLabel subtitleLabel = new JLabel("Subtitle (e.g.: sp): ");
-    JLabel audioLabel = new JLabel("Audio (e.g.: sp): ");
+    JLabel subtitleLabel = new JLabel("Subtitle: ");
+    JLabel audioLabel = new JLabel("Audio: ");
 
-    audioField = namedComponent("audioField", new JTextField());
-    subtitleField = namedComponent("subtitleField", new JTextField());
+    audioBox = namedComponent("audioBox", new JLabeledChoice());
+    subtitleBox = namedComponent("subtitleBox", new JLabeledChoice());
+    String[] items = {"Default"};
+    audioBox.setValues(items);
+    subtitleBox.setValues(items);
 
     GroupLayout layout = new GroupLayout(panel);
     layout.setAutoCreateContainerGaps(true);
     layout.setAutoCreateGaps(true);
     panel.setLayout(layout);
     layout.setHorizontalGroup(layout.createParallelGroup()
-        .addGroup(layout.createSequentialGroup()
+        .addGroup(layout.createParallelGroup()
             .addComponent(audioLabel)
-            .addComponent(audioField))
-        .addGroup(layout.createSequentialGroup()
-            .addComponent(subtitleLabel)
-            .addComponent(subtitleField)));
+            .addComponent(audioBox)
+            .addGroup(layout.createParallelGroup()
+                .addComponent(subtitleLabel)
+                .addComponent(subtitleBox))));
     layout.setVerticalGroup(layout.createSequentialGroup()
-        .addGroup(layout.createParallelGroup()
+        .addGroup(layout.createSequentialGroup()
             .addComponent(audioLabel)
-            .addComponent(audioField))
-        .addGroup(layout.createParallelGroup()
+            .addComponent(audioBox))
+        .addGroup(layout.createSequentialGroup()
             .addComponent(subtitleLabel)
-            .addComponent(subtitleField)));
+            .addComponent(subtitleBox)));
+
+    audioBox.setEditable(true);
+    subtitleBox.setEditable(true);
 
     return panel;
   }
@@ -197,6 +244,11 @@ public class HlsSamplerPanel extends JPanel {
     JPanel panel = new JPanel();
     panel.setBorder(BorderFactory.createTitledBorder("Bandwidth"));
 
+    bandwidthBox = namedComponent("bandwidthBox", new JLabeledChoice());
+    bandwidthBox.setEditable(true);
+    bandwidthBox.addValue(min);
+    bandwidthBox.addValue(max);
+
     maxBandwidthOption = namedComponent("maxBandwidthOption",
         new JRadioButton("Max bandwidth available"));
     minBandwidthOption = namedComponent("minBandwidthOption",
@@ -228,22 +280,21 @@ public class HlsSamplerPanel extends JPanel {
     panel.setLayout(layout);
     layout.setHorizontalGroup(layout.createParallelGroup()
         .addGroup(layout.createSequentialGroup()
-            .addComponent(customBandwidthOption)
-            .addComponent(customBandwidthField))
-        .addComponent(minBandwidthOption)
-        .addComponent(maxBandwidthOption));
+            .addComponent(bandwidthBox)));
     layout.setVerticalGroup(layout.createSequentialGroup()
         .addGroup(layout.createParallelGroup()
-            .addComponent(customBandwidthOption)
-            .addComponent(customBandwidthField))
-        .addComponent(minBandwidthOption)
-        .addComponent(maxBandwidthOption));
+            .addComponent(bandwidthBox)));
     return panel;
   }
 
   private JPanel buildResolutionPanel() {
     JPanel panel = new JPanel();
     panel.setBorder(BorderFactory.createTitledBorder("Resolution"));
+
+    resolutionBox = namedComponent("resolutionBox", new JLabeledChoice());
+    resolutionBox.setEditable(true);
+    resolutionBox.addValue(min);
+    resolutionBox.addValue(max);
 
     maxResolutionOption = namedComponent("maxResolutionOption",
         new JRadioButton("Max resolution available"));
@@ -276,16 +327,11 @@ public class HlsSamplerPanel extends JPanel {
     panel.setLayout(layout);
     layout.setHorizontalGroup(layout.createParallelGroup()
         .addGroup(layout.createSequentialGroup()
-            .addComponent(customResolutionOption)
-            .addComponent(customResolutionField))
-        .addComponent(minResolutionOption)
-        .addComponent(maxResolutionOption));
+            .addComponent(resolutionBox)));
     layout.setVerticalGroup(layout.createSequentialGroup()
         .addGroup(layout.createParallelGroup()
-            .addComponent(customResolutionOption)
-            .addComponent(customResolutionField))
-        .addComponent(minResolutionOption)
-        .addComponent(maxResolutionOption));
+            .addComponent(resolutionBox)));
+
     return panel;
   }
 
@@ -295,14 +341,17 @@ public class HlsSamplerPanel extends JPanel {
 
     resumeDownloadOption = namedComponent("resumeDownloadOption", new JCheckBox(
         "Resume video download between iterations"));
-
+    includeTypeInHeaders = namedComponent("includeTypeInHeaders", new JCheckBox(
+        "Include video type in request and response headers"));
     GroupLayout layout = new GroupLayout(panel);
     layout.setAutoCreateContainerGaps(true);
     panel.setLayout(layout);
     layout.setHorizontalGroup(layout.createParallelGroup()
-        .addComponent(resumeDownloadOption));
+        .addComponent(resumeDownloadOption)
+        .addComponent(includeTypeInHeaders));
     layout.setVerticalGroup(layout.createSequentialGroup()
-        .addComponent(resumeDownloadOption));
+        .addComponent(resumeDownloadOption)
+        .addComponent(includeTypeInHeaders));
     return panel;
   }
 
@@ -361,28 +410,30 @@ public class HlsSamplerPanel extends JPanel {
   }
 
   public String getAudioLanguage() {
-    return audioField.getText();
+    return audioBox.getText();
   }
 
   public void setAudioLanguage(String audioLanguage) {
-    this.audioField.setText(audioLanguage);
+    this.audioBox.setText(audioLanguage);
   }
 
   public String getSubtitleLanguage() {
-    return subtitleField.getText();
+    return subtitleBox.getText();
   }
 
   public void setSubtitleLanguage(String subtitleLanguage) {
-    this.subtitleField.setText(subtitleLanguage);
+    this.subtitleBox.setText(subtitleLanguage);
   }
 
   public BandwidthSelector getBandwidthSelector() {
-    if (customBandwidthOption.isSelected()) {
-      return new BandwidthSelector.CustomBandwidthSelector(customBandwidthField.getText());
-    } else if (minBandwidthOption.isSelected()) {
-      return BandwidthSelector.MIN;
-    } else {
-      return BandwidthSelector.MAX;
+    String bandwidth = bandwidthBox.getText();
+    switch (bandwidth) {
+      case "Max":
+        return BandwidthSelector.MAX;
+      case "Min":
+        return BandwidthSelector.MIN;
+      default:
+        return new BandwidthSelector.CustomBandwidthSelector(bandwidth);
     }
   }
 
@@ -393,17 +444,19 @@ public class HlsSamplerPanel extends JPanel {
       maxBandwidthOption.setSelected(true);
     } else {
       customBandwidthOption.setSelected(true);
-      customBandwidthField.setText(option.getCustomBandwidth());
+      bandwidthBox.setText(option.getCustomBandwidth());
     }
   }
 
   public ResolutionSelector getResolutionSelector() {
-    if (customResolutionOption.isSelected()) {
-      return new ResolutionSelector.CustomResolutionSelector(customResolutionField.getText());
-    } else if (minResolutionOption.isSelected()) {
-      return ResolutionSelector.MIN;
-    } else {
-      return ResolutionSelector.MAX;
+    String resolution = resolutionBox.getText();
+    switch (resolution) {
+      case "Max":
+        return ResolutionSelector.MAX;
+      case "Min":
+        return ResolutionSelector.MIN;
+      default:
+        return new CustomResolutionSelector(resolution);
     }
   }
 
@@ -414,7 +467,7 @@ public class HlsSamplerPanel extends JPanel {
       maxResolutionOption.setSelected(true);
     } else {
       customResolutionOption.setSelected(true);
-      customResolutionField.setText(option.getCustomResolution());
+      resolutionBox.setText(option.getCustomResolution());
     }
   }
 
@@ -442,8 +495,154 @@ public class HlsSamplerPanel extends JPanel {
     return resumeDownloadOption.isSelected();
   }
 
+  public boolean getIncludeTypeInHeadersStatus() {
+    return includeTypeInHeaders.isSelected();
+  }
+
   public void setResumeStatus(boolean check) {
     resumeDownloadOption.setSelected(check);
   }
 
+  public void setIncludeTypeInHeaders(boolean check) {
+    includeTypeInHeaders.setSelected(check);
+  }
+
+  // implemented for avoiding loading the url when changing context
+  public String getAudioLanguageOptions() {
+    return String.join(",", audioBox.getItems());
+  }
+
+  public void setAudioLanguageOptions(String audioOptions) {
+    this.audioBox.setValues(audioOptions.split(","));
+  }
+
+  public String getSubtitleOptions() {
+    return String.join(",", subtitleBox.getItems());
+  }
+
+  public void setSubtitleOptions(String subtitleOptions) {
+    this.subtitleBox.setValues(subtitleOptions.split(","));
+  }
+
+  public String getBandwidthOptions() {
+    return String.join(",", bandwidthBox.getItems());
+  }
+
+  public void setBandwidthOptions(String bandwidthOptions) {
+    this.bandwidthBox.setValues(bandwidthOptions.split(","));
+  }
+
+  public String getBandwidthSelected() {
+    return bandwidthBox.getText();
+  }
+
+  public void setBandwidthSelected(String selected) {
+    this.bandwidthBox.setText(selected);
+  }
+
+  public String getResolutionOptions() {
+    return String.join(",", resolutionBox.getItems());
+  }
+
+  public void setResolutionOptions(String resolutionOptions) {
+    this.resolutionBox.setValues((resolutionOptions.split(",")));
+  }
+
+  public String getResolutionSelected() {
+    return resolutionBox.getText();
+  }
+
+  public void setResolutionSelected(String selected) {
+    this.resolutionBox.setText(selected);
+  }
+
+  @Override
+  public void actionPerformed(ActionEvent e) {
+    if (LOAD.equals(e.getActionCommand())) {
+      setDefaultForAllBoxes();
+      Variants variants = null;
+      try {
+        variants = variantsProvider.getVariantsFromURL(getMasterUrl());
+      } catch (NullPointerException | IllegalArgumentException
+               | PlaylistParsingException | PlaylistDownloadException ex) {
+        LOG.error("Error obtaining the playlist's variants or invalid URL", ex);
+        JOptionPane.showMessageDialog(this,
+            "There was an error while trying to load the URL, check the logs.");
+      }
+
+      setupComboBox(variants.getAudioLanguageList(), audioBox);
+      setupComboBox(variants.getSubtitleList(), subtitleBox);
+      setupComboBox(variants.getBandwidthList(), bandwidthBox);
+      setupComboBox(variants.getResolutionList(), resolutionBox);
+      bandwidthBox.addChangeListener(bandwidthListener(bandwidthBox, resolutionBox,
+          variants.getBandwidthResolutionMap()));
+      LOG.info("Finished loading variants");
+    }
+  }
+
+  private void setupComboBox(List<String> list, JLabeledChoice box) {
+    box.setToolTipText("This field is editable");
+    setDefaultValues(box);
+    clearComboBox(box);
+
+    if (!list.isEmpty()) {
+      list.stream().filter(Objects::nonNull).forEach(box::addValue);
+    } else {
+      setDefaultValues(box);
+    }
+  }
+
+  private ChangeListener bandwidthListener(JLabeledChoice bandwidthBox,
+                                           JLabeledChoice resolutionBox, Map<String,
+                                           String> bandwidthResolutionMap) {
+    Set<String> newResolutions = new HashSet<>();
+    return e -> {
+      String resolutionSelection = resolutionBox != null ? resolutionBox.getText() : "";
+      clearComboBox(resolutionBox);
+      newResolutions.clear();
+      if (bandwidthResolutionMap.get(bandwidthBox.getText()) != null) {
+        for (String key : bandwidthResolutionMap.keySet()) {
+          if (bandwidthBox.getText().equals(key)) {
+            newResolutions.add(bandwidthResolutionMap.get(key));
+          }
+        }
+      }
+      newResolutions.add(min);
+      newResolutions.add(max);
+
+      resolutionBox.setValues(newResolutions.toArray(new String[0]));
+      if (newResolutions.contains(resolutionSelection)) {
+        resolutionBox.setText(resolutionSelection);
+      }
+    };
+  }
+
+  private void setDefaultValues(JLabeledChoice box) {
+    String[] minMax = new String[]{min, max};
+    if (box == subtitleBox || box == audioBox) {
+      box.setText("Default");
+    } else {
+      box.setValues(minMax);
+    }
+  }
+
+  public void setDefaultForAllBoxes() {
+    clearAllComboBoxes();
+    setDefaultValues(audioBox);
+    setDefaultValues(subtitleBox);
+    setDefaultValues(bandwidthBox);
+    setDefaultValues(resolutionBox);
+  }
+
+  private void clearComboBox(JLabeledChoice box) {
+    String[] empty = new String[0];
+    box.setValues(empty);
+  }
+
+  private void clearAllComboBoxes() {
+    clearComboBox(audioBox);
+    clearComboBox(subtitleBox);
+    clearComboBox(bandwidthBox);
+    clearComboBox(resolutionBox);
+  }
 }

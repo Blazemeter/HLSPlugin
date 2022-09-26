@@ -4,6 +4,11 @@ import com.blazemeter.jmeter.videostreaming.core.exception.SamplerInterruptedExc
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
+import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.jmeter.protocol.http.control.CacheManager;
+import org.apache.jmeter.protocol.http.control.HeaderManager;
 import org.apache.jmeter.protocol.http.sampler.HTTPHC4Impl;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
 import org.apache.jmeter.protocol.http.sampler.HTTPSamplerBase;
@@ -15,6 +20,8 @@ HTTPProxySampler class
 public class VideoStreamingHttpClient extends HTTPHC4Impl {
 
   private transient volatile boolean interrupted = false;
+
+  private Map<String, String> headers = new HashMap<>();
 
   public VideoStreamingHttpClient(HTTPSamplerBase testElement) {
     super(testElement);
@@ -51,6 +58,17 @@ public class VideoStreamingHttpClient extends HTTPHC4Impl {
     } catch (MalformedURLException e) {
       throw new IllegalArgumentException(e);
     }
+  }
+
+  public void addHeader(String name, String value) {
+    headers.put(name, value);
+  }
+
+  @Override
+  protected void setConnectionHeaders(HttpRequestBase request, URL url,
+      HeaderManager headerManager, CacheManager cacheManager) {
+    headers.forEach(request::addHeader);
+    super.setConnectionHeaders(request, url, headerManager, cacheManager);
   }
 
 }

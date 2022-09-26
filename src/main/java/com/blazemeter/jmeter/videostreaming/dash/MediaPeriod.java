@@ -5,11 +5,13 @@ import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
 import io.lindstrom.mpd.data.AdaptationSet;
 import io.lindstrom.mpd.data.BaseURL;
 import io.lindstrom.mpd.data.Period;
+import io.lindstrom.mpd.data.Representation;
 import io.lindstrom.mpd.data.SegmentBase;
 import io.lindstrom.mpd.data.SegmentList;
 import io.lindstrom.mpd.data.SegmentTemplate;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -39,8 +41,44 @@ public class MediaPeriod {
     return manifest;
   }
 
-  public String getId() {
-    return period.getId();
+  public List<String> getLanguagesByType(String type) {
+    String contentType = VideoStreamingSampler.SUBTITLES_TYPE_NAME.equals(type) ? "text" : type;
+    List<AdaptationSet> adaptationSets = period.getAdaptationSets()
+        .stream()
+        .filter(adaptationSet -> isMatchingTypeAdaptationSet(contentType, adaptationSet))
+        .collect(Collectors.toList());
+
+    return adaptationSets.stream()
+        .map(AdaptationSet::getLang)
+        .collect(Collectors.toList());
+  }
+
+  public List<Representation> getVideoRepresentations() {
+    String contentType = VideoStreamingSampler.VIDEO_TYPE_NAME;
+    List<Representation> representations = new ArrayList<>();
+    List<AdaptationSet> adaptationSets = period.getAdaptationSets().stream()
+        .filter(adaptationSet -> isMatchingTypeAdaptationSet(contentType, adaptationSet))
+        .collect(Collectors.toList());
+
+    for (AdaptationSet as : adaptationSets) {
+      representations.addAll(as.getRepresentations());
+    }
+    return representations;
+  }
+
+  public List<String> getResolutionFromAdaptationSet() {
+    String contentType = VideoStreamingSampler.VIDEO_TYPE_NAME;
+    List<AdaptationSet> adaptationSets = period.getAdaptationSets().stream()
+        .filter(adaptationSet -> isMatchingTypeAdaptationSet(contentType, adaptationSet))
+        .collect(Collectors.toList());
+
+    List<String> resolutions = new ArrayList<>();
+    for (AdaptationSet adaptationSet : adaptationSets) {
+      resolutions.addAll(adaptationSet.getRepresentations().stream()
+          .map(r -> new MediaRepresentation(manifest, this, adaptationSet, r))
+          .map(MediaRepresentation::getResolution).collect(Collectors.toList()));
+    }
+    return resolutions;
   }
 
   public Duration getStartTime() {

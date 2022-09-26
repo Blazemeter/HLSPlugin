@@ -6,22 +6,24 @@ import io.lindstrom.mpd.data.BaseURL;
 import io.lindstrom.mpd.data.MPD;
 import io.lindstrom.mpd.data.Period;
 import io.lindstrom.mpd.data.PresentationType;
+import io.lindstrom.mpd.data.Representation;
+
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
-public class Manifest {
+public class Manifest extends com.blazemeter.jmeter.videostreaming.core.Manifest {
 
-  private final URI uri;
   private final MPD mpd;
   private final Instant downloadTime;
   private final List<MediaPeriod> periods;
 
   private Manifest(URI uri, MPD mpd, Instant timestamp) {
-    this.uri = uri;
+    super(uri);
     this.mpd = mpd;
     this.downloadTime = timestamp;
     this.periods = buildPeriods(mpd);
@@ -105,4 +107,42 @@ public class Manifest {
     return time != null ? time.toInstant() : Instant.MIN;
   }
 
+  public List<String> getVideoLanguages() {
+    return periods.stream()
+        .map(p -> p.getLanguagesByType("audio"))
+        .flatMap(List::stream).distinct()
+        .collect(Collectors.toList());
+  }
+
+  public List<String> getSubtitleLanguages() {
+    return periods.stream()
+        .map(p -> p.getLanguagesByType("text"))
+        .flatMap(List::stream).distinct()
+        .collect(Collectors.toList());
+  }
+
+  public List<String> getBandwidths() {
+    List<String> bandwidths = new ArrayList<>();
+    for (MediaPeriod period : periods) {
+      for (Representation r : period.getVideoRepresentations()) {
+        bandwidths.add(String.valueOf(r.getBandwidth()));
+      }
+    }
+    return bandwidths;
+  }
+
+  public List<String> getResolutions() {
+    List<String> resolutions = new ArrayList<>();
+    for (MediaPeriod period : periods) {
+      resolutions.addAll(period.getResolutionFromAdaptationSet());
+    }
+
+    return resolutions.stream()
+        .filter(resolution -> !resolution.equals("nullxnull")).collect(Collectors.toList());
+  }
+
+  @Override
+  protected String getManifestType() {
+    return String.valueOf(mpd.getType());
+  }
 }

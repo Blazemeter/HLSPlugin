@@ -7,12 +7,23 @@ public class MediaSegment {
 
   protected final Duration duration;
   private final long sequenceNumber;
-  private final URI uri;
+  private URI uri;
+  private int byteLength;
+  private int byteOffset;
 
   public MediaSegment(long sequenceNumber, URI uri, Duration duration) {
     this.sequenceNumber = sequenceNumber;
     this.uri = uri;
     this.duration = duration;
+  }
+
+  public MediaSegment(long sequenceNumber, Duration duration) {
+    this.sequenceNumber = sequenceNumber;
+    this.duration = duration;
+  }
+
+  public boolean hasSubRange() {
+    return byteLength != 0;
   }
 
   public long getSequenceNumber() {
@@ -25,6 +36,20 @@ public class MediaSegment {
 
   public double getDurationSeconds() {
     return (double) duration.toMillis() / 1000;
+  }
+
+  public int getByteLength() {
+    return byteLength;
+  }
+
+  public int getByteOffset() {
+    return byteOffset;
+  }
+
+  public void setByteRangeInfo(URI uri, int byteLength, int byteOffset) {
+    this.uri = uri;
+    this.byteLength = byteLength;
+    this.byteOffset = byteOffset;
   }
 
   @Override

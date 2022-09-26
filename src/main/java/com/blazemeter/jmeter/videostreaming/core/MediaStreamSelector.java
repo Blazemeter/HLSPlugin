@@ -19,7 +19,8 @@ public interface MediaStreamSelector<T> {
     }
     V selectedAttribute = firstAttribute.apply(matchedVariant);
     List<T> matchingVariants = variants.stream()
-        .filter(v -> firstAttribute.apply(v).equals(selectedAttribute))
+        .filter(v -> firstAttribute.apply(v) != null
+                && firstAttribute.apply(v).equals(selectedAttribute))
         .collect(Collectors.toList());
     return findVariantPerAttribute(secondAttribute, secondAttributeSelector, matchingVariants);
   }

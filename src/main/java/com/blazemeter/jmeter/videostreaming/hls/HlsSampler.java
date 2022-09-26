@@ -5,13 +5,22 @@ import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
 import com.blazemeter.jmeter.videostreaming.core.MediaSegment;
 import com.blazemeter.jmeter.videostreaming.core.SampleResultProcessor;
 import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
+import com.blazemeter.jmeter.videostreaming.core.Variants;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingPlayback;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
 import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistDownloadException;
 import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistParsingException;
+import com.comcast.viper.hlsparserj.MasterPlaylist;
+import com.comcast.viper.hlsparserj.tags.master.StreamInf;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
 import org.slf4j.Logger;
@@ -38,14 +47,22 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
     Playlist subtitlesPlaylist = null;
 
     if (masterPlaylist.isMasterPlaylist()) {
+      List<String> bandwidths = getBandwidths((MasterPlaylist) masterPlaylist.getPlaylist());
+      List<String> resolutions = getResolutions((MasterPlaylist) masterPlaylist.getPlaylist());
+      if (bandwidthSelector.getCustomBandwidth() != null
+          && !bandwidths.contains(bandwidthSelector.getCustomBandwidth())) {
+        sampleResultProcessor.accept(buildPlaylistName(MEDIA_TYPE_NAME),
+            buildNotMatchingMediaPlaylistResult(variantsToString(bandwidths), "bandwidth"));
+        return;
+      } else if (resolutionSelector.getCustomResolution() != null
+          && !resolutions.contains(resolutionSelector.getCustomResolution())) {
+        sampleResultProcessor.accept(buildPlaylistName(MEDIA_TYPE_NAME),
+            buildNotMatchingMediaPlaylistResult(variantsToString(resolutions), "resolution"));
+        return;
+      }
 
       MediaStream mediaStream = masterPlaylist
           .solveMediaStream(bandwidthSelector, resolutionSelector, audioLanguage, subtitleLanguage);
-      if (mediaStream == null) {
-        sampleResultProcessor.accept(buildPlaylistName(MEDIA_TYPE_NAME),
-            buildNotMatchingMediaPlaylistResult());
-        return;
-      }
 
       mediaPlaylist = downloadPlaylist(mediaStream.getMediaPlaylistUri(), MEDIA_TYPE_NAME);
       audioPlaylist = tryDownloadPlaylist(mediaStream.getAudioUri(),
@@ -64,6 +81,7 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
         lastSubtitleSegment, playSeconds);
 
     try {
+      mediaPlayback.downloadInitializationSegment();
       while (!mediaPlayback.hasEnded()) {
         mediaPlayback.downloadNextSegment();
         double playedSeconds = mediaPlayback.getPlayedTimeSeconds();
@@ -78,6 +96,66 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
       lastAudioSegment = audioPlayback.getLastSegment();
       lastSubtitleSegment = subtitlesPlayback.getLastSegment();
     }
+  }
+
+  @Override
+  public Variants getVariants(URI masterUri) {
+    Playlist masterPlaylist = null;
+    try {
+      masterPlaylist = downloadPlaylist(masterUri, Playlist::fromUriAndBody);
+    } catch (PlaylistDownloadException | PlaylistParsingException e) {
+      LOG.warn("Problem downloading the playlist {}", masterUri, e);
+    }
+
+    Variants variants = new Variants();
+    variants.setBandwidthResolutionMap(getBandwidthResolutionMap(
+        (MasterPlaylist) masterPlaylist.getPlaylist()));
+    variants.setBandwidthList(getBandwidths((MasterPlaylist) masterPlaylist.getPlaylist()));
+    variants.setResolutionList(getResolutions((MasterPlaylist) masterPlaylist.getPlaylist()));
+    variants.setAudioLanguageList(getAudioLanguage((MasterPlaylist) masterPlaylist.getPlaylist()));
+    variants.setSubtitleList(masterPlaylist.getSubtitles());
+
+    return variants;
+  }
+
+  public Map<String, String> getBandwidthResolutionMap(MasterPlaylist masterPlaylist) {
+    Map<String, String> bandwidthResolutionMap = new HashMap<>();
+    for (StreamInf streamInf : masterPlaylist.getVariantStreams()) {
+      bandwidthResolutionMap.put(String.valueOf(streamInf.getBandwidth()),
+          streamInf.getResolution());
+    }
+    return bandwidthResolutionMap;
+  }
+
+  private String variantsToString(List<String> variants) {
+    StringBuilder result = new StringBuilder();
+    for (String v : variants) {
+      if (v != null) {
+        result.append(v).append("\n");
+      }
+    }
+    return result.toString();
+  }
+
+  private List<String> getBandwidths(MasterPlaylist masterPlaylist) {
+    List<String> bandwidths = new ArrayList<>();
+    masterPlaylist.getVariantStreams().forEach(si ->
+        bandwidths.add(String.valueOf(si.getBandwidth())));
+    return new ArrayList<>(bandwidths);
+  }
+
+  private List<String> getResolutions(MasterPlaylist masterPlaylist) {
+    List<String> resolutions = new ArrayList<>();
+    for (StreamInf si : masterPlaylist.getVariantStreams()) {
+      resolutions.add(si.getResolution());
+    }
+    return new ArrayList<>(resolutions);
+  }
+
+  private List<String> getAudioLanguage(MasterPlaylist masterPlaylist) {
+    Set<String> audioLanguage = new HashSet<>();
+    masterPlaylist.getAlternateRenditions().forEach(si -> audioLanguage.add(si.getLanguage()));
+    return new ArrayList<>(audioLanguage);
   }
 
   private Playlist downloadMasterPlaylist(URI uri)
@@ -101,6 +179,7 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
 
     private Playlist playlist;
     private Iterator<MediaSegment> mediaSegments;
+    private InitializationSegment initializationSegment;
 
     private MediaPlayback(Playlist playlist, String type, MediaSegment lastSegment,
         int playSeconds) {
@@ -108,7 +187,14 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
       this.playlist = playlist;
       if (playlist != null) {
         updateMediaSegments();
+        if (playlist.hasByteRange()) {
+          updateInitializationSegment();
+        }
       }
+    }
+
+    private void updateInitializationSegment() {
+      initializationSegment = playlist.getInitializationSegment();
     }
 
     private void updateMediaSegments() {
@@ -133,6 +219,12 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
       downloadSegment(segment, type);
       lastSegment = segment;
       consumedSeconds += segment.getDurationSeconds();
+    }
+
+    private void downloadInitializationSegment() {
+      if (initializationSegment != null) {
+        downloadInitSegment(initializationSegment, type);
+      }
     }
 
     private void updatePlaylist()

@@ -39,6 +39,10 @@ public class MediaRepresentation {
     return period;
   }
 
+  public Representation getRepresentation() {
+    return representation;
+  }
+
   public SegmentBuilder getSegmentBuilder() {
     List<List<BaseURL>> representationBaseUrls = Arrays
         .asList(representation.getBaseURLs(), adaptationSet.getBaseURLs(), period.getBaseURLs(),

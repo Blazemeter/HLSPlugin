@@ -39,6 +39,7 @@ public class HlsSamplerTest extends VideoStreamingSamplerTest {
   protected static final double MEDIA_SEGMENT_DURATION = 5.0;
   private static final String MEDIA_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - media playlist";
   private static final String MASTER_PLAYLIST_NAME = "masterPlaylist.m3u8";
+  private static final String MASTER_PLAYLIST_WITH_TYPE_NAME = "masterPlaylistWithType.m3u8";
   private static final URI MEDIA_PLAYLIST_URI = URI.create(BASE_URI + "/media/audio-only.m3u8");
   private static final String MASTER_PLAYLIST_SAMPLE_NAME = SAMPLER_NAME + " - master playlist";
   private static final String VOD_MEDIA_PLAYLIST_NAME = "vodMediaPlaylist.m3u8";
@@ -115,6 +116,20 @@ public class HlsSamplerTest extends VideoStreamingSamplerTest {
   public void shouldDownloadSegmentWhenUriIsFromMasterPlaylist() throws Exception {
     String masterPlaylist = getResource(MASTER_PLAYLIST_NAME);
     String mediaPlaylist = getResource(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, masterPlaylist);
+    setupUriSamplerPlaylist(MEDIA_PLAYLIST_URI, mediaPlaylist);
+    setPlaySeconds(MEDIA_SEGMENT_DURATION);
+    sampler.sample();
+    verifySampleResults(
+        buildBaseSampleResult(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI, masterPlaylist),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI, mediaPlaylist),
+        buildMediaSegmentSampleResult(1));
+  }
+
+  @Test
+  public void shouldDownloadSegmentWhenMediaPlaylistHasRelativePath() throws Exception {
+    String masterPlaylist = getResource(MASTER_PLAYLIST_NAME);
+    String mediaPlaylist = getResource("simpleMediaPlaylistRelativePath.m3u8");
     setupUriSamplerPlaylist(MASTER_URI, masterPlaylist);
     setupUriSamplerPlaylist(MEDIA_PLAYLIST_URI, mediaPlaylist);
     setPlaySeconds(MEDIA_SEGMENT_DURATION);
@@ -794,7 +809,7 @@ public class HlsSamplerTest extends VideoStreamingSamplerTest {
     BandwidthSelector bandwidthSelector = new CustomBandwidthSelector("1234567");
     baseSampler.setBandwidthSelector(bandwidthSelector);
 
-    String masterPlaylist = getResource("masterPlaylistWithoutMedia.m3u8");
+    String masterPlaylist = getResource("masterPlaylistWithSingleVariant.m3u8");
     setupUriSamplerPlaylist(MASTER_PLAYLIST_WITH_RENDITIONS_URI, masterPlaylist);
 
     sampler.sample();
@@ -804,11 +819,40 @@ public class HlsSamplerTest extends VideoStreamingSamplerTest {
             masterPlaylist),
         buildNotMatchingPlaylistResult());
   }
-
   private HTTPSampleResult buildNotMatchingPlaylistResult() {
-    HTTPSampleResult result = VideoStreamingSampler.buildNotMatchingMediaPlaylistResult();
+    String variants = "258157\n";
+    HTTPSampleResult result = VideoStreamingSampler.buildNotMatchingMediaPlaylistResult(variants,
+        "bandwidth");
     result.setSampleLabel(MEDIA_PLAYLIST_SAMPLE_NAME);
     return result;
+  }
+  @Test
+  public void shouldDisplayVodTypeOnHeadersWhenSampleWithIncludeTypeInHeaders()
+      throws Exception {
+    String masterPlaylist = getResource(MASTER_PLAYLIST_WITH_TYPE_NAME);
+    String mediaPlaylist = getResource(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, masterPlaylist);
+    setupUriSamplerPlaylist(MEDIA_PLAYLIST_URI, mediaPlaylist);
+    setPlaySeconds(MEDIA_SEGMENT_DURATION);
+    baseSampler.setIncludeTypeInHeadersStatus(true);
+    sampler.sample();
+    String requestHeaders = "Type: VOD";
+    verifySampleResults(
+            buildBaseSampleResultWithHeaders(MASTER_PLAYLIST_SAMPLE_NAME, MASTER_URI,
+                masterPlaylist, requestHeaders),
+            buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MEDIA_PLAYLIST_URI,
+                mediaPlaylist),
+            buildMediaSegmentSampleResult(1));
+  }
+  private HTTPSampleResult buildBaseSampleResultWithHeaders(String name, URI uri,
+                                                            String body,
+                                                            String headers) {
+    HTTPSampleResult ret = buildSampleResult(uri, "application/x-mpegURL",
+        body);
+    ret.setSampleLabel(name);
+    ret.setRequestHeaders(ret.getRequestHeaders() + headers);
+    ret.setResponseHeaders(ret.getResponseHeaders() + headers);
+    return ret;
   }
 
 }

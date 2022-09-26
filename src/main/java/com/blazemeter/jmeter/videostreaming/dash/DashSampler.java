@@ -6,18 +6,22 @@ import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
 import com.blazemeter.jmeter.videostreaming.core.MediaStreamSelector;
 import com.blazemeter.jmeter.videostreaming.core.SampleResultProcessor;
 import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
+import com.blazemeter.jmeter.videostreaming.core.Variants;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamSelector;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingPlayback;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
 import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistDownloadException;
 import com.blazemeter.jmeter.videostreaming.core.exception.PlaylistParsingException;
+import io.lindstrom.mpd.data.Representation;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import org.apache.jmeter.samplers.SampleResult;
 
 public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegment> {
@@ -33,6 +37,9 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
       throws PlaylistDownloadException, PlaylistParsingException, InterruptedException {
     Manifest manifest = downloadPlaylist(masterUri, p -> MASTER_TYPE_NAME,
         Manifest::fromUriAndBody);
+
+    // we update masterUri in case the request was redirected
+    masterUri = manifest.getUri();
 
     MediaStreamSelector<MediaRepresentation> alternativeMediaSelector =
         new MediaStreamSelector<MediaRepresentation>() {
@@ -101,6 +108,31 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
       lastSubtitleSegment = subtitlesPlayback.getLastSegment();
       lastAudioSegment = audioPlayback.getLastSegment();
     }
+  }
+
+  @Override
+  public Variants getVariants(URI masterUri)
+      throws PlaylistParsingException, PlaylistDownloadException {
+    Variants variants = new Variants();
+    Manifest manifest = getManifest(masterUri, p -> MASTER_TYPE_NAME,
+        Manifest::fromUriAndBody);
+    variants.setAudioLanguageList(manifest.getVideoLanguages());
+    variants.setSubtitleList(manifest.getSubtitleLanguages());
+    variants.setResolutionList(manifest.getResolutions());
+    variants.setBandwidthList(manifest.getBandwidths());
+    variants.setBandwidthResolutionMap(buildBandwidthResolutionMap(manifest));
+    return variants;
+  }
+
+  private Map<String, String> buildBandwidthResolutionMap(Manifest manifest) {
+    Map<String, String> bandwidthResolutionMap = new HashMap<>();
+    for (MediaPeriod period : manifest.getPeriods()) {
+      for (Representation r : period.getVideoRepresentations()) {
+        bandwidthResolutionMap.put(String.valueOf(r.getBandwidth()),
+            r.getWidth() + "x" + r.getHeight());
+      }
+    }
+    return bandwidthResolutionMap;
   }
 
   private class MediaPlayback extends VideoStreamingPlayback<DashMediaSegment> {
@@ -213,7 +245,7 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
 
     private boolean hasEnded() {
       return playedRequestedTime()
-          || (!segmentBuilder.hasNext() && !periods.hasNext() &&
+          || segmentBuilder == null || (!segmentBuilder.hasNext() && !periods.hasNext() &&
           (!manifest.isDynamic() || manifest.getMinimumUpdatePeriod() == null));
     }
 
