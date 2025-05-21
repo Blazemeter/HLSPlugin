@@ -1,5 +1,6 @@
 package com.blazemeter.jmeter.hls.gui;
 
+import com.blazemeter.jmeter.commons.BlazemeterLabsLogo;
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
 import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
 import com.blazemeter.jmeter.hls.logic.ResolutionSelector.CustomResolutionSelector;
@@ -41,6 +42,7 @@ public class HlsSamplerPanel extends JPanel implements ActionListener {
       .getLogger(HlsSamplerPanel.class);
 
   private static final String LOAD = "LOAD";
+  private static final String PLUGIN_REPOSITORY_URL = "https://github.com/Blazemeter/HLSPlugin";
   private JTextField masterUrlField;
 
   private JRadioButton playVideoDurationOption;
@@ -89,7 +91,7 @@ public class HlsSamplerPanel extends JPanel implements ActionListener {
     JPanel resumeDownloadPanel = buildResumeDownloadPanel();
     JPanel protocolSelectionPanel = buildProtocolSelectionPanel();
 
-    BlazeMeterLabsLogo blazeMeterLabsLogo = new BlazeMeterLabsLogo();
+    BlazemeterLabsLogo blazeMeterLabsLogo = new BlazemeterLabsLogo(PLUGIN_REPOSITORY_URL);
     GroupLayout layout = new GroupLayout(this);
     layout.setAutoCreateContainerGaps(true);
     layout.setAutoCreateGaps(true);
@@ -593,8 +595,8 @@ public class HlsSamplerPanel extends JPanel implements ActionListener {
   }
 
   private ChangeListener bandwidthListener(JLabeledChoice bandwidthBox,
-                                           JLabeledChoice resolutionBox, Map<String,
-                                           String> bandwidthResolutionMap) {
+      JLabeledChoice resolutionBox, Map<String,
+      String> bandwidthResolutionMap) {
     Set<String> newResolutions = new HashSet<>();
     return e -> {
       String resolutionSelection = resolutionBox != null ? resolutionBox.getText() : "";

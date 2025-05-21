@@ -1,5 +1,7 @@
 package com.blazemeter.jmeter.videostreaming.hls;
 
+import static com.blazemeter.jmeter.hls.logic.VideoStreamingSamplerFactory.isHLSPlaylistLink;
+
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
 import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
 import com.blazemeter.jmeter.videostreaming.core.MediaSegment;
@@ -271,7 +273,7 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
     }
     try {
       HTTPSampleResult playlistResult = httpClient.downloadUri(uri);
-      if (!uri.toString().contains(".m3u8")) {
+      if (!isHLSPlaylistLink(uri.toString())) {
         String playlistName = namer.apply(null);
         sampleResultProcessor.accept(playlistName, playlistResult);
         return null;

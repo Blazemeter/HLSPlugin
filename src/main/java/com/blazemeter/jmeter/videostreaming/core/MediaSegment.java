@@ -35,7 +35,11 @@ public class MediaSegment {
   }
 
   public double getDurationSeconds() {
-    return (double) duration.toMillis() / 1000;
+    return (double) duration.getSeconds();
+  }
+
+  public long getDurationMillis() {
+    return duration.toMillis();
   }
 
   public int getByteLength() {

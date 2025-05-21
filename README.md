@@ -1,12 +1,21 @@
 # HLS PLUGIN
 
+---
+
+<picture>
+ <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Blazemeter/jmeter-bzm-commons/refs/heads/master/src/main/resources/dark-theme/blazemeter-by-perforce-logo.png">
+ <img src="https://raw.githubusercontent.com/Blazemeter/jmeter-bzm-commons/refs/heads/master/src/main/resources/light-theme/blazemeter-by-perforce-logo.png">
+</picture>
+
+
+
 The HLS protocol provides a reliable, cost-effective means of delivering continuous and long-form video over the Internet. It allows a receiver to adapt the bitrate of the media to the current network conditions, in order to maintain uninterrupted playback at the best possible quality.
 
 Likewise, trying to provide a wider spectrum of protocols to support videos streaming and video on demand, the plugin also recognizes MPEG-DASH links automatically, without having to point it out in the interface, supporting the downloads of manifests and segments with a predefined resolution and bandwidth.
  
 For more information related to HLS, please refer to the  [wikipedia page](https://en.wikipedia.org/wiki/HTTP_Live_Streaming) or to the [RFC](https://tools.ietf.org/html/rfc8216) and, for MPEG DASH, please refer to the [wikipedia page](https://en.wikipedia.org/wiki/Dynamic_Adaptive_Streaming_over_HTTP) or to the [ISO](https://standards.iso.org/ittf/PubliclyAvailableStandards/c065274_ISO_IEC_23009-1_2014.zip).
 
-Currently, the project uses the [HLSParserJ](https://github.com/Comcast/hlsparserj) library to parse the HLS playlists and a [fork](https://github.com/Blazemeter/mpd-tools) of [MPD-Tools](https://github.com/carlanton/mpd-tools) for MPEG-DASH manifest and segments.
+Currently, the project uses a [fork](https://github.com/Blazemeter/hlsparserj) of the [HLSParserJ](https://github.com/Comcast/hlsparserj) library to parse the HLS playlists and a [fork](https://github.com/Blazemeter/mpd-tools) of [MPD-Tools](https://github.com/carlanton/mpd-tools) for MPEG-DASH manifest and segments.
 
 **NOTICE**
 
@@ -25,7 +34,7 @@ Notice that the automatic recognition of the HLS protocol is based on the requir
 #### In a Dynamic Adaptive Streaming over HTTP Live Streaming process:
 
 - The encoder creates a Manifest which contains all the Periods, among Base URLs and the Adaptation Sets to do the filtering, based on resolution, bandwidth and language selector.
-- The plugin is coded so it will download the segments, for each Adaptation Set selected, consecutively, instead of doing it in parallel.
+- The plugin is coded, so it will download the segments, for each Adaptation Set selected, consecutively, instead of doing it in parallel.
 - The plugin will update the manifest based on the ```timeShiftBufferDepth``` attribute of MPD.
 
 Notice that, just like is done for HLS, the recognition on this protocol is based on the URL of the Manifest, which should contain ".mpd" on it. In cases, it doesn't meet this requirement, and the url don't contain ".m3a8", it is going to be considered a MPEG-DASH as well.
@@ -57,7 +66,9 @@ After that you can add assertions, listeners, etc.
 
 #### Master playlist URL
 
-Set the link to the master playlist file
+Set the link to the master playlist file.  
+A new feature was added which is the 'Load Playlist' button. Its purpose is to load all the available variants for the given Master url, such as Audio, Subtitle, Bandwidth and Resolutions on its respective Combo Box
+where the user can choose the desired option. Also, this combo boxes can be edited so JMeter variables can be inserted.
 
 ![](docs/video-url.png)
 
@@ -75,28 +86,27 @@ Set the playback time to either the whole video, or a certain amount of seconds.
 
 #### Audio & subtitles tracks
 
-You can specify if you want the plugin to download a specific alternative audio or subtitle track by either the language code or name (e.g. `fr` or `french`).
+As stated before you can set default values or choose a specific alternative audio or subtitle track option from the ones displayed in the combo boxes once you load the playlist.
 
-![](docs/audio-and-subtitles.png)
+![](docs/tracks-panel.png)
 
-#### Bandwidth
+#### Bandwidth & resolution
 
-Select the bandwidth criteria to be used to select a particular variant of the video.
+Select the bandwidth and resolution criteria to be used to select a particular variant of the video. As bandwidth and resolutions are related, once you choose a specific bandwidth, the resolution options will be restrained in order to show only the ones that are compatible with each specific bandwidth. However, 'min' and 'max' options are always available.
 
-![](docs/bandwidth.png)
-
-#### Resolution
-
-Select the resolution criteria to be used to select a particular variant of the video. The plugin will consider the bandwidth criteria more important, unless resolution is set to a custom value and bandwidth is not.
-
-![](docs/resolution.png)
-
+![](docs/bandwidth-and-resolution.png)
 
 #### Resume video downloads
 
+![](docs/resume-video.png)
+
 Specify whether you want the playback to be resumed or not between. If you leave the default value, then the plugin will restart playback from the beginning of the stream on each iteration.
 
-![](docs/resume-video.png)
+#### Add video type to request and response headers
+
+![](docs/type-in-headers.png)
+
+Specify whether you want the video type to be added to request and response headers for the playlist/manifest requests. The type will allow you to apply assertions if the video is a VOD or Live stream.
 
 ## Results
 

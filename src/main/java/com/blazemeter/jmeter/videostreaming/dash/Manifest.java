@@ -19,13 +19,14 @@ import java.util.stream.Collectors;
 public class Manifest extends com.blazemeter.jmeter.videostreaming.core.Manifest {
 
   private final MPD mpd;
-  private final Instant downloadTime;
+  private final Instant lastDownloadTime;
+  private Instant playbackStartTime;
   private final List<MediaPeriod> periods;
 
   private Manifest(URI uri, MPD mpd, Instant timestamp) {
     super(uri);
     this.mpd = mpd;
-    this.downloadTime = timestamp;
+    this.lastDownloadTime = timestamp;
     this.periods = buildPeriods(mpd);
   }
 
@@ -83,9 +84,13 @@ public class Manifest extends com.blazemeter.jmeter.videostreaming.core.Manifest
     return mpd.getMinimumUpdatePeriod();
   }
 
-  public long getReloadTimeMillis(Instant now) {
-    return Math
-        .max(mpd.getMinimumUpdatePeriod().minus(Duration.between(downloadTime, now)).toMillis(), 0);
+  public long getReloadTimeMillis(long segmentDurationMillis) {
+    // wait at least segment duration if minUpdatePeriod is 0 (or very small)
+    long maxIntervalTime = Math.max(
+        mpd.getMinimumUpdatePeriod().toMillis(), segmentDurationMillis);
+
+    return Math.max(maxIntervalTime - Duration.between(
+        lastDownloadTime, Instant.now()).toMillis(), 0);
   }
 
   public Duration getBufferStartTime() {
@@ -99,12 +104,15 @@ public class Manifest extends com.blazemeter.jmeter.videostreaming.core.Manifest
 
   public Duration getClocksDiff() {
     OffsetDateTime publishTime = mpd.getPublishTime();
-    return publishTime != null ? Duration.between(downloadTime, publishTime) : Duration.ZERO;
+    return publishTime != null ? Duration.between(lastDownloadTime, publishTime) : Duration.ZERO;
   }
 
   public Instant getAvailabilityStartTime() {
     OffsetDateTime time = mpd.getAvailabilityStartTime();
-    return time != null ? time.toInstant() : Instant.MIN;
+    if (time == null && playbackStartTime == null) {
+      playbackStartTime = Instant.now();
+    }
+    return time != null ? time.toInstant() : playbackStartTime;
   }
 
   public List<String> getVideoLanguages() {
