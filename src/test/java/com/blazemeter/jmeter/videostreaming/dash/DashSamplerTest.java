@@ -17,7 +17,7 @@ public class DashSamplerTest extends VideoStreamingSamplerTest {
   private static final String DEFAULT_SUBTITLES_ADAPTATION_SET = "minBandwidthSubtitlesEnglish";
   public static final int SEGMENTS_COUNT = 5;
   private static final double VIDEO_DURATION_SECONDS = 3.0;
-  private static final double AUDIO_DURATION_SECONDS = 3.84;
+  private static final double AUDIO_DURATION_SECONDS = 3.0;
   private static final double SUBTITLES_DURATION_SECONDS = 10.0;
   private static final int PLAYBACK_TIME_SECONDS = 5;
 

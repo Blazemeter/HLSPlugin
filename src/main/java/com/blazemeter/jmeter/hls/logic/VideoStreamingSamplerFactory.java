@@ -18,12 +18,16 @@ public class VideoStreamingSamplerFactory {
         return createDashSampler(baseSampler, httpClient, timeMachine, sampleResultProcessor);
       default:
         //HLS Master Playlist must contain this .m3u8 extension in their URLs
-        if (url.contains(".m3u8")) {
+        if (isHLSPlaylistLink(url)) {
           return createHlsSampler(baseSampler, httpClient, timeMachine, sampleResultProcessor);
         } else {
           return createDashSampler(baseSampler, httpClient, timeMachine, sampleResultProcessor);
         }
     }
+  }
+
+  public static boolean isHLSPlaylistLink(String url) {
+    return url.contains(".m3u8") || url.contains("format=m3u8");
   }
 
   private DashSampler createDashSampler(HlsSampler baseSampler, VideoStreamingHttpClient httpClient,

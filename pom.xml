@@ -5,7 +5,7 @@
 
     <groupId>com.blazemeter.jmeter</groupId>
     <artifactId>jmeter-bzm-hls</artifactId>
-    <version>3.1</version>
+    <version>3.2.1</version>
     <name>Video Streaming Sampler as JMeter plugin</name>
 
     <properties>
@@ -38,17 +38,20 @@
             <version>${jmeter.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.github.comcast</groupId>
-            <artifactId>hlsparserj</artifactId>
-            <!--Pointing to commit with subtitles fixes and equals support on URI-->
-            <version>c287e78</version>
+          <groupId>com.github.blazemeter</groupId>
+          <artifactId>hlsparserj</artifactId>
+          <version>hlsparserj-1.0.1</version>
         </dependency>
         <dependency>
             <groupId>com.github.blazemeter</groupId>
             <artifactId>mpd-tools</artifactId>
             <version>release-0.8-jdk8</version>
         </dependency>
-
+        <dependency>
+            <groupId>com.blazemeter</groupId>
+            <artifactId>jmeter-bzm-commons</artifactId>
+            <version>0.2.3</version>
+        </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
@@ -92,12 +95,6 @@
             </exclusions>
         </dependency>
         <dependency>
-            <groupId>org.assertj</groupId>
-            <artifactId>assertj-core</artifactId>
-            <version>3.8.0</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
             <version>2.27.0</version>
@@ -113,6 +110,24 @@
             <groupId>com.github.tomakehurst</groupId>
             <artifactId>wiremock</artifactId>
             <version>2.27.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.java.openjdk.cacio</groupId>
+            <artifactId>cacio-tta</artifactId>
+            <version>1.9</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>3.11.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-swing-junit</artifactId>
+            <version>3.9.2</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -154,14 +169,24 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-failsafe-plugin</artifactId>
-                    <version>2.20.1</version>
+                    <version>2.22.2</version>
                     <configuration>
+                        <!-- Master slave configuration -->
                         <parallel>both</parallel>
                         <threadCount>10</threadCount>
-                        <useSystemClassLoader>false</useSystemClassLoader>
                         <excludedGroups>
                             com.blazemeter.jmeter.MasterSlaveIT
                         </excludedGroups>
+                        <useSystemClassLoader>false</useSystemClassLoader>
+                        <!-- End of master slave configuration-->
+                        <!-- use cacio-tta to avoid GUI in swing tests -->
+                        <systemPropertyVariables>
+                            <java.awt.headless>false</java.awt.headless>
+                            <awt.toolkit>net.java.openjdk.cacio.ctc.CTCToolkit</awt.toolkit>
+                            <java.awt.graphicsenv>net.java.openjdk.cacio.ctc.CTCGraphicsEnvironment
+                            </java.awt.graphicsenv>
+                            <cacio.managed.screensize>1280x800</cacio.managed.screensize>
+                        </systemPropertyVariables>
                     </configuration>
                 </plugin>
             </plugins>
@@ -220,10 +245,11 @@
                         </goals>
                         <configuration>
                             <includeArtifactIds>
-                                hlsparserj
+                                hlsparserj, jackson-annotations, jackson-core, jackson-databind,
+                                jackson-dataformat-xml, jackson-module-jaxb-annotations,
+                                stax2-api, woodstox-core
                             </includeArtifactIds>
                             <outputDirectory>${project.build.directory}/jmeter-test/lib</outputDirectory>
-                            <stripVersion>true</stripVersion>
                         </configuration>
                     </execution>
                     <execution>
@@ -242,7 +268,6 @@
                                 </artifactItem>
                             </artifactItems>
                             <outputDirectory>${project.build.directory}/jmeter-test/lib</outputDirectory>
-                            <stripVersion>true</stripVersion>
                         </configuration>
                     </execution>
                 </executions>
