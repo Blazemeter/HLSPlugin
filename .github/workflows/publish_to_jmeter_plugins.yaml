@@ -21,7 +21,7 @@ jobs:
           changes: ${{ inputs.changes }}
           token: ${{ secrets.GH_TOKEN }}
           artifact-version-extraction-patterns: |
-            mpd-parser-(.*)
+            mpd-tools-(.*)
 
       - name: Pull Request URL
         run: echo ${{ steps.publish-plugin.outputs.pull_request }}
