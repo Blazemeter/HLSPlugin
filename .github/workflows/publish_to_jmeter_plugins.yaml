@@ -16,7 +16,6 @@ jobs:
         uses: abstracta/jmeter-plugin-publish-action@main
         with:
           forked-repository: https://github.com/Abstracta/jmeter-plugins.git
-          upstream-repository: https://github.com/Abstracta/jmeter-plugins.git
           plugin-artifact-name: jmeter-bzm-hls
           plugin-id: bzm-hls
           changes: ${{ inputs.changes }}
