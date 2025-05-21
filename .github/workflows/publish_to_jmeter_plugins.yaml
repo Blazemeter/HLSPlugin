@@ -1,0 +1,28 @@
+name: Deploy to JMeter Plugins
+
+on:
+  workflow_dispatch:
+    inputs:
+      changes:
+        description: 'Release notes for the update'
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Publish JMeter Plugin Action
+        id: publish-plugin
+        uses: abstracta/jmeter-plugin-publish-action@main
+        with:
+          forked-repository: https://github.com/Abstracta/jmeter-plugins.git
+          upstream-repository: https://github.com/Abstracta/jmeter-plugins.git
+          plugin-artifact-name: jmeter-bzm-hls
+          plugin-id: bzm-hls
+          changes: ${{ inputs.changes }}
+          token: ${{ secrets.GH_TOKEN }}
+          artifact-version-extraction-patterns: |
+            mpd-parser-(.*)
+
+      - name: Pull Request URL
+        run: echo ${{ steps.publish-plugin.outputs.pull_request }}
