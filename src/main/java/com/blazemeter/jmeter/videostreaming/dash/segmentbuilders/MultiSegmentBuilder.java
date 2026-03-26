@@ -55,7 +55,7 @@ public abstract class MultiSegmentBuilder<T> extends BaseSegmentBuilder<T> {
         advanceUntilTime(reproductionStart, true);
       }
     } else if (lastSegment.getPeriod().equals(period)) {
-      advanceUntilTime(lastSegment.getEndTime().minus(scaledTimeToDuration(startTime)), false);
+      advanceUntilTime(lastSegment.getEndTime(), false);
     }
   }
 
@@ -71,11 +71,9 @@ public abstract class MultiSegmentBuilder<T> extends BaseSegmentBuilder<T> {
   protected abstract Supplier<Long> getSegmentDurationSupplier();
 
   private Duration scaledTimeToDuration(long scaledTime) {
-    //BigDecimal is used to avoid losing precision which is necessary to avoid miscalculating
-    //segment numbers or time stamps
-    return Duration.ofMillis(BigDecimal.valueOf(scaledTime)
+    return Duration.ofNanos(BigDecimal.valueOf(scaledTime)
         .divide(BigDecimal.valueOf(getTimescale()), 10, RoundingMode.HALF_UP)
-        .multiply(BigDecimal.valueOf(1000)).longValue());
+        .multiply(BigDecimal.valueOf(1_000_000_000L)).longValue());
   }
 
   private long getTimescale() {
@@ -92,20 +90,25 @@ public abstract class MultiSegmentBuilder<T> extends BaseSegmentBuilder<T> {
   private void advanceUntilTime(Duration time, boolean init) {
     Long segmentDuration = getSegmentDurationSupplier().get();
     if (segmentDuration != null) {
-      //BigDecimal is used to avoid losing precision which is necessary to avoid miscalculating
-      //segment numbers or time stamps
-      long incr = BigDecimal.valueOf(time.toMillis())
-          .divide(BigDecimal.valueOf(segmentDuration).multiply(BigDecimal.valueOf(1000)), 10,
-              RoundingMode.HALF_UP)
-          .multiply(BigDecimal.valueOf(getTimescale())).longValue();
+      Duration relativeTime = time.minus(scaledTimeToDuration(startTime));
+      long incr = BigDecimal.valueOf(relativeTime.toNanos())
+          .multiply(BigDecimal.valueOf(getTimescale()))
+          .divide(BigDecimal.valueOf(segmentDuration)
+              .multiply(BigDecimal.valueOf(1_000_000_000L)), 10, RoundingMode.HALF_UP)
+          .setScale(0, RoundingMode.HALF_UP)
+          .longValue();
       segmentNumber += incr;
       startTime += incr * segmentDuration;
     } else {
-      while (hasNext()
-          && scaledTimeToDuration(startTime + timelineSegment.duration).compareTo(time) <= 0) {
+      long ptoOffset = init ? getPresentationTimeOffset() : 0;
+      long targetTicks = BigDecimal.valueOf(time.toNanos())
+          .multiply(BigDecimal.valueOf(getTimescale()))
+          .divide(BigDecimal.valueOf(1_000_000_000L), 0, RoundingMode.HALF_UP)
+          .longValue() + ptoOffset;
+      while (hasNext() && startTime + timelineSegment.duration <= targetTicks) {
         long repetitionsUntilTime = BigDecimal
-            .valueOf(time.toMillis() * getTimescale() - startTime)
-            .divide(BigDecimal.valueOf(timelineSegment.duration), 10, RoundingMode.HALF_UP)
+            .valueOf(targetTicks - startTime)
+            .divide(BigDecimal.valueOf(timelineSegment.duration), 0, RoundingMode.HALF_UP)
             .longValue();
         long pendingRepetitions = timelineSegment.repetitions - timelineSegmentRepetitions + 1;
         long repetitions = Math.min(pendingRepetitions, repetitionsUntilTime);
@@ -114,12 +117,6 @@ public abstract class MultiSegmentBuilder<T> extends BaseSegmentBuilder<T> {
         timelineSegmentRepetitions += repetitions;
         moveToNextTimelineSegmentIfNeeded();
       }
-      /*
-      when initializing segments on manifest, at least return one segment.
-      This might happen due to rounding and double precision issues and due to potential no segments
-      yet generated containing publish time - minimum time buffer (which we use as reproduction
-      starting point)
-       */
       //TODO fix this and use proper buffering time instead of reproduction start time which is not
       // accurate and requires this workaround
       if (init && !hasNext()) {

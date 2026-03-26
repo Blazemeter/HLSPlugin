@@ -84,13 +84,12 @@ public class Manifest extends com.blazemeter.jmeter.videostreaming.core.Manifest
     return mpd.getMinimumUpdatePeriod();
   }
 
-  public long getReloadTimeMillis(long segmentDurationMillis) {
-    // wait at least segment duration if minUpdatePeriod is 0 (or very small)
+  public long getReloadTimeMillis(long segmentDurationMillis, Instant now) {
     long maxIntervalTime = Math.max(
         mpd.getMinimumUpdatePeriod().toMillis(), segmentDurationMillis);
 
     return Math.max(maxIntervalTime - Duration.between(
-        lastDownloadTime, Instant.now()).toMillis(), 0);
+        lastDownloadTime, now).toMillis(), 0);
   }
 
   public Duration getBufferStartTime() {
