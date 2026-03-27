@@ -1,0 +1,91 @@
+name: CI JMeter Compatibility
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_cloud_test:
+        description: "Run BlazeMeter cloud Taurus test (requires BZ_TOKEN)"
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  jmeter_compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 8
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "8"
+          cache: maven
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Taurus
+        run: |
+          python -m pip install --upgrade pip
+          pip install bzt
+
+      - name: Restore JMeter cache
+        uses: actions/cache@v4
+        with:
+          path: .jmeter
+          key: jmeter-${{ runner.os }}-${{ hashFiles('pom.xml', 'src/test/resources/jmeter/**') }}
+          restore-keys: |
+            jmeter-${{ runner.os }}-
+
+      - name: Build project and jmeter-test bundle
+        run: xvfb-run -a mvn -U --batch-mode clean install
+
+      - name: Run compatibility matrix on Java 8
+        working-directory: target/jmeter-test
+        run: |
+          JMETER_VERSION=3.3 sh testJmeter.sh
+          JMETER_VERSION=4.0 sh testJmeter.sh
+          JMETER_VERSION=5.1 sh testJmeter.sh
+          JMETER_VERSION=5.1.1 sh testJmeter.sh
+          JMETER_VERSION=5.2.1 sh testJmeter.sh
+          JMETER_VERSION=5.3 sh testJmeter.sh
+          JMETER_VERSION=5.4.1 sh testJmeter.sh
+          JMETER_VERSION=5.5 sh testJmeter.sh
+
+      - name: Set up Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "11"
+          cache: maven
+
+      - name: Run Java 11 compatibility case
+        working-directory: target/jmeter-test
+        run: |
+          JMETER_VERSION=5.0 sh testJmeter.sh
+
+      - name: Run BlazeMeter cloud test
+        if: ${{ inputs.run_cloud_test }}
+        working-directory: target/jmeter-test
+        env:
+          BZ_TOKEN: ${{ secrets.BZ_TOKEN }}
+        run: |
+          if [ -z "$BZ_TOKEN" ]; then
+            echo "BZ_TOKEN secret is required when run_cloud_test is enabled."
+            exit 1
+          fi
+          bzt testJMeterBZ.yaml -o modules.cloud.token=${BZ_TOKEN}
+
+      - name: Upload compatibility artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-jmeter-compat-failure-${{ github.run_id }}
+          path: target/jmeter-test
+          if-no-files-found: warn
+          retention-days: 1

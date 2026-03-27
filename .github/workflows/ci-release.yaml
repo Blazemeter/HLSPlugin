@@ -1,0 +1,65 @@
+name: CI Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 90
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure workflow runs on master
+        run: |
+          if [ "${GITHUB_REF_NAME}" != "master" ]; then
+            echo "This workflow must be run from master. Current ref: ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+
+      - name: Set up Java 8
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "8"
+          cache: maven
+
+      - name: Install VNC dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tightvncserver x11-utils
+
+      - name: Wire release scripts to root paths
+        run: |
+          chmod +x pipeline/jmeter-plugins-build/scripts/*.sh
+          sudo ln -sf "${GITHUB_WORKSPACE}/pipeline/jmeter-plugins-build/scripts/release.sh" /release.sh
+          sudo ln -sf "${GITHUB_WORKSPACE}/pipeline/jmeter-plugins-build/scripts/set-git-credentials.sh" /set-git-credentials.sh
+          sudo ln -sf "${GITHUB_WORKSPACE}/pipeline/jmeter-plugins-build/scripts/execute-on-vnc.sh" /execute-on-vnc.sh
+          sudo chmod +x /release.sh /set-git-credentials.sh /execute-on-vnc.sh
+
+      - name: Run release script
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$SSH_PRIVATE_KEY" ] || [ -z "$SSH_KNOWN_HOSTS" ]; then
+            echo "SSH_PRIVATE_KEY and SSH_KNOWN_HOSTS secrets are required for release."
+            exit 1
+          fi
+          /release.sh
+
+      - name: Upload release artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-release-artifacts-${{ github.run_id }}
+          path: target/jmeter-bzm-hls-*.jar
+          if-no-files-found: warn
+          retention-days: 30

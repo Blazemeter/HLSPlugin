@@ -1,0 +1,33 @@
+name: CI Master Slave Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  master_slave_test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run MasterSlaveIT in Maven container
+        run: >
+          docker run -t --rm
+          -v /var/run/docker.sock:/var/run/docker.sock
+          -v "${{ github.workspace }}":"${{ github.workspace }}"
+          -w "${{ github.workspace }}"
+          -u 0:0
+          maven:3.5 mvn -Dtest=MasterSlaveIT test
+
+      - name: Upload master-slave artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-master-slave-artifacts-${{ github.run_id }}
+          path: |
+            target/jmeter-bzm-hls-*.jar
+            target/jmeter-test
+            target/failsafe-reports
+          if-no-files-found: warn
+          retention-days: 30
