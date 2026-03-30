@@ -2,6 +2,9 @@ name: CI Master Slave Test
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - SETUP_PIPELINES
 
 jobs:
   master_slave_test:
