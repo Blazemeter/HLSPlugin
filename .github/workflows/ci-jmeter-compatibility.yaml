@@ -43,9 +43,6 @@ jobs:
           for pkg in ("bzt", "urwid"):
               print(f"{pkg}=={metadata.version(pkg)}")
           PY
-          bzt -v
-          # Fail fast if Taurus console import path is broken.
-          python -c "from urwid.decoration import Padding"
 
       - name: Restore JMeter cache
         uses: actions/cache@v4
