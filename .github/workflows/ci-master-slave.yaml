@@ -25,11 +25,15 @@ jobs:
         run: |
           rm -f ~/.m2/repository/xml-apis/xmlParserAPIs/2.0.2/xmlParserAPIs-2.0.2.pom
 
+      - name: Configure Testcontainers for CI
+        run: |
+          cat > ~/.testcontainers.properties <<'EOF'
+          checks.disable=true
+          ryuk.disabled=true
+          tinyimage.container.image=alpine:3.20
+          EOF
+
       - name: Run MasterSlaveIT
-        env:
-          TESTCONTAINERS_RYUK_DISABLED: "true"
-          TESTCONTAINERS_CHECKS_DISABLE: "true"
-          TESTCONTAINERS_TINYIMAGE_CONTAINER_IMAGE: "alpine:3.20"
         run: mvn -U -Dtest=MasterSlaveIT test
 
       - name: Upload master-slave artifacts
