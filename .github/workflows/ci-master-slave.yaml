@@ -28,7 +28,9 @@ jobs:
       - name: Run MasterSlaveIT
         env:
           TESTCONTAINERS_RYUK_DISABLED: "true"
-        run: mvn -U -Dtest=MasterSlaveIT test
+        run: |
+          mvn -U --batch-mode clean install -DskipTests
+          mvn -U --batch-mode -Dtest=MasterSlaveIT test
 
       - name: Upload master-slave artifacts
         if: always()
