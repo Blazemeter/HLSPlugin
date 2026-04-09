@@ -56,6 +56,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible, Varian
   private static final String RESOLUTION_OPTIONS_PROPERTY_NAME = "HLS.RESOLUTION_OPTIONS";
   private static final String BANDWIDTH_SELECTED_PROPERTY_NAME = "HLS.BANDWIDTH_SELECTED";
   private static final String RESOLUTION_SELECTED_PROPERTY_NAME = "HLS.RESOLUTION_SELECTED";
+  private static final String START_FROM_LIVE_EDGE_PROPERTY_NAME = "HLS.START_FROM_LIVE_EDGE";
 
   private static final String HEADER_MANAGER = "HLSRequest.header_manager";
   private static final String COOKIE_MANAGER = "HLSRequest.cookie_manager";
@@ -189,6 +190,14 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible, Varian
 
   public void setIncludeTypeInHeadersStatus(boolean res) {
     this.setProperty(INCLUDE_TYPE_IN_HEADER_NAME, res);
+  }
+
+  public boolean isStartFromLiveEdge() {
+    return this.getPropertyAsBoolean(START_FROM_LIVE_EDGE_PROPERTY_NAME);
+  }
+
+  public void setStartFromLiveEdge(boolean value) {
+    this.setProperty(START_FROM_LIVE_EDGE_PROPERTY_NAME, value);
   }
 
   // implemented for avoiding loading the url when changing context

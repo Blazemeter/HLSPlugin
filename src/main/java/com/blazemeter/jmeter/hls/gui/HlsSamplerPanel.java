@@ -69,6 +69,7 @@ public class HlsSamplerPanel extends JPanel implements ActionListener {
 
   private JCheckBox resumeDownloadOption;
   private JCheckBox includeTypeInHeaders;
+  private JCheckBox startFromLiveEdgeOption;
   private final String min = "Min";
   private final String max = "Max";
 
@@ -90,6 +91,9 @@ public class HlsSamplerPanel extends JPanel implements ActionListener {
     JPanel resolutionPanel = buildResolutionPanel();
     JPanel resumeDownloadPanel = buildResumeDownloadPanel();
     JPanel protocolSelectionPanel = buildProtocolSelectionPanel();
+
+    mpegDashProtocolOption.addItemListener(e ->
+        startFromLiveEdgeOption.setEnabled(e.getStateChange() != ItemEvent.SELECTED));
 
     BlazemeterLabsLogo blazeMeterLabsLogo = new BlazemeterLabsLogo(PLUGIN_REPOSITORY_URL);
     GroupLayout layout = new GroupLayout(this);
@@ -226,6 +230,11 @@ public class HlsSamplerPanel extends JPanel implements ActionListener {
       repaint();
     });
 
+    startFromLiveEdgeOption = namedComponent("startFromLiveEdgeOption",
+        new JCheckBox("Start from live edge"));
+    startFromLiveEdgeOption.setToolTipText(
+        "Only applies to live/EVENT HLS streams (ignored for VOD)");
+
     GroupLayout layout = new GroupLayout(panel);
     layout.setAutoCreateContainerGaps(true);
     panel.setLayout(layout);
@@ -233,12 +242,14 @@ public class HlsSamplerPanel extends JPanel implements ActionListener {
         .addComponent(playWholeVideoOption)
         .addGroup(layout.createSequentialGroup()
             .addComponent(playVideoDurationOption)
-            .addComponent(playSecondsField)));
+            .addComponent(playSecondsField))
+        .addComponent(startFromLiveEdgeOption));
     layout.setVerticalGroup(layout.createSequentialGroup()
         .addComponent(playWholeVideoOption)
         .addGroup(layout.createParallelGroup()
             .addComponent(playVideoDurationOption)
-            .addComponent(playSecondsField)));
+            .addComponent(playSecondsField))
+        .addComponent(startFromLiveEdgeOption));
     return panel;
   }
 
@@ -507,6 +518,14 @@ public class HlsSamplerPanel extends JPanel implements ActionListener {
 
   public void setIncludeTypeInHeaders(boolean check) {
     includeTypeInHeaders.setSelected(check);
+  }
+
+  public boolean isStartFromLiveEdge() {
+    return startFromLiveEdgeOption.isSelected();
+  }
+
+  public void setStartFromLiveEdge(boolean check) {
+    startFromLiveEdgeOption.setSelected(check);
   }
 
   // implemented for avoiding loading the url when changing context

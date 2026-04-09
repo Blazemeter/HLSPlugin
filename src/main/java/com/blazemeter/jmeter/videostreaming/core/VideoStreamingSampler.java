@@ -203,6 +203,10 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
     return true;
   }
 
+  protected boolean isStartFromLiveEdge() {
+    return baseSampler.isStartFromLiveEdge();
+  }
+
   public void resetVideoStatus() {
     lastVideoSegment = null;
     lastAudioSegment = null;
