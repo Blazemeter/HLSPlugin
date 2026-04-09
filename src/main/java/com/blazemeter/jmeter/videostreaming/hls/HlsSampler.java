@@ -32,6 +32,9 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
 
   private static final Logger LOG = LoggerFactory.getLogger(HlsSampler.class);
 
+  // RFC 8216 Section 6.3.3: start this many target durations from the live edge
+  private static final int RFC_8216_LIVE_EDGE_DURATIONS = 3;
+
   public HlsSampler(com.blazemeter.jmeter.hls.logic.HlsSampler baseSampler,
       VideoStreamingHttpClient httpClient, TimeMachine timeMachine,
       SampleResultProcessor sampleResultProcessor) {
@@ -219,7 +222,8 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
     }
 
     private int computeLiveEdgeSkipIndex(List<MediaSegment> segments) {
-      long thresholdMs = playlist.getTargetDurationSeconds() * 3 * 1000;
+      long thresholdMs = playlist.getTargetDurationSeconds()
+          * RFC_8216_LIVE_EDGE_DURATIONS * 1000;
       int size = segments.size();
       if (thresholdMs <= 0 || size == 0) {
         return Math.max(0, size - 1);
