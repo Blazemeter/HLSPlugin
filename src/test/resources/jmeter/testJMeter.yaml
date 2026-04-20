@@ -8,15 +8,9 @@ modules:
     detect-plugins: false
     properties:
       log_level: DEBUG
-      user.classpath: "libs/*"
-      search_paths: "libs"
-      plugin_dependency_paths: "libs"
+      user.classpath: "libs"
   console:
     disable: true
-
-files:
-  - HLSSampler.jmx
-  - libs
 
 execution:
 - concurrency: 1
