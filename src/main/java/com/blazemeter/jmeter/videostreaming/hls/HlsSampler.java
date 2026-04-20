@@ -32,6 +32,9 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
 
   private static final Logger LOG = LoggerFactory.getLogger(HlsSampler.class);
 
+  // RFC 8216 Section 6.3.3: start this many target durations from the live edge
+  private static final int RFC_8216_LIVE_EDGE_DURATIONS = 3;
+
   public HlsSampler(com.blazemeter.jmeter.hls.logic.HlsSampler baseSampler,
       VideoStreamingHttpClient httpClient, TimeMachine timeMachine,
       SampleResultProcessor sampleResultProcessor) {
@@ -75,12 +78,13 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
       mediaPlaylist = masterPlaylist;
     }
 
+    boolean liveEdge = isStartFromLiveEdge();
     MediaPlayback mediaPlayback = new MediaPlayback(mediaPlaylist, MEDIA_TYPE_NAME,
-        lastVideoSegment, playSeconds);
+        lastVideoSegment, playSeconds, liveEdge);
     MediaPlayback audioPlayback = new MediaPlayback(audioPlaylist, AUDIO_TYPE_NAME,
-        lastAudioSegment, playSeconds);
+        lastAudioSegment, playSeconds, liveEdge);
     MediaPlayback subtitlesPlayback = new MediaPlayback(subtitlesPlaylist, SUBTITLES_TYPE_NAME,
-        lastSubtitleSegment, playSeconds);
+        lastSubtitleSegment, playSeconds, liveEdge);
 
     try {
       mediaPlayback.downloadInitializationSegment();
@@ -182,11 +186,13 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
     private Playlist playlist;
     private Iterator<MediaSegment> mediaSegments;
     private InitializationSegment initializationSegment;
+    private final boolean startFromLiveEdge;
 
     private MediaPlayback(Playlist playlist, String type, MediaSegment lastSegment,
-        int playSeconds) {
+        int playSeconds, boolean startFromLiveEdge) {
       super(type, lastSegment, playSeconds);
       this.playlist = playlist;
+      this.startFromLiveEdge = startFromLiveEdge;
       if (playlist != null) {
         updateMediaSegments();
         if (playlist.hasByteRange()) {
@@ -201,12 +207,37 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
 
     private void updateMediaSegments() {
       if (lastSegment == null) {
-        mediaSegments = playlist.getMediaSegments().iterator();
+        List<MediaSegment> segments = playlist.getMediaSegments();
+        if (startFromLiveEdge && !playlist.hasEnd()) {
+          int skipIndex = computeLiveEdgeSkipIndex(segments);
+          mediaSegments = segments.subList(skipIndex, segments.size()).iterator();
+        } else {
+          mediaSegments = segments.iterator();
+        }
       } else {
         mediaSegments = playlist.getMediaSegments().stream()
             .filter(s -> s.getSequenceNumber() > lastSegment.getSequenceNumber())
             .iterator();
       }
+    }
+
+    private int computeLiveEdgeSkipIndex(List<MediaSegment> segments) {
+      long thresholdMs = playlist.getTargetDurationSeconds()
+          * RFC_8216_LIVE_EDGE_DURATIONS * 1000;
+      int size = segments.size();
+      if (thresholdMs <= 0 || size == 0) {
+        return Math.max(0, size - 1);
+      }
+      long accumulatedMs = 0;
+      int count = 0;
+      for (int i = size - 1; i >= 0; i--) {
+        accumulatedMs += segments.get(i).getDurationMillis();
+        count++;
+        if (accumulatedMs >= thresholdMs) {
+          break;
+        }
+      }
+      return Math.max(0, size - count);
     }
 
     private void downloadNextSegment()

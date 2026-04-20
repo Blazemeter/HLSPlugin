@@ -58,6 +58,7 @@ public class HlsSamplerGui extends AbstractSamplerGui {
     hlsSamplerPanel.setResolutionSelected(sampler.getResolutionSelected());
     hlsSamplerPanel.setResumeStatus(sampler.getResumeVideoStatus());
     hlsSamplerPanel.setIncludeTypeInHeaders(sampler.getIncludeTypeInHeadersStatus());
+    hlsSamplerPanel.setStartFromLiveEdge(sampler.isStartFromLiveEdge());
     hlsSamplerPanel.setProtocolSelector(sampler.getProtocolSelector());
     hlsSamplerPanel.setVariantsProvider(sampler);
   }
@@ -80,6 +81,7 @@ public class HlsSamplerGui extends AbstractSamplerGui {
       sampler.setResolutionSelected(hlsSamplerPanel.getResolutionSelected());
       sampler.setResumeVideoStatus(hlsSamplerPanel.getResumeVideoStatus());
       sampler.setIncludeTypeInHeadersStatus(hlsSamplerPanel.getIncludeTypeInHeadersStatus());
+      sampler.setStartFromLiveEdge(hlsSamplerPanel.isStartFromLiveEdge());
       sampler.setProtocolSelector(hlsSamplerPanel.getProtocolSelector());
     }
   }
@@ -93,6 +95,7 @@ public class HlsSamplerGui extends AbstractSamplerGui {
     hlsSamplerPanel.setPlaySeconds("");
     hlsSamplerPanel.setResumeStatus(false);
     hlsSamplerPanel.setIncludeTypeInHeaders(false);
+    hlsSamplerPanel.setStartFromLiveEdge(false);
     hlsSamplerPanel.setProtocolSelector(Protocol.AUTOMATIC);
   }
 

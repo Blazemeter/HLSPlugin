@@ -1,0 +1,14 @@
+#EXTM3U
+#EXT-X-PLAYLIST-TYPE:EVENT
+#EXT-X-VERSION:3
+#EXT-X-MEDIA-SEQUENCE:1
+#EXTINF:5.00,
+/media/001.ts
+#EXTINF:5.00,
+/media/002.ts
+#EXTINF:5.00,
+/media/003.ts
+#EXTINF:5.00,
+/media/004.ts
+#EXTINF:5.00,
+/media/005.ts
