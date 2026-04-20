@@ -17,7 +17,7 @@ public class DashSamplerTest extends VideoStreamingSamplerTest {
   private static final String DEFAULT_SUBTITLES_ADAPTATION_SET = "minBandwidthSubtitlesEnglish";
   public static final int SEGMENTS_COUNT = 5;
   private static final double VIDEO_DURATION_SECONDS = 3.0;
-  private static final double AUDIO_DURATION_SECONDS = 3.0;
+  private static final double AUDIO_DURATION_SECONDS = 3.84;
   private static final double SUBTITLES_DURATION_SECONDS = 10.0;
   private static final int PLAYBACK_TIME_SECONDS = 5;
 
@@ -250,6 +250,63 @@ public class DashSamplerTest extends VideoStreamingSamplerTest {
       String adaptationSetId, long sequenceNumber, double duration) {
     return addDurationHeader(buildNamedSampleResult(buildSegmentName(type),
         buildLiveStreamingSegmentUri(type, adaptationSetId, sequenceNumber)), duration);
+  }
+
+  @Test
+  public void shouldAdvanceSegmentsAfterManifestRefreshWithLargeStartNumber() throws IOException {
+    String firstManifest = getResource("dynamicTimelineManifest.mpd");
+    String refreshedManifest = getResource("dynamicTimelineManifestRefreshed.mpd");
+
+    uriSampler.setupUriSampleResults(MANIFEST_URI,
+        buildBaseSampleResult(SAMPLER_NAME, MANIFEST_URI, firstManifest),
+        buildBaseSampleResult(SAMPLER_NAME, MANIFEST_URI, refreshedManifest));
+
+    long startSegNum = 1108993098L;
+    double seg1DurationSeconds = 1.433;
+    double seg2VideoDurationSeconds = 1.6;
+    double seg2AudioDurationSeconds = 1.6;
+
+    URI videoInitUri = URI.create(BASE_URI + "/init-v1.m4s");
+    uriSampler.setupUriSampleResults(videoInitUri,
+        buildNamedSampleResult(SAMPLER_NAME, videoInitUri));
+    URI videoSeg1Uri = URI.create(BASE_URI + "/seg-v1-" + startSegNum + ".m4s");
+    uriSampler.setupUriSampleResults(videoSeg1Uri,
+        buildNamedSampleResult(VIDEO_TYPE_NAME, videoSeg1Uri));
+    URI videoSeg2Uri = URI.create(BASE_URI + "/seg-v1-" + (startSegNum + 1) + ".m4s");
+    uriSampler.setupUriSampleResults(videoSeg2Uri,
+        buildNamedSampleResult(VIDEO_TYPE_NAME, videoSeg2Uri));
+
+    URI audioInitUri = URI.create(BASE_URI + "/init-a1.m4s");
+    uriSampler.setupUriSampleResults(audioInitUri,
+        buildNamedSampleResult(SAMPLER_NAME, audioInitUri));
+    URI audioSeg1Uri = URI.create(BASE_URI + "/seg-a1-" + startSegNum + ".m4s");
+    uriSampler.setupUriSampleResults(audioSeg1Uri,
+        buildNamedSampleResult(AUDIO_TYPE_NAME, audioSeg1Uri));
+    URI audioSeg2Uri = URI.create(BASE_URI + "/seg-a1-" + (startSegNum + 1) + ".m4s");
+    uriSampler.setupUriSampleResults(audioSeg2Uri,
+        buildNamedSampleResult(AUDIO_TYPE_NAME, audioSeg2Uri));
+
+    setPlaySeconds(3);
+    sampler.sample();
+
+    verifySampleResults(
+        buildBaseSampleResult(MANIFEST_NAME, MANIFEST_URI, firstManifest),
+        buildNamedSampleResult(buildInitSampleName(VIDEO_TYPE_NAME), videoInitUri),
+        addDurationHeader(
+            buildNamedSampleResult(buildSegmentName(VIDEO_TYPE_NAME), videoSeg1Uri),
+            seg1DurationSeconds),
+        buildNamedSampleResult(buildInitSampleName(AUDIO_TYPE_NAME), audioInitUri),
+        addDurationHeader(
+            buildNamedSampleResult(buildSegmentName(AUDIO_TYPE_NAME), audioSeg1Uri),
+            seg1DurationSeconds),
+        buildBaseSampleResult(MANIFEST_NAME, MANIFEST_URI, refreshedManifest),
+        addDurationHeader(
+            buildNamedSampleResult(buildSegmentName(VIDEO_TYPE_NAME), videoSeg2Uri),
+            seg2VideoDurationSeconds),
+        addDurationHeader(
+            buildNamedSampleResult(buildSegmentName(AUDIO_TYPE_NAME), audioSeg2Uri),
+            seg2AudioDurationSeconds)
+    );
   }
 
 }

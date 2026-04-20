@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MPD xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xmlns="urn:mpeg:dash:schema:mpd:2011"
+     xsi:schemaLocation="urn:mpeg:dash:schema:mpd:2011 http://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD.xsd"
+     type="dynamic"
+     minimumUpdatePeriod="PT2S"
+     availabilityStartTime="2024-01-01T00:00:00Z"
+     publishTime="2024-01-13T20:09:50Z"
+     minBufferTime="PT2S"
+     profiles="urn:mpeg:dash:profile:isoff-live:2011">
+  <Period id="1" start="PT0S">
+    <AdaptationSet id="1" contentType="video" mimeType="video/mp4"
+                   segmentAlignment="true">
+      <SegmentTemplate timescale="60000" startNumber="1108993098"
+                       presentationTimeOffset="100000000000"
+                       initialization="init-$RepresentationID$.m4s"
+                       media="seg-$RepresentationID$-$Number$.m4s">
+        <SegmentTimeline>
+          <S t="100000000000" d="86000"/>
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="v1" bandwidth="1000000" width="1920" height="1080"
+                      codecs="avc1.640028"/>
+    </AdaptationSet>
+    <AdaptationSet id="2" contentType="audio" mimeType="audio/mp4"
+                   segmentAlignment="true">
+      <SegmentTemplate timescale="48000" startNumber="1108993098"
+                       presentationTimeOffset="80000000000"
+                       initialization="init-$RepresentationID$.m4s"
+                       media="seg-$RepresentationID$-$Number$.m4s">
+        <SegmentTimeline>
+          <S t="80000000000" d="68800"/>
+        </SegmentTimeline>
+      </SegmentTemplate>
+      <Representation id="a1" bandwidth="128000" codecs="mp4a.40.2"/>
+    </AdaptationSet>
+  </Period>
+</MPD>

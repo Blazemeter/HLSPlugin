@@ -75,7 +75,8 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
       while (!mediaPlayback.hasEnded()) {
         if (mediaPlayback.needsManifestUpdate() && !initialLoop) {
           long awaitMillis = manifest.getReloadTimeMillis(
-              mediaPlayback.getLastSegment().getDurationMillis()
+              mediaPlayback.getLastSegment().getDurationMillis(),
+              timeMachine.now()
           );
           if (awaitMillis > 0) {
             timeMachine.awaitMillis(awaitMillis);
@@ -256,7 +257,7 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
     }
 
     private boolean needsManifestUpdate() {
-      return manifest.isDynamic() || !segmentBuilder.hasNext() && !periods.hasNext();
+      return !segmentBuilder.hasNext() && !periods.hasNext();
     }
 
   }
