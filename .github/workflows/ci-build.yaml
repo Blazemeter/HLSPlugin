@@ -2,7 +2,6 @@ name: CI Build
 
 on:
   push:
-  pull_request:
 
 concurrency:
   group: ci-build-${{ github.ref }}
