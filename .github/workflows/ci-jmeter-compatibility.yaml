@@ -3,7 +3,8 @@ name: CI JMeter Compatibility
 on:
   push:
     branches:
-      - SETUP_PIPELINES
+      - development
+      - master
   workflow_dispatch:
     inputs:
       run_cloud_test:

@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - SETUP_PIPELINES
+      - master
+      - development
 
 jobs:
   master_slave_test:
