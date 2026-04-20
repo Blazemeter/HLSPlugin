@@ -84,6 +84,18 @@ Set the playback time to either the whole video, or a certain amount of seconds.
 
 ![](docs/duration.png)
 
+#### Start from live edge
+
+Optional checkbox (**Start from live edge**) next to the playback duration options.
+
+When enabled, the sampler starts **near the live edge** on **live / EVENT** media playlists (those without a fixed end): it skips segments at the beginning of the window so the first downloaded segment reflects recent media—roughly within the last **three target durations** of segment time (`#EXT-X-TARGETDURATION`), consistent with [RFC 8216 §6.3.3](https://datatracker.ietf.org/doc/html/rfc8216#section-6.3.3). 
+
+> [!NOTE]
+> **VOD** playlists are unchanged (playback still starts from the beginning). 
+> The option applies to **HLS only**; it is **disabled** when **Protocol** is MPEG-DASH.
+
+![](docs/start-from-live-edge.png)
+
 #### Audio & subtitles tracks
 
 As stated before you can set default values or choose a specific alternative audio or subtitle track option from the ones displayed in the combo boxes once you load the playlist.
