@@ -138,12 +138,12 @@ public class Playlist extends Manifest {
     if (!hasByteRange()) {
       return mediaPlaylist.getSegments().stream()
           .map(s -> new MediaSegment(sequenceNumber.getAndIncrement(),
-              uri.resolve(s.getURI()), Duration.ofMillis((long) s.getDuration() * 1000)))
+              uri.resolve(s.getURI()), Duration.ofMillis(Math.round(s.getDuration() * 1000))))
           .collect(Collectors.toList());
     } else {
       List<MediaSegment> mediaSegments = mediaPlaylist.getSegments().stream()
           .map(s -> new MediaSegment(sequenceNumber.getAndIncrement(),
-              Duration.ofMillis((long) s.getDuration() * 1000))).collect(Collectors.toList());
+              Duration.ofMillis(Math.round(s.getDuration() * 1000)))).collect(Collectors.toList());
       for (int i = 0; i < mediaSegments.size(); i++) {
         MediaSegment segment = mediaSegments.get(i);
         ByteRange byteRange = mediaPlaylist.getByteRanges().get(i);
@@ -154,6 +154,12 @@ public class Playlist extends Manifest {
 
       return mediaSegments;
     }
+  }
+
+  public long getTargetDurationSeconds() {
+    MediaPlaylist media = (MediaPlaylist) playlist;
+    TargetDuration td = media.getTargetDuration();
+    return td != null ? td.getDuration() : 0;
   }
 
   public List<String> getSubtitles() {

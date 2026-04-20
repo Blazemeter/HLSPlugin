@@ -1,8 +1,7 @@
-FROM java:8
+FROM eclipse-temurin:8-jre
 
-# Updating system & installing net-tools to have ifconfig command avaiable
-# Due to issue non-zero code 100 (returned by apt-get update -y), this was the approach found to install net-tools.
-RUN apt-get update -y || apt-get install -y net-tools
+# Install tools required by the test image setup.
+RUN apt-get update -y && apt-get install -y wget net-tools && rm -rf /var/lib/apt/lists/*
 
 ENV JMETER_VERSION 5.1.1
 

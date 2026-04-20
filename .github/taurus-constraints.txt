@@ -1,0 +1,5 @@
+# Pin Taurus to a known-good combination.
+# bzt 1.16.49 currently resolves urwid>=3 and fails at runtime on
+# `from urwid.decoration import Padding`.
+bzt==1.16.40
+urwid==2.1.2

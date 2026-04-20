@@ -2,7 +2,9 @@ package com.blazemeter.jmeter.videostreaming.hls;
 
 import static org.assertj.core.api.Java6Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
@@ -28,7 +30,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.function.Function;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
+import org.apache.jmeter.samplers.SampleResult;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 
 
 public class HlsSamplerTest extends VideoStreamingSamplerTest {
@@ -853,6 +857,100 @@ public class HlsSamplerTest extends VideoStreamingSamplerTest {
     ret.setRequestHeaders(ret.getRequestHeaders() + headers);
     ret.setResponseHeaders(ret.getResponseHeaders() + headers);
     return ret;
+  }
+
+  @Test
+  public void shouldStartFromLiveEdgeWhenEnabled() throws Exception {
+    String mediaPlaylist = getResource("eventMediaPlaylistLong.m3u8");
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    baseSampler.setStartFromLiveEdge(true);
+    setPlaySeconds(MEDIA_SEGMENT_DURATION);
+    sampler.sample();
+    verifySampleResults(
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildMediaSegmentSampleResult(15));
+  }
+
+  @Test
+  public void shouldStartFromBeginningWhenLiveEdgeDisabled() throws Exception {
+    String mediaPlaylist = getResource("eventMediaPlaylistLong.m3u8");
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    baseSampler.setStartFromLiveEdge(false);
+    setPlaySeconds(MEDIA_SEGMENT_DURATION);
+    sampler.sample();
+    verifySampleResults(
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildMediaSegmentSampleResult(1));
+  }
+
+  @Test
+  public void shouldIgnoreLiveEdgeForVodPlaylist() throws Exception {
+    String mediaPlaylist = getResource(VOD_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    baseSampler.setStartFromLiveEdge(true);
+    setPlaySeconds(MEDIA_SEGMENT_DURATION);
+    sampler.sample();
+    verifySampleResults(
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildMediaSegmentSampleResult(1));
+  }
+
+  @Test
+  public void shouldStartFromLiveEdgeWithByteRangePlaylist() throws Exception {
+    String mediaPlaylist = getResource("eventMediaPlaylistLongByteRange.m3u8");
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    baseSampler.setStartFromLiveEdge(true);
+    setPlaySeconds(MEDIA_SEGMENT_DURATION * 2);
+    sampler.sample();
+    ArgumentCaptor<String> nameCaptor = ArgumentCaptor.forClass(String.class);
+    verify(sampleResultProcessor, atLeastOnce())
+        .accept(nameCaptor.capture(), any(SampleResult.class));
+    List<String> names = nameCaptor.getAllValues();
+    assertThat(names.get(0)).isEqualTo("media playlist");
+    assertThat(names.get(1)).isEqualTo("media init segment");
+    long segmentCount = names.stream().filter(n -> n.equals("media segment")).count();
+    assertThat(segmentCount).isEqualTo(2);
+  }
+
+  @Test
+  public void shouldStartFromLiveEdgeWithVariableDurations() throws Exception {
+    String mediaPlaylist = getResource("eventMediaPlaylistVariableDuration.m3u8");
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    baseSampler.setStartFromLiveEdge(true);
+    setPlaySeconds(3);
+    sampler.sample();
+    verifySampleResults(
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildExpectedSegmentSampleResult(6, MEDIA_TYPE_NAME, 7.0));
+  }
+
+  @Test
+  public void shouldResumeFromLastSegmentWhenLiveEdgeEnabledAndResuming() throws Exception {
+    String mediaPlaylist1 = getResource("eventMediaPlaylistLong.m3u8");
+    String mediaPlaylist2 = getResource("eventMediaPlaylistLong.m3u8");
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist1, mediaPlaylist2);
+    baseSampler.setStartFromLiveEdge(true);
+    baseSampler.setResumeVideoStatus(true);
+    setPlaySeconds(MEDIA_SEGMENT_DURATION);
+    sampler.sample();
+    sampler.sample();
+    verifySampleResults(
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist1),
+        buildMediaSegmentSampleResult(15),
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist2),
+        buildMediaSegmentSampleResult(16));
+  }
+
+  @Test
+  public void shouldFallbackToAtLeastOneSegmentWhenTargetDurationMissing() throws Exception {
+    String mediaPlaylist = getResource("eventMediaPlaylistNoTargetDuration.m3u8");
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    baseSampler.setStartFromLiveEdge(true);
+    setPlaySeconds(MEDIA_SEGMENT_DURATION);
+    sampler.sample();
+    verifySampleResults(
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildMediaSegmentSampleResult(5));
   }
 
 }
