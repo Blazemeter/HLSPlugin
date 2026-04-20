@@ -15,10 +15,10 @@
     </properties>
 
     <scm>
-        <connection>scm:git:git@gitlab.abstracta.us:BZ/jmeter-hls-plugin.git</connection>
-        <developerConnection>scm:git:git@gitlab.abstracta.us:BZ/jmeter-hls-plugin.git
+        <connection>scm:git:git@github.com:Blazemeter/HLSPlugin.git</connection>
+        <developerConnection>scm:git:git@github.com:Blazemeter/HLSPlugin.git
         </developerConnection>
-        <url>http://gitlab.abstracta.us/BZ/jmeter-hls-plugin</url>
+        <url>https://github.com/Blazemeter/HLSPlugin</url>
     </scm>
     <repositories>
         <repository>
@@ -73,7 +73,7 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers</artifactId>
-            <version>1.14.3</version>
+            <version>1.19.7</version>
             <scope>test</scope>
         </dependency>
         <dependency>

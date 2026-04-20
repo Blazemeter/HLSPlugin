@@ -5,6 +5,7 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Arrays;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -24,6 +25,7 @@ public class MasterSlaveIT {
   private static final Logger LOG = LoggerFactory.getLogger(MasterSlaveIT.class);
   private static final long TIMEOUT_MILLI = 120000;
   private static final String JMETER_HOME_PATH = "/jmeter/apache-jmeter-5.1.1/bin";
+  private static final String JMETER_TEST_LIB_PATH = "target/jmeter-test/lib";
   private static final Network network = Network.newNetwork();
 
   @Rule
@@ -51,9 +53,9 @@ public class MasterSlaveIT {
           .withFileFromClasspath("Dockerfile", "master-slave/Dockerfile")
           .withFileFromClasspath("test.jmx", "master-slave/HLSSamplerSlaveRemoteTest.jmx")
           .withFileFromFile("jmeter-bzm-hls.jar",
-              new File("target/jmeter-test/lib/jmeter-bzm-hls.jar"))
+              getJarByPrefix("jmeter-bzm-hls-"))
           .withFileFromFile("hlsparserj.jar",
-              new File("target/jmeter-test/lib/hlsparserj.jar"))
+              getJarByPrefix("hlsparserj-"))
           .withDockerfilePath("Dockerfile"))
       .withLogConsumer(new Slf4jLogConsumer(LOG).withPrefix("MAIN"))
       .withNetwork(network)
@@ -71,6 +73,17 @@ public class MasterSlaveIT {
         "-n", "-r", "-t", "/test.jmx", "-l", "/result", "-j", "/master_logs");
 
     assertThat(execResult.getStdout()).contains("... end of run");
+  }
+
+  private static File getJarByPrefix(String prefix) {
+    File libDir = new File(JMETER_TEST_LIB_PATH);
+    File[] matches = libDir.listFiles((dir, name) -> name.startsWith(prefix) && name.endsWith(".jar"));
+    if (matches == null || matches.length == 0) {
+      throw new IllegalStateException("Could not find jar with prefix '" + prefix + "' in "
+          + libDir.getAbsolutePath());
+    }
+    Arrays.sort(matches);
+    return matches[matches.length - 1];
   }
 
 }

@@ -1,8 +1,11 @@
-FROM java:8
+FROM eclipse-temurin:8-jre
 
 ENV WIREMOCK_VERSION 2.26.3
 
-RUN mkdir -p /wiremock/mappings/ \
+RUN apt-get update -y \
+    && apt-get install -y wget netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /wiremock/mappings/ \
     && cd /wiremock \
     && wget https://repo1.maven.org/maven2/com/github/tomakehurst/wiremock-standalone/$WIREMOCK_VERSION/wiremock-standalone-$WIREMOCK_VERSION.jar \
     && cd /wiremock    

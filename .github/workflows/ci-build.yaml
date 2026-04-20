@@ -1,0 +1,45 @@
+name: CI Build
+
+on:
+  push:
+
+concurrency:
+  group: ci-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java 8
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "8"
+          cache: maven
+
+      - name: Restore JMeter cache
+        uses: actions/cache@v5
+        with:
+          path: .jmeter
+          key: jmeter-${{ runner.os }}-${{ hashFiles('pom.xml', 'src/test/resources/jmeter/**') }}
+          restore-keys: |
+            jmeter-${{ runner.os }}-
+
+      - name: Build and test
+        run: xvfb-run -a mvn -U --batch-mode clean install
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ci-build-artifacts-${{ github.run_id }}
+          path: |
+            target/jmeter-bzm-hls-*.jar
+            target/jmeter-test
+            target/failsafe-reports
+          if-no-files-found: warn
+          retention-days: 30

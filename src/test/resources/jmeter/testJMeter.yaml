@@ -1,3 +1,6 @@
+settings:
+  check-updates: false
+
 modules:
   jmeter:
     path: ".jmeter"
@@ -5,9 +8,15 @@ modules:
     detect-plugins: false
     properties:
       log_level: DEBUG
-      user.classpath: lib
+      user.classpath: "lib/*"
+      search_paths: "lib"
+      plugin_dependency_paths: "lib"
   console:
     disable: true
+
+files:
+  - HLSSampler.jmx
+  - lib
 
 execution:
 - concurrency: 1
