@@ -38,6 +38,9 @@ import org.mockito.ArgumentCaptor;
 public class HlsSamplerTest extends VideoStreamingSamplerTest {
 
   private static final String SIMPLE_MEDIA_PLAYLIST_NAME = "simpleMediaPlaylist.m3u8";
+  private static final String MEDIA_PLAYLIST_PDT_BETWEEN_EXTINF_AND_URI_NAME =
+      "mediaPlaylistPdtBetweenExtInfAndUri.m3u8";
+  private static final double PDT_BETWEEN_EXTINF_AND_URI_SEGMENT_DURATION = 4.0;
   private static final URI MASTER_URI = URI.create(BASE_URI + "/master.m3u8");
   protected static final String MEDIA_TYPE_NAME = "media";
   protected static final double MEDIA_SEGMENT_DURATION = 5.0;
@@ -95,6 +98,18 @@ public class HlsSamplerTest extends VideoStreamingSamplerTest {
         buildMediaSegmentSampleResult(1));
   }
 
+  @Test
+  public void shouldDownloadSegmentWhenPdtIsBetweenExtInfAndUri() throws Exception {
+    String mediaPlaylist = getResource(MEDIA_PLAYLIST_PDT_BETWEEN_EXTINF_AND_URI_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    setPlaySeconds(PDT_BETWEEN_EXTINF_AND_URI_SEGMENT_DURATION);
+    sampler.sample();
+    verifySampleResults(
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildMediaSegmentSampleResult(MASTER_URI.resolve("segment_001.ts"),
+            PDT_BETWEEN_EXTINF_AND_URI_SEGMENT_DURATION));
+  }
+
   private void setupUriSamplerPlaylist(URI uri, String... playlists) {
     HTTPSampleResult[] rest = new HTTPSampleResult[playlists.length - 1];
     for (int i = 1; i < playlists.length; i++) {
@@ -107,6 +122,12 @@ public class HlsSamplerTest extends VideoStreamingSamplerTest {
   private HTTPSampleResult buildMediaSegmentSampleResult(int sequenceNumber) {
     return buildExpectedSegmentSampleResult(sequenceNumber, MEDIA_TYPE_NAME,
         MEDIA_SEGMENT_DURATION);
+  }
+
+  private HTTPSampleResult buildMediaSegmentSampleResult(URI segmentUri, double segmentDuration) {
+    HTTPSampleResult result = buildSampleResult(segmentUri, SEGMENT_CONTENT_TYPE, "");
+    result.setSampleLabel(buildSegmentName(MEDIA_TYPE_NAME));
+    return addDurationHeader(result, segmentDuration);
   }
 
   private HTTPSampleResult buildExpectedSegmentSampleResult(int sequenceNumber, String segmentType,
