@@ -17,6 +17,7 @@ import com.comcast.viper.hlsparserj.tags.UnparsedTag;
 import com.comcast.viper.hlsparserj.tags.master.Media;
 import com.comcast.viper.hlsparserj.tags.master.StreamInf;
 import com.comcast.viper.hlsparserj.tags.media.ByteRange;
+import com.comcast.viper.hlsparserj.tags.media.ExtInf;
 import com.comcast.viper.hlsparserj.tags.media.ExtMap;
 import com.comcast.viper.hlsparserj.tags.media.MediaSequence;
 import com.comcast.viper.hlsparserj.tags.media.PlaylistType;
@@ -136,11 +137,34 @@ public class Playlist extends Manifest {
     AtomicInteger sequenceNumber = new AtomicInteger(sequence);
 
     if (!hasByteRange()) {
-      return mediaPlaylist.getSegments().stream()
-          .map(s -> new MediaSegment(sequenceNumber.getAndIncrement(),
-              uri.resolve(s.getURI()), Duration.ofMillis(Math.round(s.getDuration() * 1000))))
-          .collect(Collectors.toList());
+      // hlsparserj assigns the segment URI to the tag line immediately above it. When
+      // #EXT-X-PROGRAM-DATE-TIME (or other tags) sit between #EXTINF and the media URI
+      // line, ExtInf.getURI() is null. Playlists with PDT before #EXTINF parse correctly.
+      List<ExtInf> segments = mediaPlaylist.getSegments();
+      List<String> fallbackUris = requiresSegmentUriFallback(segments)
+          ? extractSegmentUrisFromBody(body) : null;
+      List<MediaSegment> mediaSegments = new ArrayList<>(segments.size());
+      for (int i = 0; i < segments.size(); i++) {
+        ExtInf segment = segments.get(i);
+        String segmentUri = segment.getURI();
+        if (segmentUri == null && fallbackUris != null) {
+          if (i >= fallbackUris.size()) {
+            throw new IllegalStateException(
+                "Missing URI for segment at sequence " + sequenceNumber.get());
+          }
+          segmentUri = fallbackUris.get(i);
+        }
+        if (segmentUri == null) {
+          throw new IllegalStateException(
+              "Missing URI for segment at sequence " + sequenceNumber.get());
+        }
+        mediaSegments.add(new MediaSegment(sequenceNumber.getAndIncrement(),
+            uri.resolve(segmentUri), Duration.ofMillis(Math.round(segment.getDuration() * 1000))));
+      }
+      return mediaSegments;
     } else {
+      // Byte-range playlists rely on hlsparserj associating URIs with EXT-X-BYTERANGE.
+      // Same PDT-between-EXTINF-and-URI ordering is not covered here
       List<MediaSegment> mediaSegments = mediaPlaylist.getSegments().stream()
           .map(s -> new MediaSegment(sequenceNumber.getAndIncrement(),
               Duration.ofMillis(Math.round(s.getDuration() * 1000)))).collect(Collectors.toList());
@@ -154,6 +178,30 @@ public class Playlist extends Manifest {
 
       return mediaSegments;
     }
+  }
+
+  static boolean requiresSegmentUriFallback(List<ExtInf> segments) {
+    return segments.stream().anyMatch(s -> s.getURI() == null);
+  }
+
+  static List<String> extractSegmentUrisFromBody(String body) {
+    List<String> uris = new ArrayList<>();
+    boolean afterExtInf = false;
+    for (String line : body.split("\n")) {
+      String trimmed = line.replace("\r", "").trim();
+      if (trimmed.isEmpty()) {
+        continue;
+      }
+      if (trimmed.startsWith("#EXTINF")) {
+        afterExtInf = true;
+      } else if (trimmed.startsWith("#")) {
+        continue;
+      } else if (afterExtInf) {
+        uris.add(trimmed);
+        afterExtInf = false;
+      }
+    }
+    return uris;
   }
 
   public long getTargetDurationSeconds() {
