@@ -262,7 +262,9 @@
                             <includeArtifactIds>
                                 hlsparserj, jackson-annotations, jackson-core, jackson-databind,
                                 jackson-dataformat-xml, jackson-module-jaxb-annotations,
-                                stax2-api, woodstox-core
+                                stax2-api, woodstox-core,
+                                mpd-tools, jmeter-bzm-commons,
+                                jakarta.xml.bind-api, jakarta.activation-api
                             </includeArtifactIds>
                             <outputDirectory>${project.build.directory}/jmeter-test/lib</outputDirectory>
                         </configuration>

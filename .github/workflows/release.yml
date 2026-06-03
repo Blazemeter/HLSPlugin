@@ -74,7 +74,7 @@ jobs:
           omitBodyDuringUpdate: true
           updateOnlyUnreleased: true
           draft: false
-          artifacts: "target/jmeter-bzm-hls-${{ inputs.version }}.jar"
+          artifacts: "target/jmeter-test/lib/*.jar"
 
       - name: Compute next SNAPSHOT version
         run: |
