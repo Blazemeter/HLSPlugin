@@ -38,9 +38,9 @@
             <version>${jmeter.version}</version>
         </dependency>
         <dependency>
-          <groupId>com.github.blazemeter</groupId>
+          <groupId>com.blazemeter</groupId>
           <artifactId>hlsparserj</artifactId>
-          <version>hlsparserj-1.0.1</version>
+          <version>1.0.2</version>
         </dependency>
         <dependency>
             <groupId>com.github.blazemeter</groupId>
