@@ -953,4 +953,16 @@ public class HlsSamplerTest extends VideoStreamingSamplerTest {
         buildMediaSegmentSampleResult(5));
   }
 
+  @Test
+  public void shouldRecordFailedMasterSampleWhenMasterUrlIsNotValidUriReference() {
+    // unresolved dynamic variable (contains illegal URI characters) so URI.create itself fails
+    baseSampler.setMasterUrl("${C_hlsManifestPath}");
+    sampler.sample();
+    ArgumentCaptor<String> nameCaptor = ArgumentCaptor.forClass(String.class);
+    ArgumentCaptor<SampleResult> resultCaptor = ArgumentCaptor.forClass(SampleResult.class);
+    verify(sampleResultProcessor).accept(nameCaptor.capture(), resultCaptor.capture());
+    assertThat(nameCaptor.getValue()).isEqualTo("master playlist");
+    assertThat(resultCaptor.getValue().isSuccessful()).isFalse();
+  }
+
 }

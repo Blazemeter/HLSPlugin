@@ -82,6 +82,15 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
       sample(masterUri, baseSampler.getBandwidthSelector(), baseSampler.getResolutionSelector(),
           baseSampler.getAudioLanguage(), baseSampler.getSubtitleLanguage(),
           baseSampler.getPlaySecondsOrWarn());
+    } catch (IllegalArgumentException e) {
+      // the master URL (often a dynamic variable) is not a valid URI reference; record a failed
+      // sample instead of letting the exception abort the sampler with a raw stack trace
+      LOG.warn("Invalid master playlist URL '{}'", baseSampler.getMasterUrl(), e);
+      HTTPSampleResult result = new HTTPSampleResult();
+      result.sampleStart();
+      result.sampleEnd();
+      sampleResultProcessor.accept(buildPlaylistName(MASTER_TYPE_NAME),
+          baseSampler.errorResult(result, e));
     } catch (SamplerInterruptedException e) {
       LOG.debug("Sampler interrupted by JMeter", e);
     } catch (InterruptedException e) {
