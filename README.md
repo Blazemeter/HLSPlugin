@@ -132,6 +132,55 @@ The sampler will automatically add an `X-MEDIA-SEGMENT-DURATION` HTTP response h
 
 In the case of MPEG DASH, the View Results Tree Listener displays the resultant samples with the associated type (manifest, inits and segments for media, audio and subtitles) to easily identify them as well.
 
+## Memory tuning: response data release
+
+To reduce JVM memory usage during large/long load tests, the sampler can release
+in-memory response bodies after each sample has been measured and passed to
+listeners. Two JMeter properties control this behavior (both read once at first
+use and cached for the JVM lifetime — they cannot be changed mid-run via
+`${__setProperty()}` without restarting JMeter):
+
+### Segment bodies (default: release enabled)
+
+    hls.sampler.releaseSegmentResponseData=true   # default
+
+What it affects:
+
+- Applies to HLS and DASH **media and init segment** samples.
+- Performance metrics are NOT affected: bytes received, latency, throughput, response
+  codes, headers (including `X-MEDIA-SEGMENT-DURATION`) and download order are all preserved.
+- Only the raw segment **payload bytes** are dropped.
+
+When to disable (set to `false` in `user.properties` or via `-J`):
+
+- You need to inspect or assert on the actual segment binary content.
+
+    jmeter -Jhls.sampler.releaseSegmentResponseData=false ...
+
+### Playlist and manifest bodies (default: release disabled)
+
+    hls.sampler.releasePlaylistResponseData=false   # default
+
+What it affects:
+
+- Applies to HLS **master/media/audio/subtitle playlists** and DASH **manifest**
+  samples on the playback loop (the 3-arg `downloadPlaylist` path used during sampling).
+- Variant-discovery requests (`getVariants` / GUI "Load Playlist") are not affected.
+- Playlists and manifests are small; enable only when you want to trim retained
+  `SampleResult` text during long soaks.
+
+When to enable:
+
+    jmeter -Jhls.sampler.releasePlaylistResponseData=true ...
+
+### GUI / View Results Tree caveat (both properties)
+
+Response bodies are cleared synchronously right after listeners are notified.
+In **GUI mode** with "Save Response Data" enabled, View Results Tree renders
+bodies lazily when you click a row — after the body has already been cleared.
+Released samples appear with empty response data in the tree. Use non-GUI mode
+for production-like soaks, or disable release when debugging response content.
+
 ## Assertions and Post Processors
 
 The plugin supports adding assertions and post processors on any of the potential types of sample results (master playlist, media playlist, media segment, audio playlist, audio segment, subtitles, subtitles playlist and subtitles segment).
