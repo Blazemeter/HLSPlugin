@@ -18,6 +18,13 @@ import java.util.stream.Collectors;
 
 public class Manifest extends com.blazemeter.jmeter.videostreaming.core.Manifest {
 
+  /**
+   * Shared parser instance. Jackson {@code XmlMapper} read paths are thread-safe after
+   * configuration; concurrent {@code parse} calls are validated by
+   * {@code ManifestTest.shouldParseManifestConsistentlyWhenParsingConcurrentlyFromSharedParser}.
+   */
+  private static final MPDParser MPD_PARSER = new MPDParser();
+
   private final MPD mpd;
   private final Instant lastDownloadTime;
   private Instant playbackStartTime;
@@ -54,7 +61,7 @@ public class Manifest extends com.blazemeter.jmeter.videostreaming.core.Manifest
   public static Manifest fromUriAndBody(URI uri, String body, Instant timestamp)
       throws PlaylistParsingException {
     try {
-      return new Manifest(uri, new MPDParser().parse(body), timestamp);
+      return new Manifest(uri, MPD_PARSER.parse(body), timestamp);
     } catch (Exception e) {
       throw new PlaylistParsingException(uri, e);
     }
