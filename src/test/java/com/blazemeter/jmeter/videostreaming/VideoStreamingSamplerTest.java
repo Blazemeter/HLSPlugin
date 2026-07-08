@@ -7,9 +7,11 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.blazemeter.jmeter.JMeterTestUtils;
 import com.blazemeter.jmeter.videostreaming.core.SampleResultProcessor;
 import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
+import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 import java.io.IOException;
@@ -21,6 +23,7 @@ import java.util.Iterator;
 import java.util.function.Function;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
 import org.apache.jmeter.samplers.SampleResult;
+import org.apache.jmeter.util.JMeterUtils;
 import org.junit.Before;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -125,6 +128,11 @@ public abstract class VideoStreamingSamplerTest {
 
   @Before
   public void setUp() {
+    JMeterTestUtils.setupJmeterEnv();
+    JMeterUtils.setProperty(VideoStreamingSampler.RELEASE_SEGMENT_RESPONSE_DATA_PROP, "false");
+    JMeterUtils.setProperty(VideoStreamingSampler.RELEASE_PLAYLIST_RESPONSE_DATA_PROP, "false");
+    VideoStreamingSampler.resetReleaseSegmentResponseDataCache();
+    VideoStreamingSampler.resetReleasePlaylistResponseDataCache();
     buildSampler(uriSampler);
   }
 

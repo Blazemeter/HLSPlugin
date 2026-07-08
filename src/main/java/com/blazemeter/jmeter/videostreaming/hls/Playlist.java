@@ -56,7 +56,11 @@ public class Playlist extends Manifest {
   public static Playlist fromUriAndBody(URI uri, String body, Instant timestamp)
       throws PlaylistParsingException {
     try {
-      AbstractPlaylist p = PlaylistFactory.parsePlaylist(TWELVE, body.replace("\r", ""));
+      String normalizedBody = body;
+      if (body.indexOf('\r') >= 0) {
+        normalizedBody = body.replace("\r", "");
+      }
+      AbstractPlaylist p = PlaylistFactory.parsePlaylist(TWELVE, normalizedBody);
       if (p.getTags().isEmpty()) {
         throw new PlaylistParsingException(uri, "No playlist tags found");
       }

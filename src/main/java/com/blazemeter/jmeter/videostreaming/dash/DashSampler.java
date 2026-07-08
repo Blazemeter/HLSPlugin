@@ -235,6 +235,7 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
       }
       SampleResult result = httpClient.downloadUri(uri);
       sampleResultProcessor.accept(buildInitSegmentName(type), result);
+      releaseSegmentResponseBodyIfEnabled(result);
     }
 
     private void downloadUntilTimeSecond(double untilTimeSecond) throws InterruptedException {

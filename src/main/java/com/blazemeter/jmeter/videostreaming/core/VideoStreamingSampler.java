@@ -20,6 +20,7 @@ import java.util.stream.Stream;
 
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
 import org.apache.jmeter.samplers.SampleResult;
+import org.apache.jmeter.util.JMeterUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,11 +29,17 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
   public static final String SUBTITLES_TYPE_NAME = "subtitles";
   public static final String VIDEO_TYPE_NAME = "video";
   public static final String AUDIO_TYPE_NAME = "audio";
+  public static final String RELEASE_SEGMENT_RESPONSE_DATA_PROP =
+      "hls.sampler.releaseSegmentResponseData";
+  public static final String RELEASE_PLAYLIST_RESPONSE_DATA_PROP =
+      "hls.sampler.releasePlaylistResponseData";
   protected static final String MASTER_TYPE_NAME = "master";
   protected static final String MEDIA_TYPE_NAME = "media";
   private static final byte[] BOM_BYTES = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
 
   private static final Logger LOG = LoggerFactory.getLogger(VideoStreamingSampler.class);
+  private static volatile Boolean releaseSegmentResponseData;
+  private static volatile Boolean releasePlaylistResponseData;
 
   protected final VideoStreamingHttpClient httpClient;
   protected final TimeMachine timeMachine;
@@ -116,6 +123,7 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
     if (!playlistResult.isSuccessful()) {
       String playlistName = name.apply(null);
       sampleResultProcessor.accept(playlistName, playlistResult);
+      releasePlaylistResponseBodyIfEnabled(playlistResult);
       throw new PlaylistDownloadException(playlistName, uri);
     }
 
@@ -141,9 +149,11 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
         playlistResult.setRequestHeaders(requestHeaders + videoType);
       }
       sampleResultProcessor.accept(name.apply(playlist), playlistResult);
+      releasePlaylistResponseBodyIfEnabled(playlistResult);
       return playlist;
     } catch (PlaylistParsingException e) {
       sampleResultProcessor.accept(name.apply(null), baseSampler.errorResult(playlistResult, e));
+      releasePlaylistResponseBodyIfEnabled(playlistResult);
       throw e;
     }
   }
@@ -196,8 +206,14 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
    */
   private String getPlaylistContents(HTTPSampleResult result) {
     byte[] bytes = result.getResponseData();
-    return (bytesStartsWith(bytes, BOM_BYTES))
-        ? new String(bytes, StandardCharsets.UTF_8) : result.getResponseDataAsString();
+    if (bytes == null || bytes.length == 0) {
+      return "";
+    }
+    int offset = 0;
+    if (bytesStartsWith(bytes, BOM_BYTES)) {
+      offset = BOM_BYTES.length;
+    }
+    return new String(bytes, offset, bytes.length - offset, StandardCharsets.UTF_8);
   }
 
   private boolean bytesStartsWith(byte[] bytes, byte[] start) {
@@ -239,6 +255,7 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
         result.getResponseHeaders() + "X-MEDIA-SEGMENT-DURATION: " + segment.getDurationSeconds()
             + "\n");
     sampleResultProcessor.accept(VideoStreamingSampler.buildSegmentName(type), result);
+    releaseSegmentResponseBodyIfEnabled(result);
   }
 
   protected void downloadInitSegment(InitializationSegment initializationSegment, String type) {
@@ -247,6 +264,53 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
         + (initializationSegment.getByteOffset() + initializationSegment.getByteLength() - 1));
     SampleResult result = httpClient.downloadUri(initializationSegment.getUri());
     sampleResultProcessor.accept(VideoStreamingSampler.buildInitSegmentName(type), result);
+    releaseSegmentResponseBodyIfEnabled(result);
+  }
+
+  protected void releaseSegmentResponseBodyIfEnabled(SampleResult result) {
+    if (isReleaseSegmentResponseDataEnabled()) {
+      clearResponseBodyPreservingMetrics(result);
+    }
+  }
+
+  protected void releasePlaylistResponseBodyIfEnabled(SampleResult result) {
+    if (isReleasePlaylistResponseDataEnabled()) {
+      clearResponseBodyPreservingMetrics(result);
+    }
+  }
+
+  private static void clearResponseBodyPreservingMetrics(SampleResult result) {
+    long bytes = result.getBytesAsLong();
+    long bodySize = result.getBodySizeAsLong();
+    result.setResponseData(new byte[0]);
+    result.setBytes(bytes);
+    result.setBodySize(bodySize);
+  }
+
+  static boolean isReleaseSegmentResponseDataEnabled() {
+    if (releaseSegmentResponseData == null) {
+      releaseSegmentResponseData =
+          JMeterUtils.getPropDefault(RELEASE_SEGMENT_RESPONSE_DATA_PROP, true);
+    }
+    return releaseSegmentResponseData;
+  }
+
+  static boolean isReleasePlaylistResponseDataEnabled() {
+    if (releasePlaylistResponseData == null) {
+      releasePlaylistResponseData =
+          JMeterUtils.getPropDefault(RELEASE_PLAYLIST_RESPONSE_DATA_PROP, false);
+    }
+    return releasePlaylistResponseData;
+  }
+
+  @VisibleForTesting
+  public static void resetReleaseSegmentResponseDataCache() {
+    releaseSegmentResponseData = null;
+  }
+
+  @VisibleForTesting
+  public static void resetReleasePlaylistResponseDataCache() {
+    releasePlaylistResponseData = null;
   }
 
   @VisibleForTesting

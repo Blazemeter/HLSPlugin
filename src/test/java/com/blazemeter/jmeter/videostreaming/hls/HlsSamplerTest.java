@@ -31,6 +31,7 @@ import java.util.concurrent.Semaphore;
 import java.util.function.Function;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
 import org.apache.jmeter.samplers.SampleResult;
+import org.apache.jmeter.util.JMeterUtils;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -951,6 +952,53 @@ public class HlsSamplerTest extends VideoStreamingSamplerTest {
     verifySampleResults(
         buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
         buildMediaSegmentSampleResult(5));
+  }
+
+  @Test
+  public void shouldReleaseSegmentResponseDataAfterProcessingWhenReleaseSegmentResponseDataEnabled()
+      throws Exception {
+    JMeterUtils.setProperty(VideoStreamingSampler.RELEASE_SEGMENT_RESPONSE_DATA_PROP, "true");
+    VideoStreamingSampler.resetReleaseSegmentResponseDataCache();
+    try {
+      String mediaPlaylist = getResource(SIMPLE_MEDIA_PLAYLIST_NAME);
+      HTTPSampleResult segmentResult = buildMediaSegmentSampleResult(1);
+      segmentResult.setResponseData("segment-payload", Charsets.UTF_8.name());
+      long bytesBeforeRelease = segmentResult.getBytesAsLong();
+
+      setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+      uriSampler.setupUriSampleResults(buildSegmentUri(MEDIA_TYPE_NAME, 1), segmentResult);
+      setPlaySeconds(MEDIA_SEGMENT_DURATION);
+      sampler.sample();
+
+      assertThat(segmentResult.getResponseData()).isEmpty();
+      assertThat(segmentResult.getBytesAsLong()).isEqualTo(bytesBeforeRelease);
+    } finally {
+      JMeterUtils.setProperty(VideoStreamingSampler.RELEASE_SEGMENT_RESPONSE_DATA_PROP, "false");
+      VideoStreamingSampler.resetReleaseSegmentResponseDataCache();
+    }
+  }
+
+  @Test
+  public void shouldReleasePlaylistResponseDataAfterProcessingWhenReleasePlaylistResponseDataEnabled()
+      throws Exception {
+    JMeterUtils.setProperty(VideoStreamingSampler.RELEASE_PLAYLIST_RESPONSE_DATA_PROP, "true");
+    VideoStreamingSampler.resetReleasePlaylistResponseDataCache();
+    try {
+      String mediaPlaylist = getResource(SIMPLE_MEDIA_PLAYLIST_NAME);
+      HTTPSampleResult playlistResult = buildBaseSampleResult(SAMPLER_NAME, MASTER_URI,
+          mediaPlaylist);
+      long bytesBeforeRelease = playlistResult.getBytesAsLong();
+
+      uriSampler.setupUriSampleResults(MASTER_URI, playlistResult);
+      setPlaySeconds(MEDIA_SEGMENT_DURATION);
+      sampler.sample();
+
+      assertThat(playlistResult.getResponseData()).isEmpty();
+      assertThat(playlistResult.getBytesAsLong()).isEqualTo(bytesBeforeRelease);
+    } finally {
+      JMeterUtils.setProperty(VideoStreamingSampler.RELEASE_PLAYLIST_RESPONSE_DATA_PROP, "false");
+      VideoStreamingSampler.resetReleasePlaylistResponseDataCache();
+    }
   }
 
   @Test
