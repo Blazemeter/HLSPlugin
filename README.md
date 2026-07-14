@@ -132,6 +132,50 @@ The sampler will automatically add an `X-MEDIA-SEGMENT-DURATION` HTTP response h
 
 In the case of MPEG DASH, the View Results Tree Listener displays the resultant samples with the associated type (manifest, inits and segments for media, audio and subtitles) to easily identify them as well.
 
+## Running periodic requests during playback (Streaming Parallel Controller)
+
+### Concept
+
+Many streaming clients fire a periodic "heartbeat" (analytics beacon, session keep-alive, DRM/license ping, etc.) while the video keeps playing. The **bzm - Streaming Parallel Controller** reproduces that behavior without the CPU and memory cost of the JMeter Parallel Controller: instead of spawning extra threads and deep-cloning the sub-tree, it runs the playback and the heartbeat on the **same thread** by time slicing the playback. Between heartbeats the Streaming Sampler plays in short, resumable slices; every configured interval the controller pauses playback at a slice boundary, runs the heartbeat branch once, and then resumes playback exactly where it left off (no re-download of the master/media playlists or manifest).
+
+![](docs/streaming-parallel-controller.png)
+
+### To add it to your test
+
+- Add the controller: Add -> Logic Controller -> bzm - Streaming Parallel Controller
+- Add a **bzm - Streaming Sampler** as a **direct child** of the controller. This is the playback track.
+- Add the periodic requests (the heartbeat) as the remaining children. They can be plain HTTP Samplers or grouped under a Transaction/Logic Controller.
+
+The test tree looks like this:
+
+![](docs/streaming-parallel-controller-tree.png)
+
+### Controller configuration
+
+#### Heartbeat interval
+
+Set how often (in seconds) the heartbeat branch runs while playback continues in between. For example, `10` fires the heartbeat branch once every 10 seconds of playback.
+
+![](docs/streaming-parallel-controller-interval.png)
+
+#### Run heartbeat immediately
+
+When enabled, the heartbeat branch runs once at the very start of the iteration (before the first interval elapses). When disabled (default), the controller waits one full interval before the first heartbeat.
+
+![](docs/streaming-parallel-controller-run-immediately.png)
+
+### Results
+
+The Streaming Sampler still emits its usual master/media/segment samples, and the heartbeat branch emits its own samples interleaved with them, so in the View Results Tree you see the heartbeat requests appear roughly every interval, in between the segment downloads of a single ongoing playback.
+
+> [!NOTE]
+> **Limitations**
+> - The Streaming Sampler must be a **direct child** of the controller. Do not wrap it in a Transaction Controller, or you would get one tiny transaction per playback slice. If no direct-child Streaming Sampler is found, the controller emits a single failed sample so the misconfiguration is visible.
+> - Heartbeat and playback share **one thread**. A slow heartbeat (large body / slow server) delays segment polling, so this is best suited to small beacon-style requests. For very short intervals (5-10s) on slow networks, a heartbeat may slip by up to one segment download, since a segment download in progress is not interrupted mid-request.
+> - Do **not** add Timers to the heartbeat branch: they block the shared thread and add drift.
+> - The heartbeat interval controls when the branch runs **once**; all samplers under it run sequentially each time. To spread requests evenly, structure the branch accordingly.
+> - Nesting one Streaming Parallel Controller inside another is not supported (the inner one logs a warning and runs its children without independent slicing).
+
 ## Memory tuning: response data release
 
 To reduce JVM memory usage during large/long load tests, the sampler can release
