@@ -4,7 +4,9 @@ import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
 import com.blazemeter.jmeter.hls.logic.HlsSampler;
 import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
 import com.blazemeter.jmeter.videostreaming.core.MediaStreamSelector;
+import com.blazemeter.jmeter.videostreaming.core.PlaybackSession;
 import com.blazemeter.jmeter.videostreaming.core.SampleResultProcessor;
+import com.blazemeter.jmeter.videostreaming.core.StreamingSliceCoordinator;
 import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
 import com.blazemeter.jmeter.videostreaming.core.Variants;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamSelector;
@@ -18,6 +20,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -26,66 +29,100 @@ import org.apache.jmeter.samplers.SampleResult;
 
 public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegment> {
 
+  // Persisted playback state across slices. complements are stored in a fixed order
+  // [video, audio, subtitles] so a continuing session can rebuild the loop tracks and resume
+  // segments without re-downloading the manifest.
+  private final transient PlaybackSession<MediaPlayback, Manifest> session =
+      new PlaybackSession<>();
+
   public DashSampler(HlsSampler baseSampler, VideoStreamingHttpClient httpClient,
       TimeMachine timeMachine, SampleResultProcessor sampleResultProcessor) {
     super(baseSampler, httpClient, timeMachine, sampleResultProcessor);
+  }
+
+  @Override
+  public void clearPlaybackSession() {
+    session.clear();
   }
 
   public void sample(URI masterUri, BandwidthSelector bandwidthSelector,
       ResolutionSelector resolutionSelector, String audioLanguage, String subtitleLanguage,
       int playSeconds)
       throws PlaylistDownloadException, PlaylistParsingException, InterruptedException {
-    Manifest manifest = downloadPlaylist(masterUri, p -> MASTER_TYPE_NAME,
-        Manifest::fromUriAndBody);
+    boolean active = StreamingSliceCoordinator.isActive();
+    boolean continuingSession = active && session.isInitialized();
 
-    // we update masterUri in case the request was redirected
-    masterUri = manifest.getUri();
+    Manifest manifest;
+    MediaPlayback videoPlayback;
+    MediaPlayback audioPlayback;
+    MediaPlayback subtitlesPlayback;
+    MediaPlayback mediaPlayback;
 
-    MediaStreamSelector<MediaRepresentation> alternativeMediaSelector =
-        new MediaStreamSelector<MediaRepresentation>() {
-          @Override
-          public MediaRepresentation findMatchingVariant(List<MediaRepresentation> variants) {
-            return findVariantPerAttribute(MediaRepresentation::getBandwidth, bandwidthSelector,
-                variants);
-          }
-        };
+    if (continuingSession) {
+      manifest = session.getManifest();
+      masterUri = manifest.getUri();
+      videoPlayback = session.getComplements().get(0);
+      audioPlayback = session.getComplements().get(1);
+      subtitlesPlayback = session.getComplements().get(2);
+      mediaPlayback = session.getPrimary();
+    } else {
+      manifest = downloadPlaylist(masterUri, p -> MASTER_TYPE_NAME, Manifest::fromUriAndBody);
 
-    MediaPlayback videoPlayback = new MediaPlayback(manifest, VIDEO_TYPE_NAME,
-        new VideoStreamSelector<>(bandwidthSelector, MediaRepresentation::getBandwidth,
-            resolutionSelector, MediaRepresentation::getResolution),
-        null, lastVideoSegment, playSeconds);
-    MediaPlayback audioPlayback = new MediaPlayback(manifest, AUDIO_TYPE_NAME,
-        alternativeMediaSelector, audioLanguage, lastAudioSegment, playSeconds);
-    MediaPlayback subtitlesPlayback = new MediaPlayback(manifest, SUBTITLES_TYPE_NAME,
-        alternativeMediaSelector, subtitleLanguage, lastSubtitleSegment, playSeconds);
+      // we update masterUri in case the request was redirected
+      masterUri = manifest.getUri();
 
-    // check whether is a video or audio playback
-    MediaPlayback mediaPlayback = videoPlayback.hasContents() ? videoPlayback : audioPlayback;
+      MediaStreamSelector<MediaRepresentation> alternativeMediaSelector = buildMediaSelector(
+          bandwidthSelector);
+
+      videoPlayback = new MediaPlayback(manifest, VIDEO_TYPE_NAME,
+          new VideoStreamSelector<>(bandwidthSelector, MediaRepresentation::getBandwidth,
+              resolutionSelector, MediaRepresentation::getResolution), null, lastVideoSegment,
+          playSeconds);
+      audioPlayback = new MediaPlayback(manifest, AUDIO_TYPE_NAME, alternativeMediaSelector,
+          audioLanguage, lastAudioSegment, playSeconds);
+      subtitlesPlayback = new MediaPlayback(manifest, SUBTITLES_TYPE_NAME, alternativeMediaSelector,
+          subtitleLanguage, lastSubtitleSegment, playSeconds);
+
+      // check whether is a video or audio playback
+      mediaPlayback = videoPlayback.hasContents() ? videoPlayback : audioPlayback;
+
+      if (active) {
+        session.setManifest(manifest);
+        session.setPrimary(mediaPlayback);
+        session.setComplements(Arrays.asList(videoPlayback, audioPlayback, subtitlesPlayback));
+        session.markInitialized();
+      }
+    }
+
     List<MediaPlayback> complementTracks = new ArrayList<>();
     if (mediaPlayback == videoPlayback) {
       complementTracks.add(audioPlayback);
     }
     complementTracks.add(subtitlesPlayback);
+
+    boolean finished = false;
     try {
       /*
       we use this variable to avoid requesting manifest before even trying downloading segments due
-      to potential low min update period and time taken downloading and processing manifest
+      to potential low min update period and time taken downloading and processing manifest.
+      On a continuing session we already downloaded segments in a previous slice, so we allow a
+      manifest refresh immediately when needed.
        */
-      boolean initialLoop = true;
-      while (!mediaPlayback.hasEnded()) {
+      boolean initialLoop = !continuingSession;
+      while (!mediaPlayback.hasEnded() && !shouldYieldForSlice()) {
         if (mediaPlayback.needsManifestUpdate() && !initialLoop) {
           long awaitMillis = manifest.getReloadTimeMillis(
-              mediaPlayback.getLastSegment().getDurationMillis(),
-              timeMachine.now()
-          );
+              mediaPlayback.getLastSegment().getDurationMillis(), timeMachine.now());
           if (awaitMillis > 0) {
-            timeMachine.awaitMillis(awaitMillis);
+            timeMachine.awaitMillis(clampAwaitMillis(awaitMillis));
           }
-          manifest = downloadPlaylist(masterUri, p -> MASTER_TYPE_NAME,
-              Manifest::fromUriAndBody);
+          manifest = downloadPlaylist(masterUri, p -> MASTER_TYPE_NAME, Manifest::fromUriAndBody);
           mediaPlayback.updateManifest(manifest);
           for (MediaPlayback complementTrack : complementTracks) {
             complementTrack.updateManifest(manifest);
+          }
+          if (active) {
+            session.setManifest(manifest);
           }
         }
         initialLoop = false;
@@ -106,19 +143,34 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
           complementTrack.downloadUntilTimeSecond(playedSeconds);
         }
       }
+      finished = mediaPlayback.hasEnded();
     } finally {
-      lastVideoSegment = mediaPlayback.getLastSegment();
-      lastSubtitleSegment = subtitlesPlayback.getLastSegment();
-      lastAudioSegment = audioPlayback.getLastSegment();
+      playbackFinishedThisSample = finished;
+      if (finished || !active) {
+        lastVideoSegment = mediaPlayback.getLastSegment();
+        lastSubtitleSegment = subtitlesPlayback.getLastSegment();
+        lastAudioSegment = audioPlayback.getLastSegment();
+        session.clear();
+      }
     }
+  }
+
+  private static MediaStreamSelector<MediaRepresentation> buildMediaSelector(
+      BandwidthSelector bandwidthSelector) {
+    return new MediaStreamSelector<MediaRepresentation>() {
+      @Override
+      public MediaRepresentation findMatchingVariant(List<MediaRepresentation> variants) {
+        return findVariantPerAttribute(MediaRepresentation::getBandwidth, bandwidthSelector,
+            variants);
+      }
+    };
   }
 
   @Override
   public Variants getVariants(URI masterUri)
       throws PlaylistParsingException, PlaylistDownloadException {
     Variants variants = new Variants();
-    Manifest manifest = getManifest(masterUri, p -> MASTER_TYPE_NAME,
-        Manifest::fromUriAndBody);
+    Manifest manifest = getManifest(masterUri, p -> MASTER_TYPE_NAME, Manifest::fromUriAndBody);
     variants.setAudioLanguageList(manifest.getVideoLanguages());
     variants.setSubtitleList(manifest.getSubtitleLanguages());
     variants.setResolutionList(manifest.getResolutions());
@@ -219,8 +271,7 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
     }
 
     private void awaitSegmentAvailable(DashMediaSegment segment) throws InterruptedException {
-      Instant availabilityTime =
-          segment.getStartAvailabilityTime().plus(segment.getDuration());
+      Instant availabilityTime = segment.getStartAvailabilityTime().plus(segment.getDuration());
       //The clocks have to be synchronized to avoid error on segments availability
       Instant nowSynchronized = timeMachine.now().plus(manifest.getClocksDiff());
       if (availabilityTime.isAfter(nowSynchronized)) {
@@ -242,15 +293,16 @@ public class DashSampler extends VideoStreamingSampler<Manifest, DashMediaSegmen
       if (segmentBuilder == null) {
         return;
       }
-      while (consumedSeconds < untilTimeSecond && segmentBuilder.hasNext()) {
+      while (consumedSeconds < untilTimeSecond && segmentBuilder.hasNext()
+          && !shouldYieldForSlice()) {
         downloadNextSegment();
       }
     }
 
     private boolean hasEnded() {
-      return playedRequestedTime()
-          || segmentBuilder == null || (!segmentBuilder.hasNext() && !periods.hasNext() &&
-          (!manifest.isDynamic() || manifest.getMinimumUpdatePeriod() == null));
+      return playedRequestedTime() || segmentBuilder == null || (!segmentBuilder.hasNext()
+          && !periods.hasNext() && (!manifest.isDynamic()
+          || manifest.getMinimumUpdatePeriod() == null));
     }
 
     private boolean hasContents() {
