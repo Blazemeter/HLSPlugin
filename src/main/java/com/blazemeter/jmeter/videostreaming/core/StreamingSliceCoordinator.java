@@ -3,7 +3,7 @@ package com.blazemeter.jmeter.videostreaming.core;
 /**
  * Per-thread handoff between the Streaming Parallel Controller and the streaming sampler.
  *
- * <p>The controller owns the lifecycle ({@link #beginIteration()} / {@link #endIteration()}) and
+ * <p>The controller owns the lifecycle ({@link #beginIteration()}) and
  * the slice deadline; the sampler only reads the deadline (via {@link #shouldYield()} /
  * {@link #clampMillis(long)}) and writes a single {@link SliceExit} in a {@code finally} block.
  *
@@ -18,6 +18,7 @@ public final class StreamingSliceCoordinator {
   }
 
   private static final class State {
+
     private boolean active;
     private boolean newSession;
     private long sliceDeadlineNanos = Long.MAX_VALUE;
@@ -25,9 +26,6 @@ public final class StreamingSliceCoordinator {
   }
 
   private static final ThreadLocal<State> STATE = ThreadLocal.withInitial(State::new);
-
-  private StreamingSliceCoordinator() {
-  }
 
   /**
    * Called by the controller at the start of each of its iterations. Marks the thread as sliced and
@@ -41,7 +39,6 @@ public final class StreamingSliceCoordinator {
     s.lastExit = null;
   }
 
-  /** Sets the wall-clock (nanoTime) deadline for the next streaming slice. */
   public static void setDeadlineNanos(long deadlineNanos) {
     STATE.get().sliceDeadlineNanos = deadlineNanos;
   }
@@ -50,7 +47,9 @@ public final class StreamingSliceCoordinator {
     return STATE.get().active;
   }
 
-  /** Reads and clears the new-session flag. Only meaningful while {@link #isActive()}. */
+  /**
+   * Reads and clears the new-session flag. Only meaningful while {@link #isActive()}.
+   */
   public static boolean consumeNewSession() {
     State s = STATE.get();
     boolean value = s.newSession;
@@ -58,7 +57,9 @@ public final class StreamingSliceCoordinator {
     return value;
   }
 
-  /** True when a controller is slicing and the current slice deadline has passed. */
+  /**
+   * True when a controller is slicing and the current slice deadline has passed.
+   */
   public static boolean shouldYield() {
     State s = STATE.get();
     return s.active && System.nanoTime() >= s.sliceDeadlineNanos;
@@ -88,7 +89,6 @@ public final class StreamingSliceCoordinator {
     return STATE.get().lastExit;
   }
 
-  /** Full reset. Called by the controller when its iteration ends and on thread finish. */
   public static void clear() {
     State s = STATE.get();
     s.active = false;

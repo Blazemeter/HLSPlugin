@@ -29,10 +29,10 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
   public static final String SUBTITLES_TYPE_NAME = "subtitles";
   public static final String VIDEO_TYPE_NAME = "video";
   public static final String AUDIO_TYPE_NAME = "audio";
-  public static final String RELEASE_SEGMENT_RESPONSE_DATA_PROP =
-      "hls.sampler.releaseSegmentResponseData";
-  public static final String RELEASE_PLAYLIST_RESPONSE_DATA_PROP =
-      "hls.sampler.releasePlaylistResponseData";
+  public static final String RELEASE_SEGMENT_RESPONSE_DATA_PROP = "hls.sampler"
+      + ".releaseSegmentResponseData";
+  public static final String RELEASE_PLAYLIST_RESPONSE_DATA_PROP = "hls.sampler"
+      + ".releasePlaylistResponseData";
   protected static final String MASTER_TYPE_NAME = "master";
   protected static final String MEDIA_TYPE_NAME = "media";
   private static final byte[] BOM_BYTES = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
@@ -49,11 +49,12 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
   protected transient U lastAudioSegment;
   protected transient U lastSubtitleSegment;
 
+  protected transient boolean playbackFinishedThisSample;
+
   private final HlsSampler baseSampler;
 
-  public VideoStreamingSampler(HlsSampler baseSampler,
-                               VideoStreamingHttpClient httpClient, TimeMachine timeMachine,
-                               SampleResultProcessor sampleResultProcessor) {
+  public VideoStreamingSampler(HlsSampler baseSampler, VideoStreamingHttpClient httpClient,
+      TimeMachine timeMachine, SampleResultProcessor sampleResultProcessor) {
     this.baseSampler = baseSampler;
     this.httpClient = httpClient;
     this.timeMachine = timeMachine;
@@ -62,8 +63,8 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
   }
 
   public static Set<String> getSampleTypesSet() {
-    Set<String> sampleTypes = Stream
-        .of(SUBTITLES_TYPE_NAME, MEDIA_TYPE_NAME, VIDEO_TYPE_NAME, AUDIO_TYPE_NAME)
+    Set<String> sampleTypes = Stream.of(SUBTITLES_TYPE_NAME, MEDIA_TYPE_NAME, VIDEO_TYPE_NAME,
+            AUDIO_TYPE_NAME)
         .flatMap(t -> Stream.of(buildPlaylistName(t), buildSegmentName(t), buildInitSegmentName(t)))
         .collect(Collectors.toSet());
     sampleTypes.add(buildPlaylistName(MASTER_TYPE_NAME));
@@ -84,11 +85,15 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
   }
 
   public SampleResult sample() {
+    StreamingSliceCoordinator.SliceExit exit = StreamingSliceCoordinator.SliceExit.FINISHED;
     try {
       URI masterUri = URI.create(baseSampler.getMasterUrl());
+      playbackFinishedThisSample = false;
       sample(masterUri, baseSampler.getBandwidthSelector(), baseSampler.getResolutionSelector(),
           baseSampler.getAudioLanguage(), baseSampler.getSubtitleLanguage(),
           baseSampler.getPlaySecondsOrWarn());
+      exit = playbackFinishedThisSample ? StreamingSliceCoordinator.SliceExit.FINISHED
+          : StreamingSliceCoordinator.SliceExit.YIELD;
     } catch (IllegalArgumentException e) {
       // the master URL (often a dynamic variable) is not a valid URI reference; record a failed
       // sample instead of letting the exception abort the sampler with a raw stack trace
@@ -98,23 +103,45 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
       result.sampleEnd();
       sampleResultProcessor.accept(buildPlaylistName(MASTER_TYPE_NAME),
           baseSampler.errorResult(result, e));
+      exit = StreamingSliceCoordinator.SliceExit.ERROR;
+      clearPlaybackSession();
     } catch (SamplerInterruptedException e) {
       LOG.debug("Sampler interrupted by JMeter", e);
+      exit = StreamingSliceCoordinator.SliceExit.INTERRUPTED;
+      clearPlaybackSession();
     } catch (InterruptedException e) {
       LOG.warn("Sampler has been interrupted", e);
       Thread.currentThread().interrupt();
+      exit = StreamingSliceCoordinator.SliceExit.INTERRUPTED;
+      clearPlaybackSession();
     } catch (PlaylistDownloadException | PlaylistParsingException e) {
       LOG.warn("Problem downloading playlist", e);
+      exit = StreamingSliceCoordinator.SliceExit.ERROR;
+      clearPlaybackSession();
+    } finally {
+      StreamingSliceCoordinator.setExit(exit);
     }
     return null;
   }
 
   protected abstract void sample(URI masterUri, BandwidthSelector bandwidthSelector,
-                                 ResolutionSelector resolutionSelector,
-                                 String audioLanguage, String subtitleLanguage,
-                                 int playSeconds)
+      ResolutionSelector resolutionSelector, String audioLanguage, String subtitleLanguage,
+      int playSeconds)
       throws SamplerInterruptedException, InterruptedException, PlaylistDownloadException,
       PlaylistParsingException;
+
+  protected boolean shouldYieldForSlice() {
+    return StreamingSliceCoordinator.shouldYield();
+  }
+
+  protected long clampAwaitMillis(long requestedMillis) {
+    return StreamingSliceCoordinator.clampMillis(requestedMillis);
+  }
+
+  /**
+   * Releases any persisted playback session. Called on terminal (error/interrupt) exits.
+   */
+  public abstract void clearPlaybackSession();
 
   protected T downloadPlaylist(URI uri, Function<T, String> name, PlaylistParser<T> playlistParser)
       throws PlaylistParsingException, PlaylistDownloadException {
@@ -137,8 +164,7 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
 
     try {
       String playlistContents = getPlaylistContents(playlistResult);
-      T playlist = playlistParser
-          .parse(uri, playlistContents, downloadTimestamp);
+      T playlist = playlistParser.parse(uri, playlistContents, downloadTimestamp);
       String videoType = ((Manifest) playlist).getManifestType();
       if (videoType != null && this.baseSampler.getIncludeTypeInHeadersStatus()) {
         videoType = "Type: " + videoType;
@@ -194,8 +220,7 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
     }
 
     String playlistContents = getPlaylistContents(playlistResult);
-    T playlist = playlistParser
-        .parse(uri, playlistContents, downloadTimestamp);
+    T playlist = playlistParser.parse(uri, playlistContents, downloadTimestamp);
     return playlist;
   }
 
@@ -247,8 +272,8 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
 
   protected void downloadSegment(MediaSegment segment, String type) {
     if (segment.hasSubRange()) {
-      httpClient.addHeader("range", "bytes=" + segment.getByteOffset() + "-"
-          + (segment.getByteOffset() + segment.getByteLength() - 1));
+      httpClient.addHeader("range", "bytes=" + segment.getByteOffset() + "-" + (
+          segment.getByteOffset() + segment.getByteLength() - 1));
     }
     SampleResult result = httpClient.downloadUri(segment.getUri());
     result.setResponseHeaders(
@@ -260,8 +285,8 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
 
   protected void downloadInitSegment(InitializationSegment initializationSegment, String type) {
 
-    httpClient.addHeader("range", "bytes=" + initializationSegment.getByteOffset() + "-"
-        + (initializationSegment.getByteOffset() + initializationSegment.getByteLength() - 1));
+    httpClient.addHeader("range", "bytes=" + initializationSegment.getByteOffset() + "-" + (
+        initializationSegment.getByteOffset() + initializationSegment.getByteLength() - 1));
     SampleResult result = httpClient.downloadUri(initializationSegment.getUri());
     sampleResultProcessor.accept(VideoStreamingSampler.buildInitSegmentName(type), result);
     releaseSegmentResponseBodyIfEnabled(result);
@@ -289,16 +314,16 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
 
   static boolean isReleaseSegmentResponseDataEnabled() {
     if (releaseSegmentResponseData == null) {
-      releaseSegmentResponseData =
-          JMeterUtils.getPropDefault(RELEASE_SEGMENT_RESPONSE_DATA_PROP, true);
+      releaseSegmentResponseData = JMeterUtils.getPropDefault(RELEASE_SEGMENT_RESPONSE_DATA_PROP,
+          true);
     }
     return releaseSegmentResponseData;
   }
 
   static boolean isReleasePlaylistResponseDataEnabled() {
     if (releasePlaylistResponseData == null) {
-      releasePlaylistResponseData =
-          JMeterUtils.getPropDefault(RELEASE_PLAYLIST_RESPONSE_DATA_PROP, false);
+      releasePlaylistResponseData = JMeterUtils.getPropDefault(RELEASE_PLAYLIST_RESPONSE_DATA_PROP,
+          false);
     }
     return releasePlaylistResponseData;
   }
@@ -315,10 +340,10 @@ public abstract class VideoStreamingSampler<T, U extends MediaSegment> {
 
   @VisibleForTesting
   public static HTTPSampleResult buildNotMatchingMediaPlaylistResult(String variants,
-                                                                     String selector) {
+      String selector) {
     return HlsSampler.errorResult(new HTTPSampleResult(), "NoMatchingMediaPlaylist",
-        "No matching media playlist for provided " + selector + ", "
-            + "available " + selector + "s" + " are: \n" + variants);
+        "No matching media playlist for provided " + selector + ", " + "available " + selector + "s"
+            + " are: \n" + variants);
   }
 
   public abstract Variants getVariants(URI masterUri)
