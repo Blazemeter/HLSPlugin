@@ -2,6 +2,7 @@ package com.blazemeter.jmeter.hls.logic;
 
 import com.blazemeter.jmeter.videostreaming.core.Protocol;
 import com.blazemeter.jmeter.videostreaming.core.SampleResultProcessor;
+import com.blazemeter.jmeter.videostreaming.core.StreamingSliceCoordinator;
 import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
 import com.blazemeter.jmeter.videostreaming.core.Variants;
 import com.blazemeter.jmeter.videostreaming.core.VariantsProvider;
@@ -278,6 +279,10 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible, Varian
     }
 
     String url = getMasterUrl();
+    boolean active = StreamingSliceCoordinator.isActive();
+    // consume the new-session flag once here; the protocol sampler decides setup vs resume purely
+    // from whether its playback session is still initialized
+    boolean newSession = active && StreamingSliceCoordinator.consumeNewSession();
     if (!url.equals(lastMasterUrl)) {
       try {
         sampler = factory
@@ -285,8 +290,17 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible, Varian
       } catch (IllegalArgumentException e) {
         LOG.error("Error initializing the sampler", e);
       }
-    } else if (!this.getResumeVideoStatus()) {
-      sampler.resetVideoStatus();
+    } else if (!active) {
+      if (!this.getResumeVideoStatus()) {
+        sampler.resetVideoStatus();
+      }
+    } else if (newSession) {
+      // new controller iteration on the same URL: honor the resume checkbox across iterations and
+      // drop any cached playlists/manifest so the session starts fresh
+      if (!this.getResumeVideoStatus()) {
+        sampler.resetVideoStatus();
+      }
+      sampler.clearPlaybackSession();
     }
     lastMasterUrl = url;
     return sampler.sample();
@@ -317,6 +331,7 @@ public class HlsSampler extends HTTPSamplerBase implements Interruptible, Varian
 
   @Override
   public void threadFinished() {
+    StreamingSliceCoordinator.clear();
     httpClient.threadFinished();
   }
 

@@ -5,7 +5,9 @@ import static com.blazemeter.jmeter.hls.logic.VideoStreamingSamplerFactory.isHLS
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
 import com.blazemeter.jmeter.hls.logic.ResolutionSelector;
 import com.blazemeter.jmeter.videostreaming.core.MediaSegment;
+import com.blazemeter.jmeter.videostreaming.core.PlaybackSession;
 import com.blazemeter.jmeter.videostreaming.core.SampleResultProcessor;
+import com.blazemeter.jmeter.videostreaming.core.StreamingSliceCoordinator;
 import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
 import com.blazemeter.jmeter.videostreaming.core.Variants;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
@@ -17,6 +19,7 @@ import com.comcast.viper.hlsparserj.MasterPlaylist;
 import com.comcast.viper.hlsparserj.tags.master.StreamInf;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -35,60 +38,88 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
   // RFC 8216 Section 6.3.3: start this many target durations from the live edge
   private static final int RFC_8216_LIVE_EDGE_DURATIONS = 3;
 
+  private final transient PlaybackSession<MediaPlayback, Playlist> session =
+      new PlaybackSession<>();
+
   public HlsSampler(com.blazemeter.jmeter.hls.logic.HlsSampler baseSampler,
       VideoStreamingHttpClient httpClient, TimeMachine timeMachine,
       SampleResultProcessor sampleResultProcessor) {
     super(baseSampler, httpClient, timeMachine, sampleResultProcessor);
   }
 
+  @Override
+  public void clearPlaybackSession() {
+    session.clear();
+  }
+
   public void sample(URI masterUri, BandwidthSelector bandwidthSelector,
       ResolutionSelector resolutionSelector, String audioLanguage, String subtitleLanguage,
       int playSeconds)
       throws PlaylistDownloadException, PlaylistParsingException, InterruptedException {
-    Playlist masterPlaylist = downloadMasterPlaylist(masterUri);
+    boolean active = StreamingSliceCoordinator.isActive();
+    MediaPlayback mediaPlayback;
+    MediaPlayback audioPlayback;
+    MediaPlayback subtitlesPlayback;
 
-    Playlist mediaPlaylist;
-    Playlist audioPlaylist = null;
-    Playlist subtitlesPlaylist = null;
+    if (active && session.isInitialized()) {
+      mediaPlayback = session.getPrimary();
+      audioPlayback = session.getComplements().get(0);
+      subtitlesPlayback = session.getComplements().get(1);
+    } else {
+      Playlist masterPlaylist = downloadMasterPlaylist(masterUri);
 
-    if (masterPlaylist.isMasterPlaylist()) {
-      List<String> bandwidths = getBandwidths((MasterPlaylist) masterPlaylist.getPlaylist());
-      List<String> resolutions = getResolutions((MasterPlaylist) masterPlaylist.getPlaylist());
-      if (bandwidthSelector.getCustomBandwidth() != null
-          && !bandwidths.contains(bandwidthSelector.getCustomBandwidth())) {
-        sampleResultProcessor.accept(buildPlaylistName(MEDIA_TYPE_NAME),
-            buildNotMatchingMediaPlaylistResult(variantsToString(bandwidths), "bandwidth"));
-        return;
-      } else if (resolutionSelector.getCustomResolution() != null
-          && !resolutions.contains(resolutionSelector.getCustomResolution())) {
-        sampleResultProcessor.accept(buildPlaylistName(MEDIA_TYPE_NAME),
-            buildNotMatchingMediaPlaylistResult(variantsToString(resolutions), "resolution"));
-        return;
+      Playlist mediaPlaylist;
+      Playlist audioPlaylist = null;
+      Playlist subtitlesPlaylist = null;
+
+      if (masterPlaylist.isMasterPlaylist()) {
+        List<String> bandwidths = getBandwidths((MasterPlaylist) masterPlaylist.getPlaylist());
+        List<String> resolutions = getResolutions((MasterPlaylist) masterPlaylist.getPlaylist());
+        if (bandwidthSelector.getCustomBandwidth() != null
+            && !bandwidths.contains(bandwidthSelector.getCustomBandwidth())) {
+          sampleResultProcessor.accept(buildPlaylistName(MEDIA_TYPE_NAME),
+              buildNotMatchingMediaPlaylistResult(variantsToString(bandwidths), "bandwidth"));
+          endSessionOnSetupFailure();
+          return;
+        } else if (resolutionSelector.getCustomResolution() != null
+            && !resolutions.contains(resolutionSelector.getCustomResolution())) {
+          sampleResultProcessor.accept(buildPlaylistName(MEDIA_TYPE_NAME),
+              buildNotMatchingMediaPlaylistResult(variantsToString(resolutions), "resolution"));
+          endSessionOnSetupFailure();
+          return;
+        }
+
+        MediaStream mediaStream = masterPlaylist.solveMediaStream(bandwidthSelector,
+            resolutionSelector, audioLanguage, subtitleLanguage);
+
+        mediaPlaylist = downloadPlaylist(mediaStream.getMediaPlaylistUri(), MEDIA_TYPE_NAME);
+        audioPlaylist = tryDownloadPlaylist(mediaStream.getAudioUri(),
+            p -> buildPlaylistName(AUDIO_TYPE_NAME));
+        subtitlesPlaylist = tryDownloadPlaylist(mediaStream.getSubtitlesUri(),
+            p -> p != null ? buildPlaylistName(SUBTITLES_TYPE_NAME) : SUBTITLES_TYPE_NAME);
+      } else {
+        mediaPlaylist = masterPlaylist;
       }
 
-      MediaStream mediaStream = masterPlaylist
-          .solveMediaStream(bandwidthSelector, resolutionSelector, audioLanguage, subtitleLanguage);
+      boolean liveEdge = isStartFromLiveEdge();
+      mediaPlayback = new MediaPlayback(mediaPlaylist, MEDIA_TYPE_NAME,
+          lastVideoSegment, playSeconds, liveEdge);
+      audioPlayback = new MediaPlayback(audioPlaylist, AUDIO_TYPE_NAME,
+          lastAudioSegment, playSeconds, liveEdge);
+      subtitlesPlayback = new MediaPlayback(subtitlesPlaylist, SUBTITLES_TYPE_NAME,
+          lastSubtitleSegment, playSeconds, liveEdge);
+      mediaPlayback.downloadInitializationSegment();
 
-      mediaPlaylist = downloadPlaylist(mediaStream.getMediaPlaylistUri(), MEDIA_TYPE_NAME);
-      audioPlaylist = tryDownloadPlaylist(mediaStream.getAudioUri(),
-          p -> buildPlaylistName(AUDIO_TYPE_NAME));
-      subtitlesPlaylist = tryDownloadPlaylist(mediaStream.getSubtitlesUri(),
-          p -> p != null ? buildPlaylistName(SUBTITLES_TYPE_NAME) : SUBTITLES_TYPE_NAME);
-    } else {
-      mediaPlaylist = masterPlaylist;
+      if (active) {
+        session.setPrimary(mediaPlayback);
+        session.setComplements(Arrays.asList(audioPlayback, subtitlesPlayback));
+        session.markInitialized();
+      }
     }
 
-    boolean liveEdge = isStartFromLiveEdge();
-    MediaPlayback mediaPlayback = new MediaPlayback(mediaPlaylist, MEDIA_TYPE_NAME,
-        lastVideoSegment, playSeconds, liveEdge);
-    MediaPlayback audioPlayback = new MediaPlayback(audioPlaylist, AUDIO_TYPE_NAME,
-        lastAudioSegment, playSeconds, liveEdge);
-    MediaPlayback subtitlesPlayback = new MediaPlayback(subtitlesPlaylist, SUBTITLES_TYPE_NAME,
-        lastSubtitleSegment, playSeconds, liveEdge);
-
+    boolean finished = false;
     try {
-      mediaPlayback.downloadInitializationSegment();
-      while (!mediaPlayback.hasEnded()) {
+      while (!mediaPlayback.hasEnded() && !shouldYieldForSlice()) {
         mediaPlayback.downloadNextSegment();
         double playedSeconds = mediaPlayback.getPlayedTimeSeconds();
         if (playSeconds > 0 && playSeconds < playedSeconds) {
@@ -97,11 +128,23 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
         audioPlayback.downloadUntilTimeSecond(playedSeconds);
         subtitlesPlayback.downloadUntilTimeSecond(playedSeconds);
       }
+      finished = mediaPlayback.hasEnded();
     } finally {
-      lastVideoSegment = mediaPlayback.getLastSegment();
-      lastAudioSegment = audioPlayback.getLastSegment();
-      lastSubtitleSegment = subtitlesPlayback.getLastSegment();
+      playbackFinishedThisSample = finished;
+      if (finished || !active) {
+        lastVideoSegment = mediaPlayback.getLastSegment();
+        lastAudioSegment = audioPlayback.getLastSegment();
+        lastSubtitleSegment = subtitlesPlayback.getLastSegment();
+        session.clear();
+      }
     }
+  }
+
+  // A variant/resolution mismatch means playback cannot proceed; treat it as terminal so the
+  // parallel controller ends the iteration instead of re-entering and re-fetching forever.
+  private void endSessionOnSetupFailure() {
+    playbackFinishedThisSample = true;
+    session.clear();
   }
 
   @Override
@@ -263,15 +306,15 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
     private void updatePlaylist()
         throws InterruptedException, PlaylistDownloadException, PlaylistParsingException {
 
-      timeMachine.awaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1,
-          timeMachine.now()));
+      timeMachine.awaitMillis(clampAwaitMillis(playlist.getReloadTimeMillisForDurationMultiplier(1,
+          timeMachine.now())));
       Playlist updatedPlaylist = downloadPlaylist(playlist.getUri(), this.type);
 
-      while (updatedPlaylist.equals(playlist)) {
+      while (updatedPlaylist.equals(playlist) && !shouldYieldForSlice()) {
         long millis = updatedPlaylist
             .getReloadTimeMillisForDurationMultiplier(0.5, timeMachine.now());
 
-        timeMachine.awaitMillis(millis);
+        timeMachine.awaitMillis(clampAwaitMillis(millis));
         updatedPlaylist = downloadPlaylist(playlist.getUri(), this.type);
       }
 
@@ -289,7 +332,7 @@ public class HlsSampler extends VideoStreamingSampler<Playlist, MediaSegment> {
       }
 
       try {
-        while (consumedSeconds <= untilTimeSecond) {
+        while (consumedSeconds <= untilTimeSecond && !shouldYieldForSlice()) {
           downloadNextSegment();
         }
       } catch (PlaylistParsingException | PlaylistDownloadException e) {
