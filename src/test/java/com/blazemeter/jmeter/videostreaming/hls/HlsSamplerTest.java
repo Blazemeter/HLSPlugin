@@ -3,13 +3,17 @@ package com.blazemeter.jmeter.videostreaming.hls;
 import static org.assertj.core.api.Java6Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector;
 import com.blazemeter.jmeter.hls.logic.BandwidthSelector.CustomBandwidthSelector;
 import com.blazemeter.jmeter.videostreaming.VideoStreamingSamplerTest;
+import com.blazemeter.jmeter.videostreaming.core.StreamingSliceCoordinator;
+import com.blazemeter.jmeter.videostreaming.core.StreamingSliceCoordinator.SliceExit;
 import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
@@ -1011,6 +1015,97 @@ public class HlsSamplerTest extends VideoStreamingSamplerTest {
     verify(sampleResultProcessor).accept(nameCaptor.capture(), resultCaptor.capture());
     assertThat(nameCaptor.getValue()).isEqualTo("master playlist");
     assertThat(resultCaptor.getValue().isSuccessful()).isFalse();
+  }
+
+  @Test(timeout = TEST_TIMEOUT)
+  public void shouldYieldWhenStopRequestedDuringActiveLiveSample() throws Exception {
+    StreamingSliceCoordinator.beginIteration();
+    String mediaPlaylist = getResource("liveMediaPlaylist-Part1.m3u8");
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    doAnswer(invocation -> {
+      URI uri = invocation.getArgument(0);
+      HTTPSampleResult result = uriSampler.apply(uri);
+      if (uri.getPath() != null && uri.getPath().endsWith(".ts")) {
+        StreamingSliceCoordinator.requestStop();
+      }
+      return result;
+    }).when(httpClient).downloadUri(any());
+
+    sampler.sample();
+
+    assertThat(StreamingSliceCoordinator.getExit()).isEqualTo(SliceExit.YIELD);
+    verifySampleResults(
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildMediaSegmentSampleResult(1));
+  }
+
+  @Test
+  public void shouldIgnoreRequestStopWhenCoordinatorIsInactive() throws Exception {
+    StreamingSliceCoordinator.requestStop();
+    String mediaPlaylist = getResource(VOD_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    sampler.sample();
+    int sequenceNumber = 1;
+    verifySampleResults(
+        buildBaseSampleResult(MEDIA_PLAYLIST_SAMPLE_NAME, MASTER_URI, mediaPlaylist),
+        buildMediaSegmentSampleResult(sequenceNumber++),
+        buildMediaSegmentSampleResult(sequenceNumber++),
+        buildMediaSegmentSampleResult(sequenceNumber));
+    assertThat(StreamingSliceCoordinator.getExit()).isEqualTo(SliceExit.FINISHED);
+  }
+
+  @Test(timeout = TEST_TIMEOUT)
+  public void shouldExitPlaylistReloadWhenStopRequestedDuringAwait() throws Exception {
+    timeMachine = new TimeMachine() {
+      private Instant now = Instant.now();
+
+      @Override
+      public synchronized void awaitMillis(long millis) {
+        StreamingSliceCoordinator.requestStop();
+        now = now.plusMillis(millis);
+      }
+
+      @Override
+      public synchronized Instant now() {
+        return now;
+      }
+
+      @Override
+      public void interrupt() {
+      }
+
+      @Override
+      public void reset() {
+      }
+    };
+    buildSampler(uriSampler);
+    StreamingSliceCoordinator.beginIteration();
+    String mediaPlaylist = getResource("liveMediaPlaylist-Part1.m3u8");
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    sampler.sample();
+    assertThat(StreamingSliceCoordinator.getExit()).isEqualTo(SliceExit.YIELD);
+  }
+
+  @Test
+  public void requestStopShouldNotInterruptHttpClient() throws Exception {
+    StreamingSliceCoordinator.beginIteration();
+    String mediaPlaylist = getResource(SIMPLE_MEDIA_PLAYLIST_NAME);
+    setupUriSamplerPlaylist(MASTER_URI, mediaPlaylist);
+    setPlaySeconds(MEDIA_SEGMENT_DURATION);
+    doAnswer(invocation -> {
+      URI uri = invocation.getArgument(0);
+      HTTPSampleResult result = uriSampler.apply(uri);
+      if (uri.getPath() != null && uri.getPath().endsWith(".ts")) {
+        StreamingSliceCoordinator.requestStop();
+      }
+      return result;
+    }).when(httpClient).downloadUri(any());
+
+    sampler.sample();
+
+    verify(httpClient, never()).interrupt();
+    assertThat(StreamingSliceCoordinator.getExit())
+        .isIn(SliceExit.YIELD, SliceExit.FINISHED);
   }
 
 }

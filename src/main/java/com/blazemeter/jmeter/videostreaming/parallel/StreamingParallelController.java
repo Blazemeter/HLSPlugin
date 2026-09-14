@@ -119,6 +119,14 @@ public class StreamingParallelController extends GenericController {
       started = true;
     }
 
+    // honor an external stop (e.g. heartbeat post-processor called requestStop()).
+    // Ends this session promptly; the enclosing While controller re-evaluates next.
+    if (StreamingSliceCoordinator.isStopRequested()) {
+      LOG.debug("StreamingParallelController '{}' ending session on external stop request.",
+          getName());
+      return endSession();
+    }
+
     if (phase == Phase.HEARTBEAT) {
       Sampler heartbeat = heartbeatBranch.next();
       if (heartbeat != null) {
@@ -169,6 +177,12 @@ public class StreamingParallelController extends GenericController {
   private Sampler endSession() {
     StreamingSliceCoordinator.clear();
     resetIteration();
+    if (heartbeatBranch != null) {
+      // A stop can end the session right after the heartbeat fired, leaving the branch's
+      // pointer past its children. Reset it so the NEXT session's heartbeat fires from the
+      // first child instead of being skipped for one interval.
+      heartbeatBranch.triggerEndOfLoop();
+    }
     return null;
   }
 

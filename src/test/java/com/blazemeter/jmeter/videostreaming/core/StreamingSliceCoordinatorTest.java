@@ -3,6 +3,7 @@ package com.blazemeter.jmeter.videostreaming.core;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.blazemeter.jmeter.videostreaming.core.StreamingSliceCoordinator.SliceExit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.After;
 import org.junit.Test;
 
@@ -67,9 +68,110 @@ public class StreamingSliceCoordinatorTest {
   public void shouldResetStateOnClear() {
     StreamingSliceCoordinator.beginIteration();
     StreamingSliceCoordinator.setExit(SliceExit.YIELD);
+    StreamingSliceCoordinator.requestStop();
     StreamingSliceCoordinator.clear();
     assertThat(StreamingSliceCoordinator.isActive()).isFalse();
     assertThat(StreamingSliceCoordinator.getExit()).isNull();
+    assertThat(StreamingSliceCoordinator.isStopRequested()).isFalse();
+  }
+
+  @Test
+  public void requestStopShouldSetFlagAndBeginIterationAndClearShouldResetIt() {
+    StreamingSliceCoordinator.requestStop();
+    assertThat(StreamingSliceCoordinator.isStopRequested()).isTrue();
+
+    StreamingSliceCoordinator.beginIteration();
+    assertThat(StreamingSliceCoordinator.isStopRequested()).isFalse();
+
+    StreamingSliceCoordinator.requestStop();
+    assertThat(StreamingSliceCoordinator.isStopRequested()).isTrue();
+
+    StreamingSliceCoordinator.clear();
+    assertThat(StreamingSliceCoordinator.isStopRequested()).isFalse();
+  }
+
+  @Test
+  public void shouldYieldWhenActiveAndStopRequestedEvenIfDeadlineIsInTheFuture() {
+    StreamingSliceCoordinator.beginIteration();
+    StreamingSliceCoordinator.setDeadlineNanos(System.nanoTime() + 60_000_000_000L);
+    StreamingSliceCoordinator.requestStop();
+    assertThat(StreamingSliceCoordinator.shouldYield()).isTrue();
+  }
+
+  @Test
+  public void shouldNotYieldWhenInactiveEvenIfStopRequested() {
+    StreamingSliceCoordinator.requestStop();
+    assertThat(StreamingSliceCoordinator.isStopRequested()).isTrue();
+    assertThat(StreamingSliceCoordinator.isActive()).isFalse();
+    assertThat(StreamingSliceCoordinator.shouldYield()).isFalse();
+  }
+
+  @Test
+  public void requestStopShouldBeIdempotentUntilClearedOrSessionRestarts() {
+    StreamingSliceCoordinator.beginIteration();
+    StreamingSliceCoordinator.requestStop();
+    StreamingSliceCoordinator.requestStop();
+    assertThat(StreamingSliceCoordinator.isStopRequested()).isTrue();
+
+    StreamingSliceCoordinator.clear();
+    assertThat(StreamingSliceCoordinator.isStopRequested()).isFalse();
+
+    StreamingSliceCoordinator.beginIteration();
+    StreamingSliceCoordinator.requestStop();
+    StreamingSliceCoordinator.requestStop();
+    StreamingSliceCoordinator.beginIteration();
+    assertThat(StreamingSliceCoordinator.isStopRequested()).isFalse();
+  }
+
+  @Test
+  public void beginIterationShouldDiscardPrematureStop() {
+    StreamingSliceCoordinator.requestStop();
+    assertThat(StreamingSliceCoordinator.isActive()).isFalse();
+    StreamingSliceCoordinator.beginIteration();
+    assertThat(StreamingSliceCoordinator.isStopRequested()).isFalse();
+  }
+
+  @Test
+  public void shouldClampAwaitToZeroWhenActiveAndStopRequested() {
+    StreamingSliceCoordinator.beginIteration();
+    StreamingSliceCoordinator.setDeadlineNanos(System.nanoTime() + 60_000_000_000L);
+    StreamingSliceCoordinator.requestStop();
+    assertThat(StreamingSliceCoordinator.clampMillis(10_000)).isEqualTo(0);
+  }
+
+  @Test
+  public void shouldNotClampToZeroWhenInactiveEvenIfStopRequested() {
+    StreamingSliceCoordinator.requestStop();
+    assertThat(StreamingSliceCoordinator.clampMillis(10_000)).isEqualTo(10_000);
+  }
+
+  @Test
+  public void requestStopShouldNotInventOrChangeSliceExit() {
+    StreamingSliceCoordinator.beginIteration();
+    assertThat(StreamingSliceCoordinator.getExit()).isNull();
+    StreamingSliceCoordinator.requestStop();
+    assertThat(StreamingSliceCoordinator.getExit()).isNull();
+
+    StreamingSliceCoordinator.setExit(SliceExit.YIELD);
+    StreamingSliceCoordinator.requestStop();
+    assertThat(StreamingSliceCoordinator.getExit()).isEqualTo(SliceExit.YIELD);
+  }
+
+  @Test
+  public void requestStopShouldAffectOnlyTheCallingThread() throws InterruptedException {
+    StreamingSliceCoordinator.beginIteration();
+    AtomicBoolean otherThreadSawStop = new AtomicBoolean();
+
+    Thread other = new Thread(() -> {
+      StreamingSliceCoordinator.requestStop();
+      otherThreadSawStop.set(StreamingSliceCoordinator.isStopRequested());
+      StreamingSliceCoordinator.clear();
+    });
+    other.start();
+    other.join();
+
+    assertThat(otherThreadSawStop.get()).isTrue();
+    assertThat(StreamingSliceCoordinator.isStopRequested()).isFalse();
   }
 
   @Test
