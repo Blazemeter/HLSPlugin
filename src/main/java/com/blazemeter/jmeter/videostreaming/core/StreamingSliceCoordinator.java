@@ -23,6 +23,7 @@ public final class StreamingSliceCoordinator {
     private boolean newSession;
     private long sliceDeadlineNanos = Long.MAX_VALUE;
     private SliceExit lastExit;
+    private boolean stopRequested;
   }
 
   private static final ThreadLocal<State> STATE = ThreadLocal.withInitial(State::new);
@@ -37,6 +38,7 @@ public final class StreamingSliceCoordinator {
     s.newSession = true;
     s.sliceDeadlineNanos = Long.MAX_VALUE;
     s.lastExit = null;
+    s.stopRequested = false;
   }
 
   public static void setDeadlineNanos(long deadlineNanos) {
@@ -45,6 +47,22 @@ public final class StreamingSliceCoordinator {
 
   public static boolean isActive() {
     return STATE.get().active;
+  }
+
+  /**
+   * Requests that the current thread's streaming session stop promptly and the
+   * Streaming Parallel Controller end its current iteration (so an enclosing While
+   * controller re-evaluates and can restart the flow). Scope is the CURRENT THREAD
+   * ONLY — it never affects other virtual users. Safe to call from a JSR223 element
+   * running on the same JMeter thread (e.g. a PostProcessor on the heartbeat request).
+   * Idempotent within a session; cleared automatically when the next session begins.
+   */
+  public static void requestStop() {
+    STATE.get().stopRequested = true;
+  }
+
+  public static boolean isStopRequested() {
+    return STATE.get().stopRequested;
   }
 
   /**
@@ -58,21 +76,27 @@ public final class StreamingSliceCoordinator {
   }
 
   /**
-   * True when a controller is slicing and the current slice deadline has passed.
+   * True when a controller is slicing and either an external stop was requested or the current
+   * slice deadline has passed. Gated on {@link #isActive()} so standalone (no controller)
+   * behavior is unchanged.
    */
   public static boolean shouldYield() {
     State s = STATE.get();
-    return s.active && System.nanoTime() >= s.sliceDeadlineNanos;
+    return s.active && (s.stopRequested || System.nanoTime() >= s.sliceDeadlineNanos);
   }
 
   /**
    * Bounds a requested await so the streaming loop never sleeps past the current slice deadline.
-   * Returns the request unchanged when no controller is active.
+   * Returns the request unchanged when no controller is active. Returns {@code 0} when an external
+   * stop was requested so playlist-reload waits return immediately.
    */
   public static long clampMillis(long requestedMillis) {
     State s = STATE.get();
     if (!s.active) {
       return requestedMillis;
+    }
+    if (s.stopRequested) {
+      return 0;
     }
     long remaining = (s.sliceDeadlineNanos - System.nanoTime()) / 1_000_000L;
     if (remaining <= 0) {
@@ -95,5 +119,6 @@ public final class StreamingSliceCoordinator {
     s.newSession = false;
     s.sliceDeadlineNanos = Long.MAX_VALUE;
     s.lastExit = null;
+    s.stopRequested = false;
   }
 }
