@@ -1,6 +1,12 @@
 package com.blazemeter.jmeter.videostreaming.dash;
 
+import static org.assertj.core.api.Java6Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+
 import com.blazemeter.jmeter.videostreaming.VideoStreamingSamplerTest;
+import com.blazemeter.jmeter.videostreaming.core.StreamingSliceCoordinator;
+import com.blazemeter.jmeter.videostreaming.core.StreamingSliceCoordinator.SliceExit;
 import java.io.IOException;
 import java.net.URI;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
@@ -307,6 +313,32 @@ public class DashSamplerTest extends VideoStreamingSamplerTest {
             buildNamedSampleResult(buildSegmentName(AUDIO_TYPE_NAME), audioSeg2Uri),
             seg2AudioDurationSeconds)
     );
+  }
+
+  @Test(timeout = 10000)
+  public void shouldYieldWhenStopRequestedDuringActiveLiveSample() throws IOException {
+    StreamingSliceCoordinator.beginIteration();
+    setUpLanguageSelectors("fre", "spa");
+
+    String manifest = getResource("liveStreamingDashManifest.mpd");
+    setupUriSamplerManifest(MANIFEST_URI, manifest);
+
+    String videoAdaptationSetId = "minBandwidthMinResolutionVideoEnglish";
+    setupLiveStreamingAdaptationSet(VIDEO_TYPE_NAME, videoAdaptationSetId);
+    setupLiveStreamingAdaptationSet(AUDIO_TYPE_NAME, DEFAULT_AUDIO_ADAPTATION_SET);
+    setupLiveStreamingAdaptationSet(SUBTITLES_TYPE_NAME, DEFAULT_SUBTITLES_ADAPTATION_SET);
+
+    doAnswer(invocation -> {
+      URI uri = invocation.getArgument(0);
+      HTTPSampleResult result = uriSampler.apply(uri);
+      if (uri.toString().matches(".*-[0-9]+\\.dash")) {
+        StreamingSliceCoordinator.requestStop();
+      }
+      return result;
+    }).when(httpClient).downloadUri(any());
+
+    sampler.sample();
+    assertThat(StreamingSliceCoordinator.getExit()).isEqualTo(SliceExit.YIELD);
   }
 
 }

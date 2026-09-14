@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.blazemeter.jmeter.JMeterTestUtils;
 import com.blazemeter.jmeter.videostreaming.core.SampleResultProcessor;
+import com.blazemeter.jmeter.videostreaming.core.StreamingSliceCoordinator;
 import com.blazemeter.jmeter.videostreaming.core.TimeMachine;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingHttpClient;
 import com.blazemeter.jmeter.videostreaming.core.VideoStreamingSampler;
@@ -24,6 +25,7 @@ import java.util.function.Function;
 import org.apache.jmeter.protocol.http.sampler.HTTPSampleResult;
 import org.apache.jmeter.samplers.SampleResult;
 import org.apache.jmeter.util.JMeterUtils;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -134,6 +136,11 @@ public abstract class VideoStreamingSamplerTest {
     VideoStreamingSampler.resetReleaseSegmentResponseDataCache();
     VideoStreamingSampler.resetReleasePlaylistResponseDataCache();
     buildSampler(uriSampler);
+  }
+
+  @After
+  public void tearDownCoordinator() {
+    StreamingSliceCoordinator.clear();
   }
 
   protected void buildSampler(Function<URI, HTTPSampleResult> uriSampler) {

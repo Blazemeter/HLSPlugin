@@ -9,7 +9,11 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.jmeter.samplers.AbstractSampler;
 import org.apache.jmeter.samplers.Entry;
 import org.apache.jmeter.samplers.SampleResult;
@@ -135,6 +139,302 @@ public class StreamingParallelControllerTest {
   }
 
   @Test
+  public void shouldEndSessionWhenStopRequestedAfterHeartbeatEvenIfLastExitWasYield() {
+    StreamingParallelController controller = controller("10", false);
+    AtomicLong clock = new AtomicLong(0);
+    controller.setNanoClock(clock::get);
+    FakeStreamingSampler streaming = new FakeStreamingSampler();
+    streaming.script.add(SliceExit.YIELD);
+    streaming.script.add(SliceExit.YIELD);
+    controller.addTestElement(streaming);
+    controller.addTestElement(new NamedSampler("hb"));
+
+    assertThat(step(controller, streaming)).isEqualTo("stream");
+    clock.set(11 * SECOND_NANOS);
+    assertThat(step(controller, streaming)).isEqualTo("hb");
+    StreamingSliceCoordinator.requestStop();
+    assertThat(step(controller, streaming)).isEqualTo("NULL");
+  }
+
+  @Test
+  public void shouldStartFreshSessionAfterStopDrivenEnd() {
+    StreamingParallelController controller = controller("10", true);
+    FakeStreamingSampler streaming = new FakeStreamingSampler();
+    streaming.script.add(SliceExit.FINISHED);
+    controller.addTestElement(streaming);
+    controller.addTestElement(new NamedSampler("hb"));
+
+    assertThat(step(controller, streaming)).isEqualTo("hb");
+    StreamingSliceCoordinator.requestStop();
+    assertThat(step(controller, streaming)).isEqualTo("NULL");
+
+    // beginIteration() clears stopRequested; a new session must not terminate immediately
+    assertThat(step(controller, streaming)).isEqualTo("hb");
+    assertThat(step(controller, streaming)).isEqualTo("stream");
+    assertThat(step(controller, streaming)).isEqualTo("NULL");
+  }
+
+  @Test
+  public void shouldFireHeartbeatOnFirstDueCycleAfterStop() {
+    StreamingParallelController controller = controller("10", false);
+    AtomicLong clock = new AtomicLong(0);
+    controller.setNanoClock(clock::get);
+    FakeStreamingSampler streaming = new FakeStreamingSampler();
+    streaming.script.add(SliceExit.YIELD);
+    streaming.script.add(SliceExit.YIELD);
+    streaming.script.add(SliceExit.YIELD);
+    controller.addTestElement(streaming);
+    controller.addTestElement(new NamedSampler("hb"));
+
+    assertThat(step(controller, streaming)).isEqualTo("stream");
+    clock.set(11 * SECOND_NANOS);
+    assertThat(step(controller, streaming)).isEqualTo("hb");
+    StreamingSliceCoordinator.requestStop();
+    assertThat(step(controller, streaming)).isEqualTo("NULL");
+
+    assertThat(step(controller, streaming)).isEqualTo("stream");
+    clock.set(22 * SECOND_NANOS);
+    assertThat(step(controller, streaming)).isEqualTo("hb");
+  }
+
+  @Test
+  public void shouldEndSessionOnNextWhenStopRequestedDuringHeartbeatPhase() {
+    StreamingParallelController controller = controller("10", true);
+    FakeStreamingSampler streaming = new FakeStreamingSampler();
+    streaming.script.add(SliceExit.YIELD);
+    controller.addTestElement(streaming);
+    controller.addTestElement(new NamedSampler("hb1"));
+    controller.addTestElement(new NamedSampler("hb2"));
+
+    assertThat(step(controller, streaming)).isEqualTo("hb1");
+    StreamingSliceCoordinator.requestStop();
+    assertThat(step(controller, streaming)).isEqualTo("NULL");
+  }
+
+  @Test
+  public void shouldStillFinishYieldStreamWhenStopIsNeverRequested() {
+    StreamingParallelController controller = controller("10", false);
+    AtomicLong clock = new AtomicLong(0);
+    controller.setNanoClock(clock::get);
+    FakeStreamingSampler streaming = new FakeStreamingSampler();
+    streaming.script.add(SliceExit.YIELD);
+    streaming.script.add(SliceExit.YIELD);
+    streaming.script.add(SliceExit.FINISHED);
+    controller.addTestElement(streaming);
+    controller.addTestElement(new NamedSampler("hb"));
+
+    List<String> emitted = new ArrayList<>();
+    emitted.add(step(controller, streaming));
+    emitted.add(step(controller, streaming));
+    clock.set(11 * SECOND_NANOS);
+    emitted.add(step(controller, streaming));
+    emitted.add(step(controller, streaming));
+    emitted.add(step(controller, streaming));
+
+    assertThat(emitted).containsExactly("stream", "stream", "hb", "stream", "NULL");
+  }
+
+  @Test
+  public void shouldRestartCleanlyAcrossManyStopCycles() {
+    StreamingParallelController controller = controller("10", true);
+    FakeStreamingSampler streaming = new FakeStreamingSampler();
+    controller.addTestElement(streaming);
+    controller.addTestElement(new NamedSampler("hb"));
+
+    for (int i = 0; i < 50; i++) {
+      assertThat(step(controller, streaming)).isEqualTo("hb");
+      assertThat(StreamingSliceCoordinator.isStopRequested()).isFalse();
+      StreamingSliceCoordinator.requestStop();
+      assertThat(step(controller, streaming)).isEqualTo("NULL");
+      assertThat(StreamingSliceCoordinator.isActive()).isFalse();
+      assertThat(StreamingSliceCoordinator.isStopRequested()).isFalse();
+    }
+    assertThat(streaming.sampleCalls).isEqualTo(0);
+  }
+
+  @Test
+  public void shouldEndSessionSilentlyWithoutEmittingControllerSample() {
+    StreamingParallelController controller = controller("10", true);
+    FakeStreamingSampler streaming = new FakeStreamingSampler();
+    streaming.script.add(SliceExit.YIELD);
+    controller.addTestElement(streaming);
+    controller.addTestElement(new NamedSampler("hb"));
+
+    Sampler heartbeat = controller.next();
+    assertThat(heartbeat.getName()).isEqualTo("hb");
+    StreamingSliceCoordinator.requestStop();
+    Sampler afterStop = controller.next();
+    assertThat(afterStop).isNull();
+  }
+
+  @Test
+  public void shouldEndSessionOnNextWhenStopRequestedDuringStreamingPhase() {
+    StreamingParallelController controller = controller("10", false);
+    AtomicLong clock = new AtomicLong(0);
+    controller.setNanoClock(clock::get);
+    FakeStreamingSampler streaming = new FakeStreamingSampler();
+    streaming.script.add(SliceExit.YIELD);
+    streaming.script.add(SliceExit.YIELD);
+    controller.addTestElement(streaming);
+    controller.addTestElement(new NamedSampler("hb"));
+
+    assertThat(step(controller, streaming)).isEqualTo("stream");
+    StreamingSliceCoordinator.requestStop();
+    assertThat(step(controller, streaming)).isEqualTo("NULL");
+  }
+
+  @Test
+  public void shouldEndSessionWhenSamplerYieldsAfterStopDuringSlice() {
+    StreamingParallelController controller = controller("100", false);
+    YieldingFakeSampler streaming = new YieldingFakeSampler();
+    streaming.segmentsBeforeStop = 3;
+    controller.addTestElement(streaming);
+    controller.addTestElement(new NamedSampler("hb"));
+
+    assertThat(step(controller, streaming)).isEqualTo("stream");
+    assertThat(streaming.segments).isEqualTo(3);
+    assertThat(StreamingSliceCoordinator.getExit()).isEqualTo(SliceExit.YIELD);
+    assertThat(step(controller, streaming)).isEqualTo("NULL");
+  }
+
+  @Test
+  public void shouldEndSessionWhenStopRequestedOnNoHeartbeatController() {
+    StreamingParallelController controller = controller("10", false);
+    YieldingFakeSampler streaming = new YieldingFakeSampler();
+    streaming.segmentsBeforeStop = 1;
+    controller.addTestElement(streaming);
+
+    assertThat(step(controller, streaming)).isEqualTo("stream");
+    assertThat(step(controller, streaming)).isEqualTo("NULL");
+  }
+
+  @Test
+  public void shouldLeaveCoordinatorIdleAfterStopDrivenEndSession() {
+    StreamingParallelController controller = controller("10", true);
+    FakeStreamingSampler streaming = new FakeStreamingSampler();
+    controller.addTestElement(streaming);
+    controller.addTestElement(new NamedSampler("hb"));
+
+    assertThat(step(controller, streaming)).isEqualTo("hb");
+    StreamingSliceCoordinator.requestStop();
+    assertThat(step(controller, streaming)).isEqualTo("NULL");
+    assertThat(StreamingSliceCoordinator.isActive()).isFalse();
+    assertThat(StreamingSliceCoordinator.isStopRequested()).isFalse();
+    assertThat(StreamingSliceCoordinator.getExit()).isNull();
+  }
+
+  @Test
+  public void reInitializeShouldClearPendingStop() {
+    StreamingParallelController controller = controller("10", true);
+    FakeStreamingSampler streaming = new FakeStreamingSampler();
+    streaming.script.add(SliceExit.FINISHED);
+    controller.addTestElement(streaming);
+    controller.addTestElement(new NamedSampler("hb"));
+
+    assertThat(step(controller, streaming)).isEqualTo("hb");
+    StreamingSliceCoordinator.requestStop();
+    controller.reInitialize();
+    assertThat(StreamingSliceCoordinator.isStopRequested()).isFalse();
+    assertThat(StreamingSliceCoordinator.isActive()).isFalse();
+    assertThat(step(controller, streaming)).isNotEqualTo("NULL");
+  }
+
+  @Test
+  public void shouldEndSessionOnErrorExitWithoutStop() {
+    StreamingParallelController controller = controller("10", false);
+    FakeStreamingSampler streaming = new FakeStreamingSampler();
+    streaming.script.add(SliceExit.ERROR);
+    controller.addTestElement(streaming);
+
+    assertThat(drive(controller, streaming, 10)).containsExactly("stream", "NULL");
+  }
+
+  @Test
+  public void shouldEndSessionOnInterruptedExitWithoutStop() {
+    StreamingParallelController controller = controller("10", false);
+    FakeStreamingSampler streaming = new FakeStreamingSampler();
+    streaming.script.add(SliceExit.INTERRUPTED);
+    controller.addTestElement(streaming);
+
+    assertThat(drive(controller, streaming, 10)).containsExactly("stream", "NULL");
+  }
+
+  @Test
+  public void shouldNotEndOtherThreadControllerWhenStopRequested() throws Exception {
+    CyclicBarrier bothReady = new CyclicBarrier(2);
+    CountDownLatch aStopped = new CountDownLatch(1);
+    AtomicReference<String> aAfterStop = new AtomicReference<>();
+    AtomicReference<String> bAfterAStopped = new AtomicReference<>();
+    AtomicReference<Throwable> failure = new AtomicReference<>();
+
+    Thread threadA = new Thread(() -> {
+      try {
+        StreamingParallelController controller = controller("10", true);
+        FakeStreamingSampler streaming = new FakeStreamingSampler();
+        streaming.script.add(SliceExit.YIELD);
+        controller.addTestElement(streaming);
+        controller.addTestElement(new NamedSampler("hb"));
+        assertThat(step(controller, streaming)).isEqualTo("hb");
+        bothReady.await(5, TimeUnit.SECONDS);
+        StreamingSliceCoordinator.requestStop();
+        aAfterStop.set(step(controller, streaming));
+      } catch (Throwable t) {
+        failure.compareAndSet(null, t);
+      } finally {
+        StreamingSliceCoordinator.clear();
+        aStopped.countDown();
+      }
+    }, "spc-stop-a");
+
+    Thread threadB = new Thread(() -> {
+      try {
+        StreamingParallelController controller = controller("10", false);
+        FakeStreamingSampler streaming = new FakeStreamingSampler();
+        streaming.script.add(SliceExit.YIELD);
+        streaming.script.add(SliceExit.YIELD);
+        controller.addTestElement(streaming);
+        controller.addTestElement(new NamedSampler("hb"));
+        assertThat(step(controller, streaming)).isEqualTo("stream");
+        bothReady.await(5, TimeUnit.SECONDS);
+        assertThat(aStopped.await(5, TimeUnit.SECONDS)).isTrue();
+        bAfterAStopped.set(step(controller, streaming));
+      } catch (Throwable t) {
+        failure.compareAndSet(null, t);
+      } finally {
+        StreamingSliceCoordinator.clear();
+      }
+    }, "spc-stop-b");
+
+    threadA.start();
+    threadB.start();
+    threadA.join(10_000);
+    threadB.join(10_000);
+    assertThat(failure.get()).isNull();
+    assertThat(aAfterStop.get()).isEqualTo("NULL");
+    assertThat(bAfterAStopped.get()).isEqualTo("stream");
+  }
+
+  @Test
+  public void shouldPassthroughNestedControllerWithoutIndependentSlicing() {
+    StreamingParallelController outer = controller("10", false);
+    FakeStreamingSampler outerStream = new FakeStreamingSampler();
+    outerStream.script.add(SliceExit.YIELD);
+    outer.addTestElement(outerStream);
+    assertThat(step(outer, outerStream)).isEqualTo("stream");
+
+    StreamingParallelController inner = controller("10", true);
+    inner.setName("inner");
+    FakeStreamingSampler innerStream = new FakeStreamingSampler();
+    innerStream.script.add(SliceExit.FINISHED);
+    inner.addTestElement(innerStream);
+    inner.addTestElement(new NamedSampler("inner-hb"));
+
+    assertThat(inner.next().getName()).isEqualTo("stream");
+    assertThat(inner.next().getName()).isEqualTo("inner-hb");
+    assertThat(inner.next()).isNull();
+  }
+
+  @Test
   public void shouldEmitFailedSampleWhenIntervalIsInvalid() {
     StreamingParallelController controller = controller("not-a-number", false);
     FakeStreamingSampler streaming = new FakeStreamingSampler();
@@ -147,7 +447,8 @@ public class StreamingParallelControllerTest {
     assertThat(controller.next()).isNull();
   }
 
-  private String step(StreamingParallelController controller, FakeStreamingSampler streaming) {
+  private String step(StreamingParallelController controller,
+      com.blazemeter.jmeter.hls.logic.HlsSampler streaming) {
     Sampler next = controller.next();
     if (next == null) {
       return "NULL";
@@ -156,6 +457,29 @@ public class StreamingParallelControllerTest {
       streaming.sample();
     }
     return next.getName();
+  }
+
+  private static class YieldingFakeSampler extends com.blazemeter.jmeter.hls.logic.HlsSampler {
+
+    private int segmentsBeforeStop = Integer.MAX_VALUE;
+    private int segments;
+
+    private YieldingFakeSampler() {
+      super(null, null, null, null);
+      setName("stream");
+    }
+
+    @Override
+    public SampleResult sample() {
+      while (!StreamingSliceCoordinator.shouldYield()) {
+        segments++;
+        if (segments >= segmentsBeforeStop) {
+          StreamingSliceCoordinator.requestStop();
+        }
+      }
+      StreamingSliceCoordinator.setExit(SliceExit.YIELD);
+      return null;
+    }
   }
 
   private static class FakeStreamingSampler extends com.blazemeter.jmeter.hls.logic.HlsSampler {
