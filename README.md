@@ -168,6 +168,10 @@ When enabled, the heartbeat branch runs once at the very start of the iteration 
 
 The Streaming Sampler still emits its usual master/media/segment samples, and the heartbeat branch emits its own samples interleaved with them, so in the View Results Tree you see the heartbeat requests appear roughly every interval, in between the segment downloads of a single ongoing playback.
 
+### Request stop
+
+A live stream does not end on its own, so a While Controller around this controller never gets to run again while playback continues. To end the current session from the test plan — for example when a heartbeat fails, or when the manifest URL changes — call `com.blazemeter.jmeter.videostreaming.core.StreamingSliceCoordinator.requestStop()` from a JSR223 element on the same thread, typically a PostProcessor on the heartbeat request. The sampler finishes any segment download already in progress, then yields; the controller ends its iteration and the While Controller can restart the flow. The call affects only the current virtual user, does nothing when the sampler is not running under this controller, and is cleared when the next session starts.
+
 > [!NOTE]
 > **Limitations**
 > - The Streaming Sampler must be a **direct child** of the controller. Do not wrap it in a Transaction Controller, or you would get one tiny transaction per playback slice. If no direct-child Streaming Sampler is found, the controller emits a single failed sample so the misconfiguration is visible.
